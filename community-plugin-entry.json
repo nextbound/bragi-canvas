@@ -1,0 +1,7 @@
+{
+	"id": "bragi-canvas",
+	"name": "Bragi Canvas",
+	"author": "Nextbound",
+	"description": "Turn Obsidian Canvas into a node-based AI generation pipeline for images, video, text, and audio.",
+	"repo": "nextbound/bragi-canvas"
+}

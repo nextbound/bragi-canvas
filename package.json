@@ -1,0 +1,24 @@
+{
+  "name": "bragi-canvas",
+  "version": "1.12.4",
+  "description": "Obsidian Canvas AI generation pipeline",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "latest",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^4.0.0",
+    "jszip": "^3.10.1",
+    "monkey-around": "^3.0.0",
+    "pannellum": "^2.5.7"
+  }
+}
