@@ -23,13 +23,13 @@ export function installAlwaysNewTab(app: App): () => void {
 	const uninstallers: Array<() => void> = []
 
 	uninstallers.push(around(Workspace.prototype, {
-		getLeaf(oldMethod: unknown) {
-			return function (this: Workspace, openMode?: unknown, ...args: unknown[]) {
-				if (openMode == null || openMode === false) {
-					return oldMethod.call(this, 'tab', ...args)
+			getLeaf(oldMethod: unknown) {
+				return function (this: Workspace, openMode?: unknown, ...args: unknown[]) {
+					if (openMode == null) {
+						return oldMethod.call(this, 'tab', ...args)
+					}
+					return oldMethod.call(this, openMode, ...args)
 				}
-				return oldMethod.call(this, openMode, ...args)
-			}
 		},
 		getUnpinnedLeaf(oldMethod: unknown) {
 			return function (this: Workspace, ...args: unknown[]) {
