@@ -1,6 +1,8 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Bragi preserves product names, acronyms, and exact CTA copy. */
 import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode } from './models/types'
-import { getEnabledModels, getConfiguredProviders, getActiveProvider } from './models/index'
+import { getEnabledModels, getActiveProvider } from './models/index'
+import { getConfiguredProviderIds } from './providers/registry'
 import { getUpstreamInputs } from './edge-parser'
 import type { BragiSettings } from './settings'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
@@ -72,8 +74,8 @@ let positionRAF: number | null = null
  * since assigning .value or innerHTML doesn't fire a `change` event.
  */
 function autoSizeSelect(select: HTMLSelectElement): () => void {
-	const measure = document.createElement('span')
-	measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:inherit;padding:0;'
+	const measure = createSpan({ cls: 'bragi-select-measure' })
+	select.classList.add('is-auto-sized')
 	const update = () => {
 		// Defer the first call until the select is attached to the DOM — otherwise
 		// measure.offsetWidth is always 0 and the control collapses to ~26px.
@@ -82,7 +84,7 @@ function autoSizeSelect(select: HTMLSelectElement): () => void {
 		if (measure.parentElement !== parent) parent.appendChild(measure)
 		const text = select.options[select.selectedIndex]?.text || ''
 		measure.textContent = text
-		select.style.width = `${measure.offsetWidth + 26}px`
+		select.setCssProps({ '--bragi-select-width': `${measure.offsetWidth + 26}px` })
 	}
 	select.addEventListener('change', update)
 	requestAnimationFrame(update)
@@ -99,10 +101,10 @@ export function showGenerateBar(
 ): void {
 	hideGenerateBar()
 
-	const configuredProviders = getConfiguredProviders(settings.providers as any)
+	const configuredProviders = getConfiguredProviderIds(settings)
 
 	function getModelsForType(t: GenerationType) {
-		const orderKey = t as keyof typeof settings.modelOrder
+		const orderKey = t
 		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
 	}
 
@@ -120,43 +122,43 @@ export function showGenerateBar(
 
 	// ── Create all DOM elements first ──
 
-	const bar = document.createElement('div')
+	const bar = activeDocument.createDiv()
 	bar.className = 'bragi-generate-bar'
 	activeBar = bar
 	bar.addEventListener('pointerdown', (e) => e.stopPropagation())
 	bar.addEventListener('click', (e) => e.stopPropagation())
 
 	// Left group: model + mode selectors
-	const leftGroup = document.createElement('div')
+	const leftGroup = activeDocument.createDiv()
 	leftGroup.className = 'bragi-bar-left'
 	bar.appendChild(leftGroup)
 
 	// Model selector
-	const modelSelect = document.createElement('select')
+	const modelSelect = activeDocument.createEl('select')
 	modelSelect.className = 'bragi-bar-select'
 	leftGroup.appendChild(modelSelect)
 
 	// Mode selector (for video models with multiple modes)
-	const modeSelect = document.createElement('select')
+	const modeSelect = activeDocument.createEl('select')
 	modeSelect.className = 'bragi-bar-select'
 	leftGroup.appendChild(modeSelect)
 
 	// Right group: params + batch + run
-	const rightGroup = document.createElement('div')
+	const rightGroup = activeDocument.createDiv()
 	rightGroup.className = 'bragi-bar-right'
 	bar.appendChild(rightGroup)
 
 	// Params container
-	const paramsEl = document.createElement('div')
+	const paramsEl = activeDocument.createDiv()
 	paramsEl.className = 'bragi-bar-params'
 	rightGroup.appendChild(paramsEl)
 
 	// Batch count selector
-	const batchSelect = document.createElement('select')
+	const batchSelect = activeDocument.createEl('select')
 	batchSelect.className = 'bragi-bar-select'
 	batchSelect.title = 'Count'
 	for (const n of [1, 2, 3, 4]) {
-		const opt = document.createElement('option')
+		const opt = activeDocument.createEl('option')
 		opt.value = String(n)
 		opt.textContent = `x${n}`
 		batchSelect.appendChild(opt)
@@ -165,7 +167,7 @@ export function showGenerateBar(
 	rightGroup.appendChild(batchSelect)
 
 	// Run button
-	const runBtn = document.createElement('button')
+	const runBtn = activeDocument.createEl('button')
 	runBtn.className = 'bragi-bar-run'
 	runBtn.textContent = 'Run'
 	rightGroup.appendChild(runBtn)
@@ -188,16 +190,16 @@ export function showGenerateBar(
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
 		if (!selectedModel || selectedModel.modes.length <= 1) {
-			modeSelect.style.display = 'none'
+			modeSelect.classList.add('bragi-hidden')
 			selectedMode = selectedModel?.modes[0] || null
 			return
 		}
 
-		modeSelect.style.display = ''
+		modeSelect.classList.remove('bragi-hidden')
 		const inferred = inferMode(selectedModel.modes, upstreamImageCount, upstreamVideoCount)
 
 		for (const mode of selectedModel.modes) {
-			const opt = document.createElement('option')
+			const opt = activeDocument.createEl('option')
 			opt.value = mode
 			opt.textContent = MODE_LABELS[mode] || mode
 			modeSelect.appendChild(opt)
@@ -235,11 +237,11 @@ export function showGenerateBar(
 				const valid = effectiveOptions.some(o => o.value === currentValue)
 				if (!valid) paramValues[param.id] = param.default
 
-				const select = document.createElement('select')
+				const select = activeDocument.createEl('select')
 				select.className = 'bragi-bar-select'
 				select.title = param.label
 				for (const opt of effectiveOptions) {
-					const optEl = document.createElement('option')
+					const optEl = activeDocument.createEl('option')
 					optEl.value = opt.value
 					optEl.textContent = opt.label
 					select.appendChild(optEl)
@@ -252,10 +254,10 @@ export function showGenerateBar(
 				paramsEl.appendChild(select)
 				autoSizeSelect(select)
 			} else if (param.type === 'range') {
-				const wrapper = document.createElement('div')
+				const wrapper = activeDocument.createDiv()
 				wrapper.className = 'bragi-bar-range'
 
-				const range = document.createElement('input')
+				const range = activeDocument.createEl('input')
 				range.type = 'range'
 				range.min = String(param.min ?? 0)
 				range.max = String(param.max ?? 100)
@@ -263,7 +265,7 @@ export function showGenerateBar(
 				range.value = String(paramValues[param.id] ?? param.default)
 				range.title = param.label
 
-				const valueLabel = document.createElement('span')
+				const valueLabel = activeDocument.createSpan()
 				valueLabel.className = 'bragi-bar-range-value'
 				valueLabel.textContent = `${range.value}${param.unit || ''}`
 
@@ -305,7 +307,7 @@ export function showGenerateBar(
 		models = getModelsForType(currentType)
 
 		if (models.length === 0) {
-			const opt = document.createElement('option')
+			const opt = activeDocument.createEl('option')
 			opt.textContent = 'No models'
 			opt.disabled = true
 			modelSelect.appendChild(opt)
@@ -313,7 +315,7 @@ export function showGenerateBar(
 		} else {
 			let firstCompatible: ModelConfig | null = null
 			for (const m of models) {
-				const opt = document.createElement('option')
+				const opt = activeDocument.createEl('option')
 				opt.value = m.id
 				const compatible = modelSupportsInputs(m)
 				if (!compatible) {
@@ -326,10 +328,10 @@ export function showGenerateBar(
 				modelSelect.appendChild(opt)
 			}
 			// Priority: node metadata > global memory > first compatible
-			const nodeData = node.getData() as any
+			const nodeData = node.getData() as unknown
 			const nodeLastGen = (nodeData.bragiLastGen || nodeData.ovidLastGen)?.[currentType]
 			const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-			const globalLast = (settings as any)[globalLastKey] as any
+			const globalLast = (settings as unknown)[globalLastKey]
 
 			// Try node-level first, then global
 			const last = nodeLastGen || globalLast
@@ -366,7 +368,7 @@ export function showGenerateBar(
 		}
 	}
 
-	let savedParams: Record<string, any> | null = null
+	let savedParams: Record<string, unknown> | null = null
 
 	// ── Run button state ──
 
@@ -413,60 +415,62 @@ export function showGenerateBar(
 		updateRunState()
 	})
 
-	runBtn.addEventListener('click', async (e) => {
+	runBtn.addEventListener('click', (e) => {
 		e.stopPropagation()
 		e.preventDefault()
 
-		let prompt = ''
-		const nodeData = node.getData()
-		if (nodeData.type === 'text') {
-			prompt = node.text?.trim() || ''
-		} else if (nodeData.type === 'file' && (nodeData as any).file?.endsWith('.md')) {
-			const filePath = (nodeData as any).file
-			const file = app.vault.getAbstractFileByPath(filePath)
-			if (file) {
-				prompt = (await app.vault.read(file as any)).trim()
+		void (async () => {
+			let prompt = ''
+			const nodeData = node.getData()
+			if (nodeData.type === 'text') {
+				prompt = node.text?.trim() || ''
+			} else if (nodeData.type === 'file' && (nodeData as unknown).file?.endsWith('.md')) {
+				const filePath = (nodeData as unknown).file
+				const file = app.vault.getAbstractFileByPath(filePath)
+				if (file) {
+					prompt = (await app.vault.read(file as unknown)).trim()
+				}
 			}
-		}
 
-		if (!prompt) {
-			new Notice('Bragi Canvas: No prompt found in this node')
-			return
-		}
-		if (!selectedModel) {
-			new Notice('Bragi Canvas: No model selected')
-			return
-		}
-		hideGenerateBar()
-		const batchCount = parseInt(batchSelect.value) || 1
+			if (!prompt) {
+				new Notice('Bragi Canvas: No prompt found in this node')
+				return
+			}
+			if (!selectedModel) {
+				new Notice('Bragi Canvas: No model selected')
+				return
+			}
+			hideGenerateBar()
+			const batchCount = parseInt(batchSelect.value) || 1
 
-		// Save to global memory
-		const lastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-		;(settings as any)[lastKey] = {
-			modelId: selectedModel.id,
-			params: { ...paramValues },
-			batchCount,
-		}
-		onSaveSettings?.()
+			// Save to global memory
+			const lastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+			;(settings as unknown)[lastKey] = {
+				modelId: selectedModel.id,
+				params: { ...paramValues },
+				batchCount,
+			}
+			onSaveSettings?.()
 
-		// Save to node metadata (persists in canvas JSON)
-		const currentNodeData = node.getData() as any
-		const bragiLastGen = currentNodeData.bragiLastGen || currentNodeData.ovidLastGen || {}
-		bragiLastGen[currentType] = {
-			modelId: selectedModel.id,
-			params: { ...paramValues },
-			batchCount,
-		}
-		// Write new key, drop the legacy one so it doesn't silently drift
-		const { ovidLastGen: _legacy, ...rest } = currentNodeData
-		node.setData({ ...rest, bragiLastGen })
+			// Save to node metadata (persists in canvas JSON)
+			const currentNodeData = node.getData() as unknown
+			const bragiLastGen = currentNodeData.bragiLastGen || currentNodeData.ovidLastGen || {}
+			bragiLastGen[currentType] = {
+				modelId: selectedModel.id,
+				params: { ...paramValues },
+				batchCount,
+			}
+			// Write new key, drop the legacy one so it doesn't silently drift
+			const { ovidLastGen: _legacy, ...rest } = currentNodeData
+			node.setData({ ...rest, bragiLastGen })
 
-		// Resolve active provider and API model ID
-		const pref = settings.modelPrefs[selectedModel.id]
-		const provider = getActiveProvider(selectedModel, pref?.selectedProvider, configuredProviders) || Object.keys(selectedModel.supportedProviders)[0]
-		const apiModelId = selectedModel.supportedProviders[provider]?.apiModelId || selectedModel.id
+			// Resolve active provider and API model ID
+			const pref = settings.modelPrefs[selectedModel.id]
+			const provider = getActiveProvider(selectedModel, pref?.selectedProvider, configuredProviders) || Object.keys(selectedModel.supportedProviders)[0]
+			const apiModelId = selectedModel.supportedProviders[provider]?.apiModelId || selectedModel.id
 
-		onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: paramValues, batchCount })
+			onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: paramValues, batchCount })
+		})()
 	})
 
 	// ── Initialize ──
@@ -480,10 +484,10 @@ export function showGenerateBar(
 	rebuildModelList()
 
 	// Restore last batch count (node metadata > global)
-	const initNodeData = node.getData() as any
+	const initNodeData = node.getData() as unknown
 	const initNodeLast = (initNodeData.bragiLastGen || initNodeData.ovidLastGen)?.[currentType]
 	const initGlobalKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-	const initGlobalLast = (settings as any)[initGlobalKey] as any
+	const initGlobalLast = (settings as unknown)[initGlobalKey]
 	const initLast = initNodeLast || initGlobalLast
 	if (initLast?.batchCount) {
 		batchSelect.value = String(initLast.batchCount)
@@ -496,7 +500,7 @@ export function showGenerateBar(
 	const nodeCanvas = node.canvas
 	let barParent: HTMLElement | null = null
 
-	const menu = (nodeCanvas as any).menu
+	const menu = (nodeCanvas as unknown).menu
 	if (menu?.menuEl?.parentElement) {
 		barParent = menu.menuEl.parentElement
 	}
@@ -504,8 +508,8 @@ export function showGenerateBar(
 		barParent = nodeCanvas.wrapperEl.parentElement
 	}
 	if (!barParent) {
-		barParent = document.body
-		bar.style.zIndex = '10000'
+		barParent = activeDocument.body
+		bar.classList.add('is-body-attached')
 	}
 
 	barParent.appendChild(bar)
@@ -531,7 +535,7 @@ export function showGenerateBar(
 
 	// ── Auto-dismiss ──
 
-	setTimeout(() => {
+	activeWindow.setTimeout(() => {
 		const wrapper = nodeCanvas?.wrapperEl
 		if (wrapper) {
 			const handler = (e: Event) => {
@@ -555,10 +559,10 @@ export function showBatchGenerateBar(
 ): void {
 	hideGenerateBar()
 
-	const configuredProviders = getConfiguredProviders(settings.providers as any)
+	const configuredProviders = getConfiguredProviderIds(settings)
 
 	function getModelsForType(t: GenerationType) {
-		const orderKey = t as keyof typeof settings.modelOrder
+		const orderKey = t
 		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
 	}
 
@@ -573,37 +577,37 @@ export function showBatchGenerateBar(
 	let selectedModel: ModelConfig | null = models[0] || null
 	let paramValues: Record<string, string | number> = {}
 
-	const bar = document.createElement('div')
+	const bar = activeDocument.createDiv()
 	bar.className = 'bragi-generate-bar'
 	activeBar = bar
 	bar.addEventListener('pointerdown', (e) => e.stopPropagation())
 	bar.addEventListener('click', (e) => e.stopPropagation())
 
-	const leftGroup = document.createElement('div')
+	const leftGroup = activeDocument.createDiv()
 	leftGroup.className = 'bragi-bar-left'
 	bar.appendChild(leftGroup)
 
-	const modelSelect = document.createElement('select')
+	const modelSelect = activeDocument.createEl('select')
 	modelSelect.className = 'bragi-bar-select'
 	leftGroup.appendChild(modelSelect)
 
-	const modeSelect = document.createElement('select')
+	const modeSelect = activeDocument.createEl('select')
 	modeSelect.className = 'bragi-bar-select'
 	leftGroup.appendChild(modeSelect)
 
-	const rightGroup = document.createElement('div')
+	const rightGroup = activeDocument.createDiv()
 	rightGroup.className = 'bragi-bar-right'
 	bar.appendChild(rightGroup)
 
-	const paramsEl = document.createElement('div')
+	const paramsEl = activeDocument.createDiv()
 	paramsEl.className = 'bragi-bar-params'
 	rightGroup.appendChild(paramsEl)
 
-	const batchSelect = document.createElement('select')
+	const batchSelect = activeDocument.createEl('select')
 	batchSelect.className = 'bragi-bar-select'
 	batchSelect.title = 'Count'
 	for (const n of [1, 2, 3, 4]) {
-		const opt = document.createElement('option')
+		const opt = activeDocument.createEl('option')
 		opt.value = String(n)
 		opt.textContent = `x${n}`
 		batchSelect.appendChild(opt)
@@ -611,7 +615,7 @@ export function showBatchGenerateBar(
 	batchSelect.value = '1'
 	rightGroup.appendChild(batchSelect)
 
-	const runBtn = document.createElement('button')
+	const runBtn = activeDocument.createEl('button')
 	runBtn.className = 'bragi-bar-run'
 	runBtn.textContent = `Run (${nodes.length})`
 	rightGroup.appendChild(runBtn)
@@ -621,13 +625,13 @@ export function showBatchGenerateBar(
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
 		if (!selectedModel || selectedModel.modes.length <= 1) {
-			modeSelect.style.display = 'none'
+			modeSelect.classList.add('bragi-hidden')
 			selectedMode = selectedModel?.modes[0] || null
 			return
 		}
-		modeSelect.style.display = ''
+		modeSelect.classList.remove('bragi-hidden')
 		for (const mode of selectedModel.modes) {
-			const opt = document.createElement('option')
+			const opt = activeDocument.createEl('option')
 			opt.value = mode
 			opt.textContent = MODE_LABELS[mode] || mode
 			modeSelect.appendChild(opt)
@@ -654,11 +658,11 @@ export function showBatchGenerateBar(
 				const currentValue = String(paramValues[param.id] ?? param.default)
 				if (!effectiveOptions.some(o => o.value === currentValue)) paramValues[param.id] = param.default
 
-				const select = document.createElement('select')
+				const select = activeDocument.createEl('select')
 				select.className = 'bragi-bar-select'
 				select.title = param.label
 				for (const opt of effectiveOptions) {
-					const optEl = document.createElement('option')
+					const optEl = activeDocument.createEl('option')
 					optEl.value = opt.value
 					optEl.textContent = opt.label
 					select.appendChild(optEl)
@@ -668,16 +672,16 @@ export function showBatchGenerateBar(
 				paramsEl.appendChild(select)
 				autoSizeSelect(select)
 			} else if (param.type === 'range') {
-				const wrapper = document.createElement('div')
+				const wrapper = activeDocument.createDiv()
 				wrapper.className = 'bragi-bar-range'
-				const range = document.createElement('input')
+				const range = activeDocument.createEl('input')
 				range.type = 'range'
 				range.min = String(param.min ?? 0)
 				range.max = String(param.max ?? 100)
 				range.step = String(param.step ?? 1)
 				range.value = String(paramValues[param.id] ?? param.default)
 				range.title = param.label
-				const valueLabel = document.createElement('span')
+				const valueLabel = activeDocument.createSpan()
 				valueLabel.className = 'bragi-bar-range-value'
 				valueLabel.textContent = `${range.value}${param.unit || ''}`
 				range.addEventListener('input', () => {
@@ -695,20 +699,20 @@ export function showBatchGenerateBar(
 		modelSelect.innerHTML = ''
 		models = getModelsForType(currentType)
 		if (models.length === 0) {
-			const opt = document.createElement('option')
+			const opt = activeDocument.createEl('option')
 			opt.textContent = 'No models'
 			opt.disabled = true
 			modelSelect.appendChild(opt)
 			selectedModel = null
 		} else {
 			for (const m of models) {
-				const opt = document.createElement('option')
+				const opt = activeDocument.createEl('option')
 				opt.value = m.id
 				opt.textContent = m.name
 				modelSelect.appendChild(opt)
 			}
 			const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-			const globalLast = (settings as any)[globalLastKey] as any
+			const globalLast = (settings as unknown)[globalLastKey]
 			const lastModel = globalLast?.modelId ? models.find(m => m.id === globalLast.modelId) : null
 			selectedModel = lastModel || models[0]
 			modelSelect.value = selectedModel.id
@@ -742,7 +746,7 @@ export function showBatchGenerateBar(
 
 		const batchCount = parseInt(batchSelect.value) || 1
 		const lastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-		;(settings as any)[lastKey] = {
+		;(settings as unknown)[lastKey] = {
 			modelId: selectedModel.id,
 			params: { ...paramValues },
 			batchCount,
@@ -771,16 +775,16 @@ export function showBatchGenerateBar(
 	rebuildModelList()
 
 	const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-	const globalLast = (settings as any)[globalLastKey] as any
+	const globalLast = (settings as unknown)[globalLastKey]
 	if (globalLast?.batchCount) batchSelect.value = String(globalLast.batchCount)
 
 	// Attach to DOM — use the first node's canvas
 	const nodeCanvas = nodes[0].canvas
 	let barParent: HTMLElement | null = null
-	const menu = (nodeCanvas as any)?.menu
+	const menu = (nodeCanvas as unknown)?.menu
 	if (menu?.menuEl?.parentElement) barParent = menu.menuEl.parentElement
 	if (!barParent && nodeCanvas?.wrapperEl?.parentElement) barParent = nodeCanvas.wrapperEl.parentElement
-	if (!barParent) { barParent = document.body; bar.style.zIndex = '10000' }
+	if (!barParent) { barParent = activeDocument.body; bar.classList.add('is-body-attached') }
 	barParent.appendChild(bar)
 
 	// Position: bounding box of all selected nodes, center-bottom
@@ -788,7 +792,7 @@ export function showBatchGenerateBar(
 		if (!activeBar) return
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
 		for (const n of nodes) {
-			const el = (n as any).nodeEl || (n as any).containerEl
+			const el = (n as unknown).nodeEl || (n as unknown).containerEl
 			if (!el) continue
 			const r = el.getBoundingClientRect()
 			if (r.left < minX) minX = r.left
@@ -807,7 +811,7 @@ export function showBatchGenerateBar(
 	positionRAF = requestAnimationFrame(updatePosition)
 
 	// Auto-dismiss
-	setTimeout(() => {
+	activeWindow.setTimeout(() => {
 		const wrapper = nodeCanvas?.wrapperEl
 		if (wrapper) {
 			const handler = (e: Event) => {

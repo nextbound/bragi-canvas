@@ -74,7 +74,7 @@ async function testListModels(url: string, token: string): Promise<TestResult> {
 		if (resp.status === 200) return { ok: true, message: 'Connected.' }
 		if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
-	} catch (err: any) {
+	} catch (err: unknown) {
 		return { ok: false, message: `Network error: ${err?.message || err}` }
 	}
 }
@@ -85,7 +85,7 @@ async function testGenericGet(url: string, headers: Record<string, string>): Pro
 		if (resp.status === 200) return { ok: true, message: 'Connected.' }
 		if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
-	} catch (err: any) {
+	} catch (err: unknown) {
 		return { ok: false, message: `Network error: ${err?.message || err}` }
 	}
 }
@@ -133,7 +133,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				// 400 (missing fields) means auth passed — key is valid
 				if (resp.status === 400 || resp.status === 200) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
@@ -186,7 +186,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				}
 				if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
@@ -261,7 +261,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				// 401/403 = bad key. 404 (request id not found) or any other status = auth passed.
 				if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 				return { ok: true, message: 'Connected.' }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
@@ -297,7 +297,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				}
 				if (resp.status === 401) return { ok: false, message: 'Invalid API key.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
@@ -327,7 +327,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				// 200 / 400 / 404 all mean auth passed
 				if (resp.status < 500) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
@@ -423,7 +423,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				const healthy = healthResp.json?.accounts?.healthy ?? 0
 				if (healthy > 0) return { ok: true, message: `Connected. ${healthy} account(s) healthy.` }
 				return { ok: false, message: 'Token OK but no healthy Luma accounts upstream.' }
-			} catch (err: any) {
+			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},

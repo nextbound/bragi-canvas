@@ -20,7 +20,7 @@ export function getOrderedImages(canvas: Canvas, node: CanvasNode): string[] {
 	const upstream = getUpstreamInputs(canvas, node)
 	const uniqueImages = [...new Set(upstream.images)]
 
-	const nodeData = node.getData() as any
+	const nodeData = node.getData() as unknown
 	const savedOrder: string[] | undefined = nodeData.bragiImageOrder || nodeData.ovidImageOrder
 
 	if (savedOrder && savedOrder.length > 0) {
@@ -47,7 +47,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 	if (isDragging) return // Don't rebuild during drag
 
 	const nodeData = node.getData()
-	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && (nodeData as any).file?.endsWith('.md'))) {
+	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && (nodeData as unknown).file?.endsWith('.md'))) {
 		return
 	}
 
@@ -74,36 +74,36 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 
 	existing?.remove()
 
-	const strip = document.createElement('div')
+	const strip = activeDocument.createDiv()
 	strip.className = STRIP_CLASS
 	strip.setAttribute('data-fingerprint', fingerprint)
 
 	for (let i = 0; i < orderedImages.length; i++) {
 		const imgPath = orderedImages[i]
 
-		const wrapper = document.createElement('div')
+		const wrapper = activeDocument.createDiv()
 		wrapper.className = 'bragi-ref-thumb-wrapper'
 		wrapper.setAttribute('data-img-path', imgPath)
 		wrapper.draggable = true
 
-		const img = document.createElement('img')
+		const img = activeDocument.createEl('img')
 		img.className = 'bragi-ref-thumb'
 		img.src = app.vault.adapter.getResourcePath(imgPath)
 		img.title = `#${i + 1} — ${imgPath.split('/').pop() || imgPath}`
 		img.draggable = false // prevent native img drag
 		wrapper.appendChild(img)
 
-		const badge = document.createElement('div')
+		const badge = activeDocument.createDiv()
 		badge.className = 'bragi-ref-badge'
 		badge.textContent = String(i + 1)
 		wrapper.appendChild(badge)
 
 		// Asset ID indicator — read from the source image node
 		const sourceImageNode = findImageNode(canvas, imgPath)
-		const assetId = sourceImageNode ? (sourceImageNode.getData() as any).bragiAssetId : null
+		const assetId = sourceImageNode ? (sourceImageNode.getData() as unknown).bragiAssetId : null
 
 		if (assetId) {
-			const assetDot = document.createElement('div')
+			const assetDot = activeDocument.createDiv()
 			assetDot.className = 'bragi-asset-dot'
 			assetDot.title = `Asset: ${assetId}`
 			wrapper.appendChild(assetDot)
@@ -146,7 +146,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 			newOrder.splice(toIdx, 0, draggedPath)
 
 			// Save to node metadata (drop legacy key so it doesn't drift)
-			const data = node.getData() as any
+			const data = node.getData() as unknown
 			const { ovidImageOrder: _legacy, ...rest } = data
 			node.setData({ ...rest, bragiImageOrder: newOrder })
 
@@ -170,10 +170,10 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 function findImageNode(canvas: Canvas, imgPath: string): CanvasNode | null {
 	const nodes = canvas.nodes instanceof Map
 		? Array.from(canvas.nodes.values())
-		: canvas.nodes as any[]
+		: canvas.nodes as unknown[]
 	for (const n of nodes) {
 		const d = n.getData()
-		if (d.type === 'file' && (d as any).file === imgPath) return n
+		if (d.type === 'file' && (d).file === imgPath) return n
 	}
 	return null
 }
@@ -188,7 +188,7 @@ export function getAssetIds(canvas: Canvas, node: CanvasNode): Record<string, st
 	for (const imgPath of images) {
 		const imgNode = findImageNode(canvas, imgPath)
 		if (imgNode) {
-			const assetId = (imgNode.getData() as any).bragiAssetId
+			const assetId = (imgNode.getData() as unknown).bragiAssetId
 			if (assetId) result[imgPath] = assetId
 		}
 	}
@@ -205,14 +205,14 @@ export function refreshAllThumbnails(canvas: Canvas, app: App): void {
 
 	for (const node of nodes) {
 		const data = node.getData()
-		if (data.type === 'text' || (data.type === 'file' && (data as any).file?.endsWith('.md'))) {
+		if (data.type === 'text' || (data.type === 'file' && (data as unknown).file?.endsWith('.md'))) {
 			updateRefThumbnails(canvas, node, app)
 		}
 	}
 }
 
 export function removeAllThumbnails(): void {
-	document.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
-	document.querySelectorAll(`.${NODE_HAS_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_REFS_CLASS))
+	activeDocument.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
+	activeDocument.querySelectorAll(`.${NODE_HAS_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_REFS_CLASS))
 	adjustedNodes.clear()
 }

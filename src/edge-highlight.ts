@@ -9,12 +9,12 @@ let lastSelectedId: string | null = null
  * Obsidian stores it internally — try common property names.
  */
 function getEdgeEl(edge: CanvasEdge): SVGGElement | null {
-	const e = edge as any
+	const e = edge as unknown
 	return e.lineGroupEl || e.wrapperEl || e.path?.parentElement || null
 }
 
 function clearHighlights(): void {
-	document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(el => {
+	activeDocument.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(el => {
 		el.classList.remove(HIGHLIGHT_CLASS)
 	})
 }
@@ -40,7 +40,7 @@ function highlightEdgesForNode(canvas: Canvas, node: CanvasNode): void {
 export function startEdgeHighlight(canvas: Canvas): void {
 	stopEdgeHighlight()
 
-	highlightInterval = setInterval(() => {
+	highlightInterval = activeWindow.setInterval(() => {
 		const selection = canvas.selection
 		if (!selection || selection.size !== 1) {
 			if (lastSelectedId !== null) {
@@ -61,7 +61,7 @@ export function startEdgeHighlight(canvas: Canvas): void {
 
 export function stopEdgeHighlight(): void {
 	if (highlightInterval) {
-		clearInterval(highlightInterval)
+		activeWindow.clearInterval(highlightInterval)
 		highlightInterval = null
 	}
 	clearHighlights()

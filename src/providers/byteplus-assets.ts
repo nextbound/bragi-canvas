@@ -18,7 +18,7 @@ export interface BytePlusAssetCreds {
 
 export interface AssetGetResult {
 	status: 'Active' | 'Processing' | 'Failed' | 'Rejected' | 'Unknown'
-	raw: any
+	raw: unknown
 }
 
 function randomHex(n: number): string {
@@ -27,7 +27,7 @@ function randomHex(n: number): string {
 	return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function callUniversal(creds: BytePlusAssetCreds, action: string, body: any): Promise<any> {
+async function callUniversal(creds: BytePlusAssetCreds, action: string, body: unknown): Promise<unknown> {
 	const bodyStr = JSON.stringify(body)
 	const signed = await signVolcRequest({
 		accessKey: creds.accessKey,
@@ -48,7 +48,7 @@ async function callUniversal(creds: BytePlusAssetCreds, action: string, body: an
 	const json = resp.json
 	const error = json?.ResponseMetadata?.Error
 	if (error) {
-		const err: any = new Error(`BytePlus ${action}: ${error.Code} — ${error.Message}`)
+		const err: unknown = new Error(`BytePlus ${action}: ${error.Code} — ${error.Message}`)
 		err.code = error.Code
 		err.codeN = error.CodeN
 		err.status = resp.status
@@ -104,13 +104,13 @@ export async function getAsset(creds: BytePlusAssetCreds, assetId: string): Prom
 }
 
 /** Is this error from GetAsset indicating the asset doesn't exist (e.g. wrong account, deleted)? */
-export function isAssetNotFound(err: any): boolean {
+export function isAssetNotFound(err: unknown): boolean {
 	const code = err?.code || ''
 	return /NotFound|NoSuchAsset|InvalidAsset|AssetNotExist/i.test(code)
 }
 
 /** Is this error from CreateAsset indicating the group doesn't exist? */
-export function isGroupNotFound(err: any): boolean {
+export function isGroupNotFound(err: unknown): boolean {
 	const code = err?.code || ''
 	return /NotFound|NoSuchGroup|InvalidGroup|GroupNotExist/i.test(code)
 }
@@ -127,7 +127,7 @@ export async function waitForActive(creds: BytePlusAssetCreds, assetId: string):
 		if (status === 'Failed') {
 			throw new Error(`BytePlus asset failed. ${raw?.FailedReason || ''}`.trim())
 		}
-		await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+		await new Promise(r => activeWindow.setTimeout(r, POLL_INTERVAL_MS))
 	}
 	throw new Error(`BytePlus asset timed out after ${POLL_TIMEOUT_MS / 1000}s`)
 }

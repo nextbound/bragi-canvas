@@ -1,12 +1,14 @@
-import http from 'http'
+/* eslint-disable @typescript-eslint/no-explicit-any -- MCP tools pass arbitrary Canvas JSON and Obsidian internals through a stable JSON boundary. */
+import * as http from 'http'
 import { randomUUID } from 'crypto'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer, type ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import { Modal, TFile, type App } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { PanelResult } from './panel'
-import { ALL_MODELS, getModelById, getConfiguredProviders, getActiveProvider, getEnabledModels } from './models/index'
+import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
+import { getConfiguredProviderIds } from './providers/registry'
 import type { GenerationType, Mode } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
@@ -18,6 +20,7 @@ type RunGeneration = (node: CanvasNode, result: PanelResult) => Promise<{
 	placeholderIds: string[]
 	expectedOutputType: 'image' | 'video' | 'text' | 'audio'
 }>
+type ToolSchema = z.ZodRawShape
 
 function requireCanvas(getCanvas: GetCanvas): Canvas {
 	const canvas = getCanvas()
@@ -62,6 +65,16 @@ function ok(data: any = { status: 'ok' }) {
 	return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
 }
 
+function registerTool<Args extends ToolSchema>(
+	mcp: McpServer,
+	name: string,
+	description: string,
+	inputSchema: Args,
+	cb: ToolCallback<Args>,
+): void {
+	mcp.registerTool(name, { description, inputSchema }, cb)
+}
+
 function randomId(): string {
 	return randomUUID().replace(/-/g, '').slice(0, 16)
 }
@@ -96,11 +109,11 @@ export class BragiMcpServer {
 	private registerTools(mcp: McpServer) {
 		const getCanvas = this.getCanvas
 
-		mcp.tool(
+		registerTool(mcp,
 			'list_nodes',
 			'List all nodes on the active canvas',
 			{ type: z.enum(['text', 'file', 'link', 'group']).optional().describe('Filter by node type') },
-			async ({ type }) => {
+			({ type }) => {
 				const canvas = requireCanvas(getCanvas)
 				let nodes = Array.from(canvas.nodes.values())
 				if (type) nodes = nodes.filter(n => (n.getData() as any).type === type)
@@ -108,11 +121,11 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'get_node',
 			'Get details of a single node including its edges',
 			{ id: z.string().describe('Node ID') },
-			async ({ id }) => {
+			({ id }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
 				const edges = canvas.getEdgesForNode(node) || []
@@ -123,7 +136,7 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'create_text_node',
 			'Create a new text node on the canvas',
 			{
@@ -133,19 +146,19 @@ export class BragiMcpServer {
 				width: z.number().optional().default(300).describe('Width'),
 				height: z.number().optional().default(200).describe('Height'),
 			},
-			async ({ text, x, y, width, height }) => {
+			({ text, x, y, width, height }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = canvas.createTextNode({
 					text,
 					pos: { x, y },
 					size: { width, height },
 				})
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ id: node.id })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'update_node',
 			'Update a node\'s content, position, or size',
 			{
@@ -157,7 +170,7 @@ export class BragiMcpServer {
 				height: z.number().optional().describe('New height'),
 				color: z.string().optional().describe('Node color'),
 			},
-			async ({ id, text, x, y, width, height, color }) => {
+			({ id, text, x, y, width, height, color }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
 				const d = node.getData() as any
@@ -183,7 +196,7 @@ export class BragiMcpServer {
 						return next
 					})
 					canvas.importData({ ...full, nodes })
-					canvas.requestSave()
+					void canvas.requestSave()
 					return ok()
 				}
 
@@ -194,25 +207,25 @@ export class BragiMcpServer {
 				if (width !== undefined) move.width = width
 				if (height !== undefined) move.height = height
 				if (Object.keys(move).length > 0) node.moveAndResize(move)
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok()
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'delete_node',
 			'Delete a node from the canvas',
 			{ id: z.string().describe('Node ID') },
-			async ({ id }) => {
+			({ id }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
 				canvas.removeNode(node)
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok()
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'connect_nodes',
 			'Create an edge between two nodes',
 			{
@@ -223,7 +236,7 @@ export class BragiMcpServer {
 				toEnd: z.enum(['none', 'arrow']).optional().default('arrow').describe('Arrow at target end'),
 				label: z.string().optional().describe('Edge label'),
 			},
-			async ({ fromId, toId, fromSide, toSide, toEnd, label }) => {
+			({ fromId, toId, fromSide, toSide, toEnd, label }) => {
 				const canvas = requireCanvas(getCanvas)
 				findNode(canvas, fromId)
 				findNode(canvas, toId)
@@ -239,32 +252,32 @@ export class BragiMcpServer {
 				}
 				if (label) edge.label = label
 				canvas.importData({ nodes: [], edges: [edge] })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ edgeId })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'delete_edge',
 			'Delete an edge from the canvas',
 			{ edgeId: z.string().describe('Edge ID') },
-			async ({ edgeId }) => {
+			({ edgeId }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData() as any
 				const edgeArr = full.edges || []
 				const filtered = edgeArr.filter((e: any) => e.id !== edgeId)
 				if (filtered.length === edgeArr.length) throw new Error(`Edge not found: ${edgeId}`)
 				canvas.importData({ ...full, edges: filtered })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok()
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'list_edges',
 			'List all edges on the active canvas',
 			{},
-			async () => {
+			() => {
 				const canvas = requireCanvas(getCanvas)
 				// canvas.edges is a Map at runtime (types lie — they say it's an array).
 				// Read the authoritative array from getData() instead.
@@ -273,22 +286,22 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'get_selection',
 			'Get the currently selected nodes',
 			{},
-			async () => {
+			() => {
 				const canvas = requireCanvas(getCanvas)
 				const sel = canvas.selection ? Array.from(canvas.selection) : []
 				return ok(sel.map(serializeNode))
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'select_node',
 			'Select a node on the canvas',
 			{ id: z.string().describe('Node ID') },
-			async ({ id }) => {
+			({ id }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
 				canvas.selectOnly(node, false)
@@ -296,11 +309,11 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'read_canvas',
 			'Read the full canvas data (all nodes and edges). Returns a truncated marker if the JSON exceeds 100KB — use list_nodes / list_edges for large canvases.',
 			{},
-			async () => {
+			() => {
 				const canvas = requireCanvas(getCanvas)
 				const data = canvas.getData()
 				const serialized = JSON.stringify(data)
@@ -321,14 +334,14 @@ export class BragiMcpServer {
 
 		// ── Generation tools ──────────────────────────────────────
 
-		mcp.tool(
+		registerTool(mcp,
 			'list_models',
 			'List available AI models, optionally filtered by type (image/video/text/audio). Only returns models with configured API keys.',
 			{ type: z.enum(['image', 'video', 'text', 'audio']).optional().describe('Filter by generation type') },
-			async ({ type }) => {
+			({ type }) => {
 				const settings = this.getSettings?.()
 				if (!settings) throw new Error('Settings not available')
-				const configured = getConfiguredProviders(settings.providers)
+				const configured = getConfiguredProviderIds(settings)
 				const types: GenerationType[] = type ? [type] : ['image', 'video', 'text', 'audio']
 				const result: any[] = []
 				for (const t of types) {
@@ -358,11 +371,11 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'get_upstream',
 			'Get upstream inputs (text prompts, reference images, reference videos) connected to a node via arrows',
 			{ id: z.string().describe('Target node ID') },
-			async ({ id }) => {
+			({ id }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
 				const upstream = getUpstreamInputs(canvas, node)
@@ -377,7 +390,7 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'generate',
 			'Trigger AI generation on a node. The node must contain a text prompt (text node or .md file node). Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
 			{
@@ -398,7 +411,7 @@ export class BragiMcpServer {
 				const model = getModelById(modelId)
 				if (!model) throw new Error(`Model not found: ${modelId}`)
 
-				const configured = getConfiguredProviders(settings.providers)
+				const configured = getConfiguredProviderIds(settings)
 				const pref = settings.modelPrefs[modelId]
 				const provider = getActiveProvider(model, pref?.selectedProvider, configured)
 				if (!provider) throw new Error(`No configured provider for model ${modelId}`)
@@ -449,11 +462,11 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'list_pending_tasks',
 			'List all pending async generation tasks (currently only video tasks are tracked). Empty array means no in-flight async work.',
 			{},
-			async () => {
+			() => {
 				if (!this.taskQueue) return ok([])
 				const snapshots = this.taskQueue.getSnapshots()
 				const now = Date.now()
@@ -469,7 +482,7 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'create_nodes_batch',
 			'Create multiple text nodes in a single canvas import. Much faster than calling create_text_node N times.',
 			{
@@ -482,7 +495,7 @@ export class BragiMcpServer {
 					color: z.string().optional(),
 				})).describe('Array of text node specs'),
 			},
-			async ({ nodes }) => {
+			({ nodes }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData() as any
 				const created: string[] = []
@@ -505,12 +518,12 @@ export class BragiMcpServer {
 					...full,
 					nodes: [...(full.nodes || []), ...newNodes],
 				})
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ ids: created })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'connect_nodes_batch',
 			'Create multiple edges in a single canvas import.',
 			{
@@ -523,7 +536,7 @@ export class BragiMcpServer {
 					label: z.string().optional(),
 				})),
 			},
-			async ({ edges }) => {
+			({ edges }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData() as any
 				const created: string[] = []
@@ -548,12 +561,12 @@ export class BragiMcpServer {
 					...full,
 					edges: [...(full.edges || []), ...newEdges],
 				})
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ edgeIds: created })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'update_nodes_batch',
 			'Update geometry and/or color of many nodes in a single canvas import. Much faster than calling update_node N times. Use this for layout/cleanup passes on large canvases.',
 			{
@@ -566,7 +579,7 @@ export class BragiMcpServer {
 					color: z.string().optional(),
 				})).describe('Array of partial node updates (text is NOT supported here — use update_node for text edits)'),
 			},
-			async ({ updates }) => {
+			({ updates }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData() as any
 				const byId = new Map(updates.map(u => [u.id, u]))
@@ -584,12 +597,12 @@ export class BragiMcpServer {
 				const applied = updates.filter(u => canvas.nodes.has(u.id)).map(u => u.id)
 				const missing = updates.filter(u => !canvas.nodes.has(u.id)).map(u => u.id)
 				canvas.importData({ ...full, nodes })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ applied, missing })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'create_group_node',
 			'Create a group node (a labelled rectangular frame around a region of the canvas). Use this to visually partition a cluttered canvas into chapters / scenes / stages.',
 			{
@@ -600,7 +613,7 @@ export class BragiMcpServer {
 				height: z.number(),
 				color: z.string().optional().describe('Canvas color ("1".."6" or hex)'),
 			},
-			async ({ label, x, y, width, height, color }) => {
+			({ label, x, y, width, height, color }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData() as any
 				const id = randomId()
@@ -608,12 +621,12 @@ export class BragiMcpServer {
 				if (label) newNode.label = label
 				if (color) newNode.color = color
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ id })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'arrange_in_grid',
 			'Lay out the given nodes in a grid. Preserves each node\'s current width/height; only moves x/y. Typical cleanup call for a cluttered canvas.',
 			{
@@ -625,7 +638,7 @@ export class BragiMcpServer {
 				cellWidth: z.number().optional().describe('Override cell width (default: max width among provided nodes)'),
 				cellHeight: z.number().optional().describe('Override cell height (default: max height among provided nodes)'),
 			},
-			async ({ ids, cols, originX, originY, gap, cellWidth, cellHeight }) => {
+			({ ids, cols, originX, originY, gap, cellWidth, cellHeight }) => {
 				const canvas = requireCanvas(getCanvas)
 				if (cols < 1) throw new Error('cols must be >= 1')
 				const full = canvas.getData() as any
@@ -653,7 +666,7 @@ export class BragiMcpServer {
 					return u ? { ...n, x: u.x, y: u.y } : n
 				})
 				canvas.importData({ ...full, nodes })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({
 					moved: ids.length,
 					cellWidth: cw,
@@ -664,7 +677,7 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'create_file_node',
 			'Create a file node on the canvas referencing an existing vault file (image/video/audio/md).',
 			{
@@ -674,7 +687,7 @@ export class BragiMcpServer {
 				width: z.number().optional().default(400),
 				height: z.number().optional().default(400),
 			},
-			async ({ filePath, x, y, width, height }) => {
+			({ filePath, x, y, width, height }) => {
 				const canvas = requireCanvas(getCanvas)
 				const file = this.app.vault.getAbstractFileByPath(filePath)
 				if (!file) throw new Error(`File not found in vault: ${filePath}`)
@@ -682,12 +695,12 @@ export class BragiMcpServer {
 				const full = canvas.getData() as any
 				const newNode = { id, type: 'file' as const, file: filePath, x, y, width, height }
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ id })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'upload_image_as_node',
 			'Write a base64-encoded image to the canvas\'s output directory (_bragi/assets by default) and create a file node for it.',
 			{
@@ -705,7 +718,7 @@ export class BragiMcpServer {
 				const cleaned = base64.replace(/^data:[^;]+;base64,/, '')
 				const binary = Uint8Array.from(atob(cleaned), c => c.charCodeAt(0)).buffer
 				// Dedupe filename
-				const safeName = filename.replace(/[^\w.\-]/g, '_')
+				const safeName = filename.replace(/[^\w.-]/g, '_')
 				let finalPath = `${outputDir}/${safeName}`
 				let suffix = 1
 				while (this.app.vault.getAbstractFileByPath(finalPath)) {
@@ -728,19 +741,19 @@ export class BragiMcpServer {
 				const full = canvas.getData() as any
 				const newNode = { id, type: 'file' as const, file: finalPath, x, y, width, height }
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ id, filePath: finalPath })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'set_asset_id',
 			'Bind a Volcengine/BytePlus Asset ID to an image file node. Used for Seedance face-reference (asset://<id> protocol). Pass empty string to clear.',
 			{
 				nodeId: z.string(),
 				assetId: z.string().describe('Asset ID like asset-20260403175316-... or "" to clear'),
 			},
-			async ({ nodeId, assetId }) => {
+			({ nodeId, assetId }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, nodeId)
 				const d = node.getData() as any
@@ -751,20 +764,20 @@ export class BragiMcpServer {
 				if (assetId) next.bragiAssetId = assetId
 				else delete next.bragiAssetId
 				node.setData(next)
-				canvas.requestSave()
+				void canvas.requestSave()
 				return ok({ nodeId, assetId: assetId || null })
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'get_active_canvas_info',
 			'Get path and stats for the currently active canvas (or null if no canvas is open).',
 			{},
-			async () => {
+			() => {
 				const canvas = getCanvas()
 				if (!canvas) return ok(null)
 				const data = canvas.getData() as any
-				const file = (this.app.workspace.activeLeaf?.view as any)?.file
+				const file = (this.app.workspace.getLeaf(false)?.view as any)?.file
 				return ok({
 					path: file?.path || null,
 					basename: file?.basename || null,
@@ -774,17 +787,17 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'list_canvases',
 			'List every .canvas file in the vault.',
 			{},
-			async () => {
+			() => {
 				const files = this.app.vault.getFiles().filter(f => f.extension === 'canvas')
 				return ok(files.map(f => ({ path: f.path, basename: f.basename })))
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'open_canvas',
 			'Switch the active tab to the given .canvas file. Requires user confirmation via a modal; throws "cancelled by user" if the user declines.',
 			{ path: z.string().describe('Vault-relative .canvas file path') },
@@ -799,11 +812,11 @@ export class BragiMcpServer {
 			},
 		)
 
-		mcp.tool(
+		registerTool(mcp,
 			'get_task_status',
 			'Get status of an async task by taskId. Returns "pending" if still in-flight, or "not_found" if already completed/failed (inspect the placeholder node to see the result).',
 			{ taskId: z.string().describe('Task ID returned by list_pending_tasks') },
-			async ({ taskId }) => {
+			({ taskId }) => {
 				if (!this.taskQueue) return ok({ status: 'not_found', taskId })
 				const snap: TaskSnapshot | undefined = this.taskQueue.getSnapshots().find(s => s.taskId === taskId)
 				if (!snap) return ok({ status: 'not_found', taskId })
@@ -869,11 +882,11 @@ export class BragiMcpServer {
 			}
 		})
 
-		return new Promise<void>((resolve, reject) => {
-			this.httpServer!.on('error', (err: NodeJS.ErrnoException) => {
-				console.error(`Bragi MCP server failed to start on port ${port}:`, err.message)
-				reject(err)
-			})
+			return new Promise<void>((resolve, reject) => {
+				this.httpServer!.on('error', (err: NodeJS.ErrnoException) => {
+					console.error(`Bragi MCP server failed to start on port ${port}:`, err.message)
+					reject(err instanceof Error ? err : new Error(String(err)))
+				})
 			this.httpServer!.listen(port, '127.0.0.1', () => {
 				resolve()
 			})
@@ -931,8 +944,16 @@ export class BragiMcpServer {
 
 	async stop(): Promise<void> {
 		for (const { server, transport } of this.sessions.values()) {
-			try { await server.close() } catch {}
-			try { await transport.close() } catch {}
+			try {
+				await server.close()
+			} catch {
+				// Session shutdown is best-effort.
+			}
+			try {
+				await transport.close()
+			} catch {
+				// Session shutdown is best-effort.
+			}
 		}
 		this.sessions.clear()
 
@@ -968,7 +989,11 @@ function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
 		req.on('end', () => {
 			const raw = Buffer.concat(chunks).toString('utf8')
 			if (!raw) return resolve(undefined)
-			try { resolve(JSON.parse(raw)) } catch (err) { reject(err) }
+			try {
+				resolve(JSON.parse(raw))
+			} catch (err) {
+				reject(err instanceof Error ? err : new Error(String(err)))
+			}
 		})
 		req.on('error', reject)
 	})

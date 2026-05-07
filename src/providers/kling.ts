@@ -18,7 +18,7 @@ export class KlingProvider implements VideoProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, any>): Promise<GenerateVideoResult> {
+	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = params?.modelId || 'kling-v3'
 		const duration = params?.duration || '5'
 		const aspectRatio = params?.aspect_ratio || '16:9'
@@ -67,7 +67,7 @@ export class KlingProvider implements VideoProvider {
 		const token = await this.getToken()
 
 		// Try text2video endpoint first, then image2video
-		let data: any
+		let data: unknown
 		const t2vResult = await this.pollTask(token, `/v1/videos/text2video/${taskId}`)
 		if (t2vResult?.code === 0) {
 			data = t2vResult
@@ -95,7 +95,7 @@ export class KlingProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
-	private async createTextToVideoTask(token: string, body: any): Promise<string> {
+	private async createTextToVideoTask(token: string, body: unknown): Promise<string> {
 		const response = await requestUrl({
 			url: `${BASE_URL}/v1/videos/text2video`,
 			method: 'POST',
@@ -113,7 +113,7 @@ export class KlingProvider implements VideoProvider {
 		return data.data.task_id
 	}
 
-	private async createImageToVideoTask(token: string, body: any): Promise<string> {
+	private async createImageToVideoTask(token: string, body: unknown): Promise<string> {
 		const response = await requestUrl({
 			url: `${BASE_URL}/v1/videos/image2video`,
 			method: 'POST',
@@ -131,7 +131,7 @@ export class KlingProvider implements VideoProvider {
 		return data.data.task_id
 	}
 
-	private async pollTask(token: string, path: string): Promise<any> {
+	private async pollTask(token: string, path: string): Promise<unknown> {
 		const response = await requestUrl({
 			url: `${BASE_URL}${path}`,
 			method: 'GET',
@@ -189,7 +189,12 @@ export class KlingProvider implements VideoProvider {
 }
 
 function base64UrlEncode(str: string): string {
-	return btoa(unescape(encodeURIComponent(str)))
+	const bytes = new TextEncoder().encode(str)
+	let binary = ''
+	for (let i = 0; i < bytes.length; i++) {
+		binary += String.fromCharCode(bytes[i])
+	}
+	return btoa(binary)
 		.replace(/\+/g, '-')
 		.replace(/\//g, '_')
 		.replace(/=+$/, '')

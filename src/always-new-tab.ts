@@ -23,24 +23,24 @@ export function installAlwaysNewTab(app: App): () => void {
 	const uninstallers: Array<() => void> = []
 
 	uninstallers.push(around(Workspace.prototype, {
-		getLeaf(oldMethod: any) {
-			return function (this: Workspace, openMode?: any, ...args: any[]) {
+		getLeaf(oldMethod: unknown) {
+			return function (this: Workspace, openMode?: unknown, ...args: unknown[]) {
 				if (openMode == null || openMode === false) {
 					return oldMethod.call(this, 'tab', ...args)
 				}
 				return oldMethod.call(this, openMode, ...args)
 			}
 		},
-		getUnpinnedLeaf(oldMethod: any) {
-			return function (this: Workspace, ...args: any[]) {
-				return (this as any).getLeaf('tab')
+		getUnpinnedLeaf(oldMethod: unknown) {
+			return function (this: Workspace, ...args: unknown[]) {
+				return (this as unknown).getLeaf('tab')
 			}
 		},
 	}))
 
 	uninstallers.push(around(WorkspaceLeaf.prototype, {
-		openFile(oldMethod: any) {
-			return async function (this: WorkspaceLeaf, file: TFile, openState?: any, ...args: any[]) {
+		openFile(oldMethod: unknown) {
+			return async function (this: WorkspaceLeaf, file: TFile, openState?: unknown, ...args: unknown[]) {
 				// Find other main-area leaves already showing this file. Split panes, popouts,
 				// sidebars, and different view types (outgoing-links, etc.) are skipped.
 				const match = findExistingLeaf(app, this, file)
@@ -64,7 +64,7 @@ export function installAlwaysNewTab(app: App): () => void {
 }
 
 function findExistingLeaf(app: App, currentLeaf: WorkspaceLeaf, file: TFile): WorkspaceLeaf | null {
-	const expectedViewType = (app as any).viewRegistry?.getTypeByExtension?.(file.extension)
+	const expectedViewType = (app as unknown).viewRegistry?.getTypeByExtension?.(file.extension)
 	let found: WorkspaceLeaf | null = null
 	app.workspace.iterateAllLeaves((leaf) => {
 		if (found) return
@@ -81,7 +81,7 @@ function findExistingLeaf(app: App, currentLeaf: WorkspaceLeaf, file: TFile): Wo
 
 function isMainLeaf(leaf: WorkspaceLeaf): boolean {
 	const root = leaf.getRoot?.()
-	const workspace = (leaf as any).app?.workspace
+	const workspace = (leaf as unknown).app?.workspace
 	// Main area = rootSplit (not sidebars, not popouts)
 	return !!root && !!workspace && root === workspace.rootSplit
 }

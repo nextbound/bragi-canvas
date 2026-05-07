@@ -16,13 +16,13 @@ let currentlyRedirected = false
 
 export function startAttachmentRedirect(app: App): () => void {
 	const isCanvasLeaf = () => {
-		const leaf = app.workspace.activeLeaf
-		return (leaf?.view as any)?.getViewType?.() === 'canvas'
+		const leaf = app.workspace.getLeaf(false)
+		return (leaf?.view as unknown)?.getViewType?.() === 'canvas'
 	}
 
 	const apply = () => {
 		const onCanvas = isCanvasLeaf()
-		const vaultConfig = (app.vault as any)
+		const vaultConfig = (app.vault as unknown)
 		const currentPath = vaultConfig.getConfig?.('attachmentFolderPath') ?? ''
 
 		if (onCanvas && !currentlyRedirected) {
@@ -49,7 +49,7 @@ export function startAttachmentRedirect(app: App): () => void {
 	return () => {
 		app.workspace.off('active-leaf-change', handler)
 		if (currentlyRedirected && savedFolderPath !== null) {
-			(app.vault as any).setConfig?.('attachmentFolderPath', savedFolderPath)
+			(app.vault as unknown).setConfig?.('attachmentFolderPath', savedFolderPath)
 		}
 		savedFolderPath = null
 		currentlyRedirected = false

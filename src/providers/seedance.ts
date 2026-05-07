@@ -19,7 +19,7 @@ export class SeedanceProvider implements VideoProvider {
 		this.baseUrl = baseUrl || DEFAULT_BASE_URL
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, any>): Promise<GenerateVideoResult> {
+	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = params?.modelId || 'doubao-seedance-2-0-260128'
 		const duration = parseInt(params?.duration || '5')
 		const ratio = params?.ratio || '16:9'
@@ -29,7 +29,7 @@ export class SeedanceProvider implements VideoProvider {
 		const generateAudio = params?.generate_audio !== 'false'
 
 		// Build content array
-		const content: any[] = []
+		const content: unknown[] = []
 
 		// Add reference images
 		for (const dataUri of refImages) {

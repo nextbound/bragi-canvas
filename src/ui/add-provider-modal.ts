@@ -98,9 +98,9 @@ export class AddProviderModal extends Modal {
 			for (const spec of matches) {
 				const row = listEl.createDiv({ cls: 'bragi-add-modal-row' })
 				const info = row.createDiv({ cls: 'bragi-add-modal-row-info' })
-				info.createEl('div', { cls: 'bragi-add-modal-row-name', text: spec.name })
+				info.createDiv({ cls: 'bragi-add-modal-row-name', text: spec.name })
 				if (spec.description) {
-					info.createEl('div', { cls: 'bragi-add-modal-row-desc', text: spec.description })
+					info.createDiv({ cls: 'bragi-add-modal-row-desc', text: spec.description })
 				}
 				const btn = row.createEl('button', { text: 'Add', cls: 'mod-cta' })
 				btn.addEventListener('click', () => this.renderForm(spec, true))
@@ -109,7 +109,7 @@ export class AddProviderModal extends Modal {
 
 		searchEl.addEventListener('input', () => render(searchEl.value))
 		render('')
-		setTimeout(() => searchEl.focus(), 0)
+		activeWindow.setTimeout(() => searchEl.focus(), 0)
 	}
 
 	private renderForm(spec: ProviderSpec, fromPicker: boolean = false) {
@@ -131,7 +131,7 @@ export class AddProviderModal extends Modal {
 
 		const loadDraft = () => {
 			for (const f of currentSpec.fields) {
-				draft[f.key] = (this.plugin.settings.providers as any)[f.key] || ''
+				draft[f.key] = (this.plugin.settings.providers as unknown)[f.key] || ''
 			}
 		}
 		loadDraft()
@@ -150,7 +150,7 @@ export class AddProviderModal extends Modal {
 				const link = p.createEl('a', { text: 'Get key →', href: currentSpec.docUrl, cls: 'bragi-add-modal-doclink' })
 				link.addEventListener('click', (e) => {
 					e.preventDefault()
-					window.open(currentSpec.docUrl!, '_blank')
+					window.open(currentSpec.docUrl, '_blank')
 				})
 			}
 		}
@@ -165,7 +165,7 @@ export class AddProviderModal extends Modal {
 				new Setting(body)
 					.setName('Provider')
 					.addDropdown(dd => {
-						for (const id of choices!) {
+						for (const id of choices) {
 							const s = PROVIDERS.find(p => p.id === id)
 							if (s) dd.addOption(id, s.name)
 						}
@@ -212,7 +212,7 @@ export class AddProviderModal extends Modal {
 								})
 							}
 						}
-						t.inputEl.style.width = '100%'
+						t.inputEl.classList.add('bragi-full-width')
 					})
 				}
 			}
@@ -237,40 +237,44 @@ export class AddProviderModal extends Modal {
 		// Test button (only if the spec supports it)
 		if (currentSpec.testConnection) {
 			const test = btnRow.createEl('button', { text: 'Test' })
-			test.addEventListener('click', async () => {
-				// Use trimmed draft values
-				const trimmed: Record<string, string> = {}
-				for (const f of currentSpec.fields) trimmed[f.key] = (draft[f.key] || '').trim()
-				test.disabled = true
-				test.setText('Testing…')
-				try {
-					const res = await currentSpec.testConnection!(trimmed as any)
-					if (res.ok) new Notice(`${currentSpec.name}: ${res.message}`)
-					else new Notice(`${currentSpec.name}: ${res.message}`, 6000)
-				} catch (err: any) {
-					new Notice(`${currentSpec.name}: test failed — ${err?.message || err}`, 6000)
-				} finally {
-					test.disabled = false
-					test.setText('Test')
-				}
+			test.addEventListener('click', () => {
+				void (async () => {
+					// Use trimmed draft values
+					const trimmed: Record<string, string> = {}
+					for (const f of currentSpec.fields) trimmed[f.key] = (draft[f.key] || '').trim()
+					test.disabled = true
+					test.setText('Testing…')
+					try {
+						const res = await currentSpec.testConnection!(trimmed)
+						if (res.ok) new Notice(`${currentSpec.name}: ${res.message}`)
+						else new Notice(`${currentSpec.name}: ${res.message}`, 6000)
+					} catch (err: unknown) {
+						new Notice(`${currentSpec.name}: test failed — ${err?.message || err}`, 6000)
+					} finally {
+						test.disabled = false
+						test.setText('Test')
+					}
+				})()
 			})
 		}
 
 		const save = btnRow.createEl('button', { text: 'Save', cls: 'mod-cta' })
-		save.addEventListener('click', async () => {
-			const provs = this.plugin.settings.providers as any
-			for (const f of currentSpec.fields) {
-				provs[f.key] = (draft[f.key] || '').trim()
-			}
-			await this.plugin.saveSettings()
-			if (!currentSpec.isConfigured(this.plugin.settings)) {
-				new Notice('Fill in every field first')
-				return
-			}
-			new Notice(`${currentSpec.name} added`)
-			const savedId = currentSpec.id
-			this.close()
-			this.opts.onSaved?.(savedId)
+		save.addEventListener('click', () => {
+			void (async () => {
+				const provs = this.plugin.settings.providers as unknown
+				for (const f of currentSpec.fields) {
+					provs[f.key] = (draft[f.key] || '').trim()
+				}
+				await this.plugin.saveSettings()
+				if (!currentSpec.isConfigured(this.plugin.settings)) {
+					new Notice('Fill in every field first')
+					return
+				}
+				new Notice(`${currentSpec.name} added`)
+				const savedId = currentSpec.id
+				this.close()
+				this.opts.onSaved?.(savedId)
+			})()
 		})
 	}
 }

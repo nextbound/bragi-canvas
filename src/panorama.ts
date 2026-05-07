@@ -2,20 +2,15 @@ import { Modal, Notice, App, setIcon } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 // @ts-ignore — esbuild text loader
 import pannellumJs from 'pannellum-raw'
-// @ts-ignore — esbuild text loader
-import pannellumCss from 'pannellum-raw-css'
 
 let pannellumLoaded = false
 
 function loadPannellum(): void {
 	if (pannellumLoaded) return
 	pannellumLoaded = true
-	const style = document.createElement('style')
-	style.textContent = pannellumCss as unknown as string
-	document.head.appendChild(style)
-	const script = document.createElement('script')
-	script.textContent = pannellumJs as unknown as string
-	document.head.appendChild(script)
+	const script = activeDocument.createEl('script')
+	script.textContent = pannellumJs
+	activeDocument.head.appendChild(script)
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -37,7 +32,7 @@ export class PanoramaViewerModal extends Modal {
 	private canvas: Canvas
 	private outputDir: string
 	private imagePath: string
-	private viewer: any = null
+	private viewer: unknown = null
 	private viewerEl: HTMLElement | null = null
 	private mirrored = false
 	private originalUrl: string | null = null
@@ -71,49 +66,71 @@ export class PanoramaViewerModal extends Modal {
 		captureBtn.setAttribute('aria-label', 'Capture')
 		mirrorBtn.setAttribute('aria-label', 'Mirror')
 
-		captureBtn.addEventListener('click', async () => {
+		captureBtn.addEventListener('click', () => {
 			if (captureBtn.classList.contains('is-disabled')) return
 			captureBtn.classList.add('is-disabled')
-			try {
-				await this.captureScreenshot()
-				this.close()
-			} catch (err: any) {
-				new Notice(`Couldn't capture: ${err.message || err}`)
-				captureBtn.classList.remove('is-disabled')
-			}
+			void (async () => {
+				try {
+					await this.captureScreenshot()
+					this.close()
+				} catch (err: unknown) {
+					new Notice(`Couldn't capture: ${err.message || err}`)
+					captureBtn.classList.remove('is-disabled')
+				}
+			})()
 		})
 
-		mirrorBtn.addEventListener('click', async () => {
+		mirrorBtn.addEventListener('click', () => {
 			if (mirrorBtn.classList.contains('is-disabled')) return
 			mirrorBtn.classList.add('is-disabled')
-			try {
-				this.mirrored = !this.mirrored
-				mirrorBtn.classList.toggle('is-active', this.mirrored)
-				await this.rebuildViewer()
-			} finally {
-				mirrorBtn.classList.remove('is-disabled')
-			}
+			void (async () => {
+				try {
+					this.mirrored = !this.mirrored
+					mirrorBtn.classList.toggle('is-active', this.mirrored)
+					await this.rebuildViewer()
+				} finally {
+					mirrorBtn.classList.remove('is-disabled')
+				}
+			})()
 		})
 
 		try {
 			this.originalUrl = await this.loadImageUrl()
 			await this.rebuildViewer()
-		} catch (err: any) {
-			this.viewerEl!.setText(`Couldn't load this image: ${err.message || err}`)
+		} catch (err: unknown) {
+			this.viewerEl.setText(`Couldn't load this image: ${err.message || err}`)
 		}
 	}
 
 	onClose() {
-		try { this.viewer?.destroy?.() } catch {}
+		try {
+			this.viewer?.destroy?.()
+		} catch {
+			// Viewer teardown is best-effort.
+		}
 		this.viewer = null
-		if (this.originalUrl) { try { URL.revokeObjectURL(this.originalUrl) } catch {}; this.originalUrl = null }
-		if (this.mirroredUrl) { try { URL.revokeObjectURL(this.mirroredUrl) } catch {}; this.mirroredUrl = null }
+		if (this.originalUrl) {
+			try {
+				URL.revokeObjectURL(this.originalUrl)
+			} catch {
+				// Blob URLs can already be revoked by the browser.
+			}
+			this.originalUrl = null
+		}
+		if (this.mirroredUrl) {
+			try {
+				URL.revokeObjectURL(this.mirroredUrl)
+			} catch {
+				// Blob URLs can already be revoked by the browser.
+			}
+			this.mirroredUrl = null
+		}
 		this.contentEl.empty()
 	}
 
 	/** Preserve camera pose across reloads. */
 	private async rebuildViewer(): Promise<void> {
-		const p = (window as any).pannellum
+		const p = (window as unknown).pannellum
 		if (!p || !this.viewerEl) return
 
 		let yaw = 0, pitch = 0, hfov = 100
@@ -124,7 +141,9 @@ export class PanoramaViewerModal extends Modal {
 				pitch = this.viewer.getPitch()
 				hfov = this.viewer.getHfov()
 				this.viewer.destroy()
-			} catch {}
+			} catch {
+				// Preserve the default camera pose if the previous viewer cannot report it.
+			}
 		}
 
 		let url = this.originalUrl!
@@ -152,8 +171,20 @@ export class PanoramaViewerModal extends Modal {
 			pitch,
 			hfov,
 		})
-		setTimeout(() => { try { this.viewer?.resize?.() } catch {} }, 50)
-		setTimeout(() => { try { this.viewer?.resize?.() } catch {} }, 250)
+		activeWindow.setTimeout(() => {
+			try {
+				this.viewer?.resize?.()
+			} catch {
+				// Resize is opportunistic; pannellum may have already torn down.
+			}
+		}, 50)
+		activeWindow.setTimeout(() => {
+			try {
+				this.viewer?.resize?.()
+			} catch {
+				// Resize is opportunistic; pannellum may have already torn down.
+			}
+		}, 250)
 	}
 
 	/** Horizontally flip an image URL and return a new blob: URL. */
@@ -164,7 +195,7 @@ export class PanoramaViewerModal extends Modal {
 			i.onerror = () => reject(new Error('mirror: image load failed'))
 			i.src = srcUrl
 		})
-		const c = document.createElement('canvas')
+		const c = activeDocument.createEl('canvas')
 		c.width = img.naturalWidth
 		c.height = img.naturalHeight
 		const ctx = c.getContext('2d')!
@@ -194,12 +225,12 @@ export class PanoramaViewerModal extends Modal {
 
 		const url = this.mirrored && this.mirroredUrl ? this.mirroredUrl : this.originalUrl!
 
-		const offscreen = document.createElement('div')
-		offscreen.style.cssText = 'position:fixed; left:-99999px; top:0; width:2048px; height:1024px; opacity:0; pointer-events:none;'
-		document.body.appendChild(offscreen)
+		const offscreen = activeDocument.createDiv()
+		offscreen.classList.add('bragi-pano-offscreen-shot')
+		activeDocument.body.appendChild(offscreen)
 
-		const p = (window as any).pannellum
-		const shotViewer: any = p.viewer(offscreen, {
+		const p = (window as unknown).pannellum
+		const shotViewer: unknown = p.viewer(offscreen, {
 			type: 'equirectangular',
 			panorama: url,
 			autoLoad: true,
@@ -215,23 +246,27 @@ export class PanoramaViewerModal extends Modal {
 		// Wait for load + render
 		await new Promise<void>((resolve, reject) => {
 			let settled = false
-			const timer = setTimeout(() => {
+			const timer = activeWindow.setTimeout(() => {
 				if (!settled) { settled = true; reject(new Error('timeout waiting for panorama render')) }
 			}, 8000)
 			shotViewer.on('load', () => {
 				if (settled) return
 				settled = true
-				clearTimeout(timer)
+				activeWindow.clearTimeout(timer)
 				// Give the renderer a frame to paint
 				requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
 			})
 		})
 
-		const canvasEl = offscreen.querySelector('canvas') as HTMLCanvasElement | null
+		const canvasEl = offscreen.querySelector('canvas')
 		if (!canvasEl) { shotViewer.destroy(); offscreen.remove(); throw new Error('no canvas in viewer') }
 
 		const shotDataUrl = canvasEl.toDataURL('image/png')
-		try { shotViewer.destroy() } catch {}
+		try {
+			shotViewer.destroy()
+		} catch {
+			// Capture viewer cleanup is best-effort.
+		}
 		offscreen.remove()
 
 		const b64 = shotDataUrl.split(',')[1]
@@ -248,7 +283,7 @@ export class PanoramaViewerModal extends Modal {
 	}
 
 	private addNodeRightOf(filePath: string) {
-		const src = this.sourceNode.getData() as any
+		const src = this.sourceNode.getData() as unknown
 		const newId = generateId()
 		const edgeId = generateId()
 		const w = src.width || 500
@@ -274,13 +309,13 @@ export class PanoramaViewerModal extends Modal {
 				toEnd: 'arrow',
 			}],
 		})
-		this.canvas.requestSave()
+		void this.canvas.requestSave()
 	}
 }
 
 /** Entry point called from toolbar. */
 export function openPanoramaViewer(app: App, canvas: Canvas, node: CanvasNode, outputDir: string): void {
-	const data = node.getData() as any
+	const data = node.getData() as unknown
 	const filePath = data.file
 	if (!filePath) {
 		new Notice('This node has no image file')

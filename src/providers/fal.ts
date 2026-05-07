@@ -2,6 +2,7 @@ import type { ImageProvider, GenerateImageResult, VideoProvider, GenerateVideoRe
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './upload'
+import { stringParam } from './params'
 
 const FAL_RUN = 'https://fal.run'
 const FAL_QUEUE = 'https://queue.fal.run'
@@ -22,12 +23,12 @@ export class FalImageProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
-		const modelId = params?.modelId || 'xai/grok-imagine-image'
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
+		const modelId = stringParam(params?.modelId, 'xai/grok-imagine-image')
 		const refImages: string[] = params?.refImages || []
 
 		// Build input based on model
-		const input: any = { prompt }
+		const input: unknown = { prompt }
 
 		if (params?.aspectRatio) input.aspect_ratio = params.aspectRatio
 		if (params?.resolution) input.resolution = params.resolution
@@ -98,8 +99,8 @@ export class FalVideoProvider implements VideoProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, any>): Promise<GenerateVideoResult> {
-		let modelId = params?.modelId || 'xai/grok-imagine-video'
+	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+		let modelId = stringParam(params?.modelId, 'xai/grok-imagine-video')
 		const genMode = params?.genMode || 'text-to-video'
 		const refImages: string[] = params?.refImages || []
 		const refVideos: string[] = params?.refVideos || []
@@ -123,7 +124,7 @@ export class FalVideoProvider implements VideoProvider {
 		}
 
 		// Build input
-		const input: any = { prompt }
+		const input: unknown = { prompt }
 
 		if (params?.duration) input.duration = parseInt(params.duration)
 		if (params?.aspectRatio) input.aspect_ratio = params.aspectRatio

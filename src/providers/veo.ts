@@ -1,6 +1,7 @@
 import type { VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
+import { stringParam } from './params'
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -16,15 +17,15 @@ export class VeoProvider implements VideoProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, any>): Promise<GenerateVideoResult> {
-		const modelId = params?.modelId || 'veo-3.1-generate-preview'
+	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+		const modelId = stringParam(params?.modelId, 'veo-3.1-generate-preview')
 		const durationSeconds = parseInt(params?.durationSeconds || '6')
 		const aspectRatio = params?.aspectRatio || '16:9'
 		const resolution = params?.resolution || '720p'
 		const refImages: string[] = params?.refImages || []
 
 		// Build instance
-		const instance: any = { prompt }
+		const instance: unknown = { prompt }
 
 		if (refImages.length >= 2) {
 			// First + last frame (interpolation)

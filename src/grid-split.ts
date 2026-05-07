@@ -54,7 +54,7 @@ export async function loadImageFromBinary(binary: ArrayBuffer, mime: string): Pr
 
 // ── Detection ─────────────────────────────────────────────────────────
 
-export async function detectGrid(img: HTMLImageElement): Promise<GridDetectionResult> {
+export function detectGrid(img: HTMLImageElement): Promise<GridDetectionResult> {
 	const { width, height } = img
 
 	const minAnalysisSize = MIN_CELL_PIXELS * MAX_GRID
@@ -82,7 +82,7 @@ export async function detectGrid(img: HTMLImageElement): Promise<GridDetectionRe
 
 		if (rowAxisReal && colAxisReal) {
 			const safeMargin = Math.max(2, Math.round(lineResult.lineWidth / scale / 2) + 1)
-			return {
+			return Promise.resolve({
 				rows: lineResult.rows,
 				cols: lineResult.cols,
 				rowCuts: lineResult.rowCuts.map(y => Math.round(y / scale)),
@@ -90,14 +90,14 @@ export async function detectGrid(img: HTMLImageElement): Promise<GridDetectionRe
 				safeMargin,
 				method: 'lines',
 				...computeTargetTileSize(width, height, lineResult.rows, lineResult.cols, safeMargin),
-			}
+			})
 		}
 	}
 
 	// Strategy 2: comb scoring
 	const combResult = detectByCombScoring(rowDiff, colDiff, rowDiffHalf, colDiffHalf, analysisW, analysisH, halfW, halfH)
 	const safeMargin = Math.max(2, Math.round(3 / scale))
-	return {
+	return Promise.resolve({
 		rows: combResult.rows,
 		cols: combResult.cols,
 		rowCuts: combResult.rowCuts.map(y => Math.round(y / scale)),
@@ -105,7 +105,7 @@ export async function detectGrid(img: HTMLImageElement): Promise<GridDetectionRe
 		safeMargin,
 		method: 'comb',
 		...computeTargetTileSize(width, height, combResult.rows, combResult.cols, safeMargin),
-	}
+	})
 }
 
 // ── Split ─────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ export async function splitGrid(img: HTMLImageElement, detection: GridDetectionR
 
 /** Draw image to a canvas at the given size, optionally apply a 3x3 Gaussian blur, return grayscale Uint8Array. */
 function rasterizeToGray(img: HTMLImageElement, w: number, h: number, blur: boolean): Uint8Array {
-	const canvas = document.createElement('canvas')
+	const canvas = activeDocument.createEl('canvas')
 	canvas.width = w
 	canvas.height = h
 	const ctx = canvas.getContext('2d', { willReadFrequently: true })!
@@ -470,7 +470,7 @@ async function extractAndTrimTile(
 	targetWidth: number, targetHeight: number,
 	trimEdges: TrimEdges,
 ): Promise<{ blob: Blob }> {
-	const tempCanvas = document.createElement('canvas')
+	const tempCanvas = activeDocument.createEl('canvas')
 	tempCanvas.width = srcWidth
 	tempCanvas.height = srcHeight
 	const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!
@@ -548,7 +548,7 @@ async function extractNormalizedTile(
 	srcX: number, srcY: number, srcWidth: number, srcHeight: number,
 	targetWidth: number, targetHeight: number,
 ): Promise<{ blob: Blob }> {
-	const canvas = document.createElement('canvas')
+	const canvas = activeDocument.createEl('canvas')
 	canvas.width = targetWidth
 	canvas.height = targetHeight
 	const ctx = canvas.getContext('2d')!

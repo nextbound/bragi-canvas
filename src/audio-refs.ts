@@ -11,7 +11,7 @@ export function getOrderedAudios(canvas: Canvas, node: CanvasNode): string[] {
 	const upstream = getUpstreamInputs(canvas, node)
 	const uniqueAudios = [...new Set(upstream.audios)]
 
-	const nodeData = node.getData() as any
+	const nodeData = node.getData() as unknown
 	const savedOrder: string[] | undefined = nodeData.bragiAudioOrder
 
 	if (savedOrder && savedOrder.length > 0) {
@@ -45,7 +45,7 @@ async function getAudioDuration(app: App, filePath: string): Promise<number> {
 			const audio = new Audio(url)
 			audio.addEventListener('loadedmetadata', () => resolve(audio.duration))
 			audio.addEventListener('error', () => resolve(0))
-			setTimeout(() => resolve(0), 3000)
+			activeWindow.setTimeout(() => resolve(0), 3000)
 		})
 	} catch {
 		return 0
@@ -55,7 +55,7 @@ async function getAudioDuration(app: App, filePath: string): Promise<number> {
 export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App): void {
 	if (isDragging) return
 
-	const nodeData = node.getData() as any
+	const nodeData = node.getData() as unknown
 	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && /\.md$/i.test(nodeData.file || ''))) {
 		return
 	}
@@ -80,34 +80,34 @@ export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App):
 
 	existing?.remove()
 
-	const strip = document.createElement('div')
+	const strip = activeDocument.createDiv()
 	strip.className = STRIP_CLASS
 	strip.setAttribute('data-fingerprint', fingerprint)
 
 	for (let i = 0; i < orderedAudios.length; i++) {
 		const audioPath = orderedAudios[i]
 
-		const wrapper = document.createElement('div')
+		const wrapper = activeDocument.createDiv()
 		wrapper.className = 'bragi-audio-ref-wrapper'
 		wrapper.setAttribute('data-audio-path', audioPath)
 		wrapper.draggable = true
 
-		const leading = document.createElement('div')
+		const leading = activeDocument.createDiv()
 		leading.className = 'bragi-ref-leading'
 
-		const handle = document.createElement('span')
+		const handle = activeDocument.createSpan()
 		handle.className = 'bragi-text-ref-handle'
 		handle.textContent = '⠿'
 		leading.appendChild(handle)
 
-		const badge = document.createElement('span')
+		const badge = activeDocument.createSpan()
 		badge.className = 'bragi-ref-badge bragi-ref-badge-inline'
 		badge.textContent = String(i + 1)
 		leading.appendChild(badge)
 
 		wrapper.appendChild(leading)
 
-		const label = document.createElement('span')
+		const label = activeDocument.createSpan()
 		label.className = 'bragi-audio-ref-label'
 		label.textContent = '...'
 		wrapper.appendChild(label)
@@ -115,8 +115,10 @@ export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App):
 		const basename = audioPath.split('/').pop() || audioPath
 		wrapper.title = `#${i + 1} — ${basename}`
 
-		getAudioDuration(app, audioPath).then(dur => {
+		void getAudioDuration(app, audioPath).then(dur => {
 			label.textContent = dur > 0 ? formatDuration(dur) : basename.replace(/\.[^.]+$/, '')
+		}).catch(() => {
+			label.textContent = basename.replace(/\.[^.]+$/, '')
 		})
 
 		wrapper.addEventListener('dragstart', (e) => {
@@ -150,7 +152,7 @@ export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App):
 			newOrder.splice(fromIdx, 1)
 			newOrder.splice(toIdx, 0, draggedPath)
 
-			const data = node.getData() as any
+			const data = node.getData() as unknown
 			node.setData({ ...data, bragiAudioOrder: newOrder })
 
 			isDragging = false
@@ -178,16 +180,16 @@ export function refreshAllAudioRefs(canvas: Canvas, app: App): void {
 	if (!canvas.nodes) return
 	const nodes = canvas.nodes instanceof Map
 		? Array.from(canvas.nodes.values())
-		: (canvas.nodes as any[])
+		: (canvas.nodes as unknown[])
 	for (const node of nodes) {
 		const data = node.getData()
-		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data as any).file || ''))) {
+		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data).file || ''))) {
 			updateAudioRefStrip(canvas, node, app)
 		}
 	}
 }
 
 export function removeAllAudioRefs(): void {
-	document.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
-	document.querySelectorAll(`.${NODE_HAS_AUDIO_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_AUDIO_REFS_CLASS))
+	activeDocument.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
+	activeDocument.querySelectorAll(`.${NODE_HAS_AUDIO_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_AUDIO_REFS_CLASS))
 }

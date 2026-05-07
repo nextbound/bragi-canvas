@@ -7,9 +7,6 @@ export function getCanvasFromNode(node: CanvasNode): Canvas {
 	return node.canvas
 }
 
-/** @deprecated Kept for backwards compat; collision avoidance handles placement now. */
-export function resetPlacement(_sourceId: string): void { /* no-op */ }
-
 const PLACEMENT_GAP = 20
 const PLACEMENT_RADIUS = 20  // up to (2*R+1)² = 1681 candidate cells
 
@@ -56,7 +53,7 @@ function parseAspectRatio(raw?: string): { wRatio: number; hRatio: number } {
  * Pull the user-selected aspect ratio out of PanelResult.params. Accepts both
  * `aspectRatio` (most models) and `aspect_ratio` (kling, grok video) spellings.
  */
-export function readAspectRatio(params?: Record<string, any>): string | undefined {
+export function readAspectRatio(params?: Record<string, unknown>): string | undefined {
 	if (!params) return undefined
 	return params.aspectRatio || params.aspect_ratio || params.ratio
 }
@@ -82,7 +79,7 @@ export function findFreePosition(
 	height: number,
 	excludeId?: string,
 ): { x: number; y: number } {
-	const data = canvas.getData() as any
+	const data = canvas.getData() as unknown
 	const existing: BBox[] = []
 	for (const n of (data.nodes || [])) {
 		if (excludeId && n.id === excludeId) continue
@@ -156,7 +153,7 @@ function renderOverlayText(modelName: string, startedAt: number): string {
 
 function ensureTicker(): void {
 	if (tickInterval) return
-	tickInterval = setInterval(() => {
+	tickInterval = activeWindow.setInterval(() => {
 		if (generatingRegistry.size === 0) { stopTicker(); return }
 		for (const entry of generatingRegistry.values()) {
 			entry.overlayEl.textContent = renderOverlayText(entry.modelName, entry.startedAt)
@@ -165,7 +162,7 @@ function ensureTicker(): void {
 }
 
 function stopTicker(): void {
-	if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
+	if (tickInterval) { activeWindow.clearInterval(tickInterval); tickInterval = null }
 }
 
 /**
@@ -177,7 +174,7 @@ function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt:
 	if (!nodeEl) return
 	let overlayEl = nodeEl.querySelector<HTMLDivElement>('.bragi-generating-overlay')
 	if (!overlayEl) {
-		overlayEl = document.createElement('div')
+		overlayEl = activeDocument.createDiv()
 		overlayEl.className = 'bragi-generating-overlay'
 		nodeEl.appendChild(overlayEl)
 	}
@@ -218,7 +215,7 @@ export function stopGeneratingTicker(): void {
  * even if the user hard-reloads Obsidian within ~500ms of starting generation.
  */
 function persistPlaceholderFields(canvas: Canvas, _nodeId: string, _modelName: string, _startedAt: number): void {
-	const anyCanvas = canvas as any
+	const anyCanvas = canvas as unknown
 	const app = anyCanvas.view?.app || anyCanvas.app
 	const filePath: string | undefined = anyCanvas.view?.file?.path
 	if (!app || !filePath) return
@@ -251,7 +248,7 @@ export function sweepInterruptedPlaceholders(
 ): number {
 	let count = 0
 	for (const node of canvas.nodes.values()) {
-		const d = node.getData() as any
+		const d = node.getData() as unknown
 		if (d.bragiGenerating !== true) continue
 		if (isTracked(node.id)) {
 			// Rehydrate: DOM was recreated on canvas activate, reattach overlay + class
@@ -326,7 +323,7 @@ export function createPlaceholderNode(
 	// the caller async. Also touch the canvas JSON directly as a belt-and-
 	// braces insurance against Obsidian's debounced requestSave missing the
 	// write window when the user reloads quickly.
-	canvas.requestSave()
+	void canvas.requestSave()
 	persistPlaceholderFields(canvas, node.id, modelName, startedAt)
 
 	const nodeEl = node.nodeEl || node.containerEl
@@ -348,7 +345,7 @@ export function replacePlaceholderWithFile(
 	// Reuse the placeholder's exact position AND size — it was sized to match the
 	// output when we created it, so there's no reason to reflow now. This avoids
 	// a second collision-avoidance pass that used to shove the node around.
-	const pd = placeholder.getData() as any
+	const pd = placeholder.getData() as unknown
 	const x = placeholder.x ?? pd.x
 	const y = placeholder.y ?? pd.y
 	const width = pd.width ?? 400
@@ -389,7 +386,7 @@ export function replacePlaceholderWithFile(
 		edges: [...currentData.edges, newEdge],
 	})
 
-	canvas.requestSave()
+	void canvas.requestSave()
 }
 
 /**
@@ -397,10 +394,10 @@ export function replacePlaceholderWithFile(
  * error into the node's text so the user can read it after reloads.
  */
 export function markNodeFailed(node: CanvasNode, errorMsg: string): void {
-	const d = node.getData() as any
+	const d = node.getData() as unknown
 	const { ovidGenerating: _legacy, bragiGenerating: _g, bragiGenModelName: _mn, bragiGenStartedAt: _sa, ...rest } = d
 	node.setData({ ...rest, color: '1' })
-	node.setText(`Generation failed: ${errorMsg}`)
+	void node.setText(`Generation failed: ${errorMsg}`)
 	const nodeEl = node.nodeEl || node.containerEl
 	nodeEl?.classList.remove('bragi-generating')
 	detachGeneratingOverlay(node.id, nodeEl)
@@ -413,13 +410,13 @@ export function markNodeFailed(node: CanvasNode, errorMsg: string): void {
  * and it includes the model name + original runtime if we stored them.
  */
 export function markNodeInterrupted(node: CanvasNode): void {
-	const d = node.getData() as any
+	const d = node.getData() as unknown
 	const modelName = d.bragiGenModelName || 'unknown model'
 	const startedAt = typeof d.bragiGenStartedAt === 'number' ? d.bragiGenStartedAt : null
 	const runtime = startedAt ? ` (ran ${Math.floor((Date.now() - startedAt) / 1000)}s before interruption)` : ''
 	const { ovidGenerating: _legacy, bragiGenerating: _g, bragiGenModelName: _mn, bragiGenStartedAt: _sa, ...rest } = d
 	node.setData({ ...rest, color: '1' })
-	node.setText(`Generation interrupted: ${modelName}${runtime}. You can delete this node.`)
+	void node.setText(`Generation interrupted: ${modelName}${runtime}. You can delete this node.`)
 	const nodeEl = node.nodeEl || node.containerEl
 	nodeEl?.classList.remove('bragi-generating')
 	detachGeneratingOverlay(node.id, nodeEl)
@@ -431,7 +428,7 @@ export function markNodeInterrupted(node: CanvasNode): void {
  */
 export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void {
 	try {
-	const data = node.getData() as any
+	const data = node.getData() as unknown
 	const gap = 50
 
 	if (data.type === 'text') {
@@ -439,7 +436,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 		const height = data.height || 100
 		const nodeId = generateId()
 		const currentData = canvas.getData()
-		const newNodeData: any = {
+		const newNodeData: unknown = {
 			id: nodeId,
 			type: 'text',
 			text: data.text || node.text || '',
@@ -501,7 +498,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 		})
 	}
 
-	canvas.requestSave()
+	void canvas.requestSave()
 	} catch (err) {
 		console.error('[Bragi] duplicateWithConnections failed', err)
 	}
@@ -541,7 +538,7 @@ function getIncomingEdgeData(canvas: Canvas, node: CanvasNode): Array<{
 	const result: Array<{ fromNode: string; fromSide: string; fromEnd: string; toSide: string; toEnd: string }> = []
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as any).getData?.() || edge
+		const edgeData = (edge as unknown).getData?.() || edge
 		result.push({
 			fromNode: edge.from.node.id,
 			fromSide: edgeData.fromSide || edge.from.side || 'right',

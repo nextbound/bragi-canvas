@@ -1,6 +1,7 @@
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { signRequest } from './sigv4'
+import { stringParam } from './params'
 
 export interface TextGenResult {
 	text: string
@@ -11,7 +12,7 @@ If the user asks you to produce multiple separate items (e.g. "split into 3 chap
 
 export interface TextGenProvider {
 	name: string
-	generateText(prompt: string, params?: Record<string, any>): Promise<TextGenResult>
+	generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult>
 }
 
 /**
@@ -27,11 +28,11 @@ export class OpenAITextProvider implements TextGenProvider {
 		this.baseUrl = baseUrl.replace(/\/$/, '')
 	}
 
-	async generateText(prompt: string, params?: Record<string, any>): Promise<TextGenResult> {
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const refImages: string[] = params?.refImages || []
 
 		// Build messages with optional images
-		const content: any[] = []
+		const content: unknown[] = []
 
 		for (const dataUri of refImages) {
 			content.push({
@@ -78,12 +79,12 @@ export class GeminiTextProvider implements TextGenProvider {
 		this.apiKey = apiKey
 	}
 
-	async generateText(prompt: string, params?: Record<string, any>): Promise<TextGenResult> {
-		const modelId = params?.modelId || 'gemini-2.5-flash'
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
+		const modelId = stringParam(params?.modelId, 'gemini-2.5-flash')
 		const refImages: string[] = params?.refImages || []
 
 		// Build parts: images first, then text
-		const parts: any[] = []
+		const parts: unknown[] = []
 
 		for (const dataUri of refImages) {
 			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
@@ -113,8 +114,8 @@ export class GeminiTextProvider implements TextGenProvider {
 
 		const data = response.json
 		const text = data.candidates?.[0]?.content?.parts
-			?.filter((p: any) => p.text)
-			?.map((p: any) => p.text)
+			?.filter((p: unknown) => p.text)
+			?.map((p: unknown) => p.text)
 			?.join('\n')
 			?.trim()
 
@@ -127,8 +128,8 @@ export class GeminiTextProvider implements TextGenProvider {
 /**
  * Build Anthropic Messages API content blocks from prompt + optional images.
  */
-function buildAnthropicContent(prompt: string, refImages: string[]): any[] {
-	const content: any[] = []
+function buildAnthropicContent(prompt: string, refImages: string[]): unknown[] {
+	const content: unknown[] = []
 	for (const dataUri of refImages) {
 		const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 		if (match) {
@@ -142,10 +143,10 @@ function buildAnthropicContent(prompt: string, refImages: string[]): any[] {
 	return content
 }
 
-function parseAnthropicText(data: any): string {
+function parseAnthropicText(data: unknown): string {
 	const blocks = data?.content
 	if (!Array.isArray(blocks)) return ''
-	return blocks.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim()
+	return blocks.filter((b: unknown) => b.type === 'text').map((b: unknown) => b.text).join('\n').trim()
 }
 
 /**
@@ -159,7 +160,7 @@ export class AnthropicTextProvider implements TextGenProvider {
 		this.apiKey = apiKey
 	}
 
-	async generateText(prompt: string, params?: Record<string, any>): Promise<TextGenResult> {
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = params?.modelId || 'claude-sonnet-4-6'
 		const refImages: string[] = params?.refImages || []
 
@@ -201,7 +202,7 @@ export class BedrockClaudeTextProvider implements TextGenProvider {
 		this.region = region || 'us-east-1'
 	}
 
-	async generateText(prompt: string, params?: Record<string, any>): Promise<TextGenResult> {
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const bedrockModelId = params?.modelId
 		if (!bedrockModelId) throw new Error('Bedrock: missing modelId')
 		const refImages: string[] = params?.refImages || []

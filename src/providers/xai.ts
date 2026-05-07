@@ -5,7 +5,7 @@ import { uploadRef } from './upload'
 
 const XAI_BASE = 'https://api.x.ai/v1'
 
-function parseErr(resp: { status: number; text?: string; json?: any }): string {
+function parseErr(resp: { status: number; text?: string; json?: unknown }): string {
 	const body = resp.json ?? (() => { try { return JSON.parse(resp.text || '') } catch { return null } })()
 	const msg = body?.error?.message || body?.error || body?.message || resp.text || ''
 	return typeof msg === 'string' ? msg : JSON.stringify(msg).substring(0, 200)
@@ -41,7 +41,7 @@ export class XAIImageProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		// `quality` param (quality|normal) overrides the default apiModelId so we can expose one
 		// "Grok Imagine" card in the UI but still hit the right tier on xAI.
 		const tier = params?.quality === 'normal' ? 'grok-imagine-image' : 'grok-imagine-image-quality'
@@ -52,7 +52,7 @@ export class XAIImageProvider implements ImageProvider {
 		const isEdit = refImages.length > 0
 		const url = isEdit ? `${XAI_BASE}/images/edits` : `${XAI_BASE}/images/generations`
 
-		const body: any = {
+		const body: unknown = {
 			model: modelId,
 			prompt,
 			n: 1,
@@ -119,7 +119,7 @@ export class XAIVideoProvider implements VideoProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, any>): Promise<GenerateVideoResult> {
+	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = params?.modelId || 'grok-imagine-video'
 		const aspectRatio = params?.aspect_ratio || params?.aspectRatio || '16:9'
 		let duration = parseInt(params?.duration || params?.durationSeconds || '5')
@@ -133,7 +133,7 @@ export class XAIVideoProvider implements VideoProvider {
 		//   reference-to-video:                         1–10s
 		if (genMode === 'image-ref' && duration > 10) duration = 10
 
-		const body: any = {
+		const body: unknown = {
 			model: modelId,
 			prompt,
 			aspect_ratio: aspectRatio,
@@ -241,7 +241,7 @@ export class XAIAudioProvider implements AudioProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect'; modelId?: string; [k: string]: any }): Promise<GenerateAudioResult> {
+	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect'; modelId?: string; [k: string]: unknown }): Promise<GenerateAudioResult> {
 		if (options.mode !== 'tts') {
 			throw new Error('xAI only supports TTS; use ElevenLabs or fal.ai for music and sound effects.')
 		}

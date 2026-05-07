@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case, obsidianmd/prefer-get-language -- Bragi preserves exact copy; getLanguage requires Obsidian 1.8.7 but minAppVersion is 1.5.0. */
 import { App, Modal } from 'obsidian'
 
 /**
@@ -30,13 +31,15 @@ export class LanguageGateModal extends Modal {
 		const row = contentEl.createDiv({ cls: 'modal-button-container' })
 
 		const disable = row.createEl('button', { text: 'Disable plugin' })
-		disable.addEventListener('click', async () => {
-			try {
-				await (this.app as any).plugins.disablePlugin(this.pluginId)
-			} catch (err) {
-				console.error('Bragi: failed to disable plugin', err)
-			}
-			this.close()
+		disable.addEventListener('click', () => {
+			void (async () => {
+				try {
+					await (this.app as unknown).plugins.disablePlugin(this.pluginId)
+				} catch (err) {
+					console.error('Bragi: failed to disable plugin', err)
+				}
+				this.close()
+			})()
 		})
 
 		const switchBtn = row.createEl('button', { text: 'Switch to English & restart', cls: 'mod-cta' })
@@ -48,8 +51,8 @@ export class LanguageGateModal extends Modal {
 			}
 			// Relaunch Obsidian via Electron
 			try {
-				const remote = (window as any).require?.('@electron/remote')
-					?? (window as any).require?.('electron')?.remote
+				const remote = (window as unknown).require?.('@electron/remote')
+					?? (window as unknown).require?.('electron')?.remote
 				if (remote?.app) {
 					remote.app.relaunch()
 					remote.app.exit(0)

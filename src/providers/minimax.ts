@@ -13,13 +13,13 @@ export class MiniMaxProvider implements AudioProvider {
 		private outputDir: string,
 	) {}
 
-	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, [k: string]: any }): Promise<GenerateAudioResult> {
+	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, [k: string]: unknown }): Promise<GenerateAudioResult> {
 		if (options.mode === 'tts') return this.generateTTS(prompt, options)
 		if (options.mode === 'music') return this.generateMusic(prompt, options)
 		throw new Error(`MiniMax: unsupported audio mode "${options.mode}"`)
 	}
 
-	async generateTTS(text: string, params?: Record<string, any>): Promise<{ filePath: string }> {
+	async generateTTS(text: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
 		const modelId = params?.modelId || 'speech-2.8-hd'
 		const voiceId = params?.voice || 'English_Graceful_Lady'
 		const speed = parseFloat(params?.speed || '1.0')
@@ -50,12 +50,12 @@ export class MiniMaxProvider implements AudioProvider {
 		return this.downloadAudio(audioUrl, 'tts')
 	}
 
-	async generateMusic(prompt: string, params?: Record<string, any>): Promise<{ filePath: string }> {
+	async generateMusic(prompt: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
 		const modelId = params?.modelId || 'music-2.6'
 		const isInstrumental = params?.instrumental === 'true'
 		const lyrics = params?.lyrics || ''
 
-		const body: any = {
+		const body: unknown = {
 			model: modelId,
 			prompt,
 			is_instrumental: isInstrumental,

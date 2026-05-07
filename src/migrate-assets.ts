@@ -9,8 +9,8 @@ function findLegacyAssetFolders(app: App, legacyName: string): TFolder[] {
 	const result: TFolder[] = []
 	const all = app.vault.getAllLoadedFiles()
 	for (const f of all) {
-		if ((f as any).children && f.name === legacyName && f.path !== NEW_ASSETS_DIR) {
-			result.push(f as TFolder)
+		if (f instanceof TFolder && f.name === legacyName && f.path !== NEW_ASSETS_DIR) {
+			result.push(f)
 		}
 	}
 	return result
@@ -61,30 +61,34 @@ class AssetsMigrationModal extends Modal {
 		later.addEventListener('click', () => this.close())
 
 		const dontAsk = row.createEl('button', { text: "Keep them where they are" })
-		dontAsk.addEventListener('click', async () => {
-			this.plugin.settings.migrationPrompted = true
-			await this.plugin.saveSettings()
-			this.close()
-		})
-
-		const migrate = row.createEl('button', { text: 'Tidy up', cls: 'mod-cta' })
-		migrate.addEventListener('click', async () => {
-			migrate.disabled = true
-			later.disabled = true
-			dontAsk.disabled = true
-			migrate.setText('Working…')
-			try {
-				await performMigration(this.plugin, this.folders)
+		dontAsk.addEventListener('click', () => {
+			void (async () => {
 				this.plugin.settings.migrationPrompted = true
 				await this.plugin.saveSettings()
 				this.close()
-			} catch (err: any) {
-				new Notice(`Tidy up failed: ${err.message || err}`)
-				migrate.disabled = false
-				later.disabled = false
-				dontAsk.disabled = false
-				migrate.setText('Tidy up')
-			}
+			})()
+		})
+
+		const migrate = row.createEl('button', { text: 'Tidy up', cls: 'mod-cta' })
+		migrate.addEventListener('click', () => {
+			void (async () => {
+				migrate.disabled = true
+				later.disabled = true
+				dontAsk.disabled = true
+				migrate.setText('Working…')
+				try {
+					await performMigration(this.plugin, this.folders)
+					this.plugin.settings.migrationPrompted = true
+					await this.plugin.saveSettings()
+					this.close()
+				} catch (err: unknown) {
+					new Notice(`Tidy up failed: ${err.message || err}`)
+					migrate.disabled = false
+					later.disabled = false
+					dontAsk.disabled = false
+					migrate.setText('Tidy up')
+				}
+			})()
 		})
 	}
 
@@ -96,7 +100,7 @@ class AssetsMigrationModal extends Modal {
 function countFiles(folder: TFolder): number {
 	let n = 0
 	for (const c of folder.children) {
-		if ((c as any).children) n += countFiles(c as TFolder)
+		if (c instanceof TFolder) n += countFiles(c)
 		else n++
 	}
 	return n
@@ -104,7 +108,7 @@ function countFiles(folder: TFolder): number {
 
 function collectFiles(folder: TFolder, out: string[]): void {
 	for (const c of folder.children) {
-		if ((c as any).children) collectFiles(c as TFolder, out)
+		if (c instanceof TFolder) collectFiles(c, out)
 		else out.push(c.path)
 	}
 }
@@ -151,7 +155,9 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[]): Promis
 		try {
 			const existing = await adapter.list(NEW_ASSETS_DIR)
 			for (const p of existing.files) usedNames.add(p.split('/').pop()!)
-		} catch {}
+		} catch {
+			// Existing asset dir may not be listable; continue with an empty seed.
+		}
 
 		for (const folder of folders) {
 			const files: string[] = []
@@ -174,7 +180,7 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[]): Promis
 					await adapter.remove(oldPath)
 					pathRemap.set(oldPath, newPath)
 					moved++
-				} catch (err: any) {
+				} catch (err: unknown) {
 					console.error(`Bragi: failed to migrate ${oldPath}:`, err)
 				}
 			}
@@ -202,7 +208,7 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[]): Promis
 					await app.vault.modify(cv, JSON.stringify(data, null, '\t'))
 					rewroteCanvases++
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				console.error(`Bragi: failed to rewrite ${cv.path}:`, err)
 			}
 		}

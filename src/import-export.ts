@@ -1,4 +1,7 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Bragi package copy keeps the product spelling intact. */
 import { App, Notice, TFile } from 'obsidian'
+import { remote } from 'electron'
+import * as fs from 'fs'
 import type { BragiSettings } from './settings'
 import type { Canvas } from './types/canvas-internal'
 import JSZip from 'jszip'
@@ -44,7 +47,7 @@ export async function exportCanvas(app: App, settings: BragiSettings, canvas: Ca
 		const canvasName = withoutExt(basename(canvasFilePath))
 		const assetBase = '_bragi/assets'
 
-		const data = canvas.getData() as any
+		const data = canvas.getData() as unknown
 		const cloned = JSON.parse(JSON.stringify(data))
 
 		// Collect all file references
@@ -116,7 +119,6 @@ export async function exportCanvas(app: App, settings: BragiSettings, canvas: Ca
 		)
 
 		// Save dialog
-		const { remote } = require('electron')
 		const result = await remote.dialog.showSaveDialog({
 			title: 'Export Bragi Canvas',
 			defaultPath: `${canvasName}.bragi`,
@@ -131,13 +133,12 @@ export async function exportCanvas(app: App, settings: BragiSettings, canvas: Ca
 			return
 		}
 
-		const fs = require('fs')
 		fs.writeFileSync(result.filePath, Buffer.from(buffer))
 
 		notice.hide()
 		const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(1)
 		new Notice(`Exported ${basename(result.filePath)} — ${sizeMB} MB, ${added} file${added === 1 ? '' : 's'}`)
-	} catch (err: any) {
+	} catch (err: unknown) {
 		notice.hide()
 		new Notice(`Export failed: ${err.message}`)
 		console.error('Bragi export error:', err)
@@ -156,7 +157,6 @@ export async function importCanvas(
 
 	try {
 		// Open dialog
-		const { remote } = require('electron')
 		const openResult = await remote.dialog.showOpenDialog({
 			title: 'Import Bragi Canvas Package',
 			filters: [
@@ -171,7 +171,6 @@ export async function importCanvas(
 			return
 		}
 
-		const fs = require('fs')
 		const fileBuffer = fs.readFileSync(openResult.filePaths[0])
 		const zip = await JSZip.loadAsync(fileBuffer)
 
@@ -248,7 +247,7 @@ export async function importCanvas(
 				pathMap.set(pkgPath, vaultPath)
 				extracted++
 				notice.setMessage(`Extracting assets… ${extracted}/${assetFiles.length}`)
-			} catch (err: any) {
+			} catch (err: unknown) {
 				new Notice(`Couldn't extract ${basename(pkgPath)}`)
 			}
 		}
@@ -258,10 +257,10 @@ export async function importCanvas(
 
 		if (mode === 'merge' && canvas) {
 			// Collect existing IDs
-			const existingData = canvas.getData() as any
+			const existingData = canvas.getData() as unknown
 			const existingIds = new Set<string>([
-				...(existingData.nodes || []).map((n: any) => n.id),
-				...(existingData.edges || []).map((e: any) => e.id),
+				...(existingData.nodes || []).map((n: unknown) => n.id),
+				...(existingData.edges || []).map((e: unknown) => e.id),
 			])
 
 			// Regenerate IDs
@@ -279,7 +278,7 @@ export async function importCanvas(
 				nodes: [...(existingData.nodes || []), ...(importedData.nodes || [])],
 				edges: [...(existingData.edges || []), ...(importedData.edges || [])],
 			})
-			canvas.requestSave()
+			void canvas.requestSave()
 
 			notice.hide()
 			new Notice(`Added ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'} and ${extracted} file${extracted === 1 ? '' : 's'}`)
@@ -299,7 +298,7 @@ export async function importCanvas(
 			notice.hide()
 			new Notice(`Opened ${basename(targetCanvasPath!)} — ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'}, ${extracted} file${extracted === 1 ? '' : 's'}`)
 		}
-	} catch (err: any) {
+	} catch (err: unknown) {
 		notice.hide()
 		new Notice(`Import failed: ${err.message}`)
 		console.error('Bragi import error:', err)
@@ -309,12 +308,12 @@ export async function importCanvas(
 // ── Helpers ────────────────────────────────────────────────────────
 
 function getCanvasFilePath(app: App): string | null {
-	const leaf = app.workspace.activeLeaf
-	const filePath = (leaf?.view as any)?.file?.path as string | undefined
+	const leaf = app.workspace.getLeaf(false)
+	const filePath = (leaf?.view as unknown)?.file?.path as string | undefined
 	return filePath || null
 }
 
-function collectFileRefs(data: any): string[] {
+function collectFileRefs(data: unknown): string[] {
 	const refs = new Set<string>()
 	for (const node of (data.nodes || [])) {
 		if (node.type === 'file' && node.file) {
@@ -327,7 +326,7 @@ function collectFileRefs(data: any): string[] {
 	return [...refs]
 }
 
-function rewritePaths(data: any, pathMap: Map<string, string>): void {
+function rewritePaths(data: unknown, pathMap: Map<string, string>): void {
 	for (const node of (data.nodes || [])) {
 		if (node.type === 'file' && node.file && pathMap.has(node.file)) {
 			node.file = pathMap.get(node.file)
@@ -338,7 +337,7 @@ function rewritePaths(data: any, pathMap: Map<string, string>): void {
 	}
 }
 
-function rewritePathsForImport(data: any, pathMap: Map<string, string>): void {
+function rewritePathsForImport(data: unknown, pathMap: Map<string, string>): void {
 	for (const node of (data.nodes || [])) {
 		if (node.type === 'file' && node.file && pathMap.has(node.file)) {
 			node.file = pathMap.get(node.file)
@@ -349,7 +348,7 @@ function rewritePathsForImport(data: any, pathMap: Map<string, string>): void {
 	}
 }
 
-function regenerateIds(data: any, existingIds: Set<string>): void {
+function regenerateIds(data: unknown, existingIds: Set<string>): void {
 	const idMap = new Map<string, string>()
 	const usedIds = new Set(existingIds)
 
@@ -372,18 +371,18 @@ function regenerateIds(data: any, existingIds: Set<string>): void {
 }
 
 function calculateMergeOffset(
-	existingNodes: any[],
-	importedNodes: any[]
+	existingNodes: unknown[],
+	importedNodes: unknown[]
 ): { dx: number; dy: number } {
 	if (existingNodes.length === 0 || importedNodes.length === 0) {
 		return { dx: 0, dy: 0 }
 	}
 
-	const existingRight = Math.max(...existingNodes.map((n: any) => (n.x || 0) + (n.width || 0)))
-	const existingTop = Math.min(...existingNodes.map((n: any) => n.y || 0))
+	const existingRight = Math.max(...existingNodes.map((n: unknown) => (n.x || 0) + (n.width || 0)))
+	const existingTop = Math.min(...existingNodes.map((n: unknown) => n.y || 0))
 
-	const importedLeft = Math.min(...importedNodes.map((n: any) => n.x || 0))
-	const importedTop = Math.min(...importedNodes.map((n: any) => n.y || 0))
+	const importedLeft = Math.min(...importedNodes.map((n: unknown) => n.x || 0))
+	const importedTop = Math.min(...importedNodes.map((n: unknown) => n.y || 0))
 
 	return {
 		dx: existingRight + 200 - importedLeft,

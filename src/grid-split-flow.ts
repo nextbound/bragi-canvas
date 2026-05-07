@@ -16,7 +16,7 @@ function extToMime(ext: string): string {
 }
 
 export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canvas, node: CanvasNode): Promise<void> {
-	const data = node.getData() as any
+	const data = node.getData() as unknown
 	const imgPath: string | undefined = data.file
 	if (!imgPath) { new Notice('This node has no image file'); return }
 
@@ -55,7 +55,7 @@ export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canva
 	}
 
 	// Place new nodes: vertically stacked, to the right of source, with uniform gap
-	const src = data as any
+	const src = data
 	const srcX = src.x, srcY = src.y, srcW = src.width, srcH = src.height
 	const gap = 40
 	const targetW = Math.max(200, Math.round(srcW * 0.6))  // smaller so stack doesn't explode
@@ -66,8 +66,8 @@ export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canva
 	let cursorY = srcY
 
 	const current = canvas.getData()
-	const newNodes: any[] = []
-	const newEdges: any[] = []
+	const newNodes: unknown[] = []
+	const newEdges: unknown[] = []
 
 	for (let i = 0; i < tileFiles.length; i++) {
 		const nodeId = generateId()
@@ -97,7 +97,7 @@ export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canva
 		nodes: [...current.nodes, ...newNodes],
 		edges: [...current.edges, ...newEdges],
 	})
-	canvas.requestSave()
+	void canvas.requestSave()
 
 	new Notice(`Split into ${tiles.length} tile${tiles.length === 1 ? '' : 's'}`)
 }

@@ -1,6 +1,7 @@
 import type { ImageProvider, GenerateImageResult } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
+import { stringParam } from './params'
 
 export class GeminiProvider implements ImageProvider {
 	name = 'Gemini'
@@ -14,8 +15,8 @@ export class GeminiProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
-		const modelId = params?.modelId || 'gemini-3-pro-image-preview'
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
+		const modelId = stringParam(params?.modelId, 'gemini-3-pro-image-preview')
 		const aspectRatio = params?.aspectRatio || '1:1'
 		const imageSize = params?.imageSize || '1K'
 		const refImages: string[] = params?.refImages || []
@@ -23,7 +24,7 @@ export class GeminiProvider implements ImageProvider {
 		const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`
 
 		// Build parts: reference images first, then prompt text
-		const parts: any[] = []
+		const parts: unknown[] = []
 		for (const dataUri of refImages) {
 			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 			if (match) {

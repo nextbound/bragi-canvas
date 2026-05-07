@@ -61,32 +61,6 @@ export function getModelById(id: string): ModelConfig | undefined {
 }
 
 /**
- * Check which providers have keys configured.
- * @deprecated Pass the full BragiSettings via getConfiguredProviderIds instead.
- *             Kept for call sites that still hand us the providers sub-object.
- */
-export function getConfiguredProviders(providers: Record<string, string>): string[] {
-	// Match the registry's isConfigured logic; keep in sync with PROVIDERS[].
-	const result: string[] = []
-	if (providers.openai) result.push('openai')
-	if (providers.anthropic) result.push('anthropic')
-	if (providers.bedrockAccessKeyId && providers.bedrockSecretAccessKey && providers.bedrockRegion) result.push('bedrock')
-	if (providers.gemini) result.push('gemini')
-	if (providers.bytedance) result.push('bytedance')
-	if (providers.byteplus) result.push('byteplus')
-	if (providers.klingAk && providers.klingSk) result.push('kling')
-	if (providers.fal) result.push('fal')
-	if (providers.elevenlabs) result.push('elevenlabs')
-	if (providers.minimax) result.push('minimax')
-	if (providers.legnext) result.push('legnext')
-	if (providers.tokenrouter) result.push('tokenrouter')
-	if (providers.apimart) result.push('apimart')
-	if (providers.lumaToken) result.push('luma')
-	if (providers.xai) result.push('xai')
-	return result
-}
-
-/**
  * Get the active provider for a model, considering user preference and key availability.
  * Returns null if no provider is available.
  */

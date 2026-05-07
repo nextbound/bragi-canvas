@@ -36,12 +36,12 @@ export class TaskQueue {
 
 	start(): void {
 		if (this.interval) return
-		this.interval = setInterval(() => this.pollAll(), this.pollIntervalMs)
+		this.interval = activeWindow.setInterval(() => { void this.pollAll() }, this.pollIntervalMs)
 	}
 
 	stop(): void {
 		if (this.interval) {
-			clearInterval(this.interval)
+			activeWindow.clearInterval(this.interval)
 			this.interval = null
 		}
 	}
@@ -85,7 +85,7 @@ export class TaskQueue {
 					new Notice(`Video ready (${task.snapshot.modelName})`)
 					completedIds.add(id)
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				console.error(`Bragi Canvas: Task ${id} failed:`, err)
 				if (this.tasks.some(t => t.snapshot.taskId === id)) {
 					markNodeFailed(task.placeholder, err.message || 'Unknown error')

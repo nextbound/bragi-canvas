@@ -22,7 +22,7 @@ export class SeedreamProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		const modelId = params?.modelId || 'doubao-seedream-5-0-260128'
 		const aspectRatio = params?.aspectRatio || '1:1'
 		const resolution = params?.resolution || '2K'
@@ -32,7 +32,7 @@ export class SeedreamProvider implements ImageProvider {
 		const size = SIZE_MAP[resolution]?.[aspectRatio] || '2048x2048'
 
 		// Build request body
-		const body: any = {
+		const body: unknown = {
 			model: modelId,
 			prompt,
 			size,

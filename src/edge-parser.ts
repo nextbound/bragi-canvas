@@ -28,7 +28,7 @@ export function getUpstreamInputs(canvas: Canvas, node: CanvasNode): UpstreamInp
 		// Skip nondirectional (—) and bidirectional (↔) edges
 		if (edge.to.node.id !== node.id) continue
 
-		const edgeData = (edge as any).getData?.() || edge
+		const edgeData = (edge as unknown).getData?.() || edge
 		const toEnd = edgeData.toEnd ?? 'arrow'  // default is arrow
 		const fromEnd = edgeData.fromEnd ?? 'none'
 
@@ -44,7 +44,7 @@ export function getUpstreamInputs(canvas: Canvas, node: CanvasNode): UpstreamInp
 			const text = sourceNode.text?.trim()
 			if (text) result.prompts.push(text)
 		} else if (sourceData.type === 'file') {
-			const filePath = (sourceData as any).file || ''
+			const filePath = (sourceData as unknown).file || ''
 
 			if (/\.md$/i.test(filePath)) {
 				// Note node — will need to read file content later (async)
@@ -73,7 +73,7 @@ export async function resolvePrompts(prompts: string[], app: App): Promise<strin
 			const filePath = p.slice(7)
 			const file = app.vault.getAbstractFileByPath(filePath)
 			if (file) {
-				const content = await app.vault.read(file as any)
+				const content = await app.vault.read(file as unknown)
 				if (content.trim()) resolved.push(content.trim())
 			}
 		} else {

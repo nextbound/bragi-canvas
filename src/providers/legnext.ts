@@ -1,6 +1,7 @@
 import type { ImageProvider, GenerateImageResult } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
+import { optionalStringParam, stringParam } from './params'
 
 const BASE_URL = 'https://api.legnext.ai/api'
 
@@ -21,7 +22,7 @@ export class LegnextProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		const modelId = params?.modelId || 'midjourney-v8'
 
 		// Build MJ prompt with params appended
@@ -35,18 +36,21 @@ export class LegnextProvider implements ImageProvider {
 		}
 
 		// Append aspect ratio
-		if (params?.ar && !mjPrompt.includes('--ar')) {
-			mjPrompt += ` --ar ${params.ar}`
+		const ar = optionalStringParam(params?.ar)
+		if (ar && !mjPrompt.includes('--ar')) {
+			mjPrompt += ` --ar ${ar}`
 		}
 
 		// Append quality
-		if (params?.quality && params.quality !== '1' && !mjPrompt.includes('--q ')) {
-			mjPrompt += ` --q ${params.quality}`
+		const quality = optionalStringParam(params?.quality)
+		if (quality && quality !== '1' && !mjPrompt.includes('--q ')) {
+			mjPrompt += ` --q ${quality}`
 		}
 
 		// Append stylize
-		if (params?.stylize !== undefined && params.stylize !== 100 && !mjPrompt.includes('--stylize')) {
-			mjPrompt += ` --stylize ${params.stylize}`
+		const stylize = params?.stylize === undefined ? undefined : stringParam(params.stylize, '100')
+		if (stylize !== undefined && stylize !== '100' && !mjPrompt.includes('--stylize')) {
+			mjPrompt += ` --stylize ${stylize}`
 		}
 
 		// Submit task
@@ -92,7 +96,7 @@ export class LegnextProvider implements ImageProvider {
 	private async pollForResult(jobId: string): Promise<string> {
 		const maxAttempts = 60 // 5 minutes max (5s intervals)
 		for (let i = 0; i < maxAttempts; i++) {
-			await new Promise(resolve => setTimeout(resolve, 5000))
+			await new Promise(resolve => activeWindow.setTimeout(resolve, 5000))
 
 			const response = await requestUrl({
 				url: `${BASE_URL}/v1/job/${jobId}`,

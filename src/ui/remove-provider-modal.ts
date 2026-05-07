@@ -48,7 +48,7 @@ export async function applyRemoval(plugin: BragiCanvas, providerId: string, impa
 	const spec = getProvider(providerId)
 	if (!spec) return
 	for (const f of spec.fields) {
-		(plugin.settings.providers as any)[f.key] = ''
+		(plugin.settings.providers as unknown)[f.key] = ''
 	}
 	for (const { model, to } of impact.switching) {
 		const pref = plugin.settings.modelPrefs[model.id] || { enabled: true, selectedProvider: to }
@@ -75,7 +75,7 @@ export function removeProvider(plugin: BragiCanvas, providerId: string, onDone: 
 
 	if (impact.disappearing.length === 0) {
 		// Silent removal (possibly with auto-switch Notice)
-		applyRemoval(plugin, providerId, impact).then(() => {
+		void applyRemoval(plugin, providerId, impact).then(() => {
 			if (impact.switching.length > 0) {
 				new Notice(`${spec.name} removed — ${impact.switching.length} model${impact.switching.length === 1 ? '' : 's'} switched provider`)
 			} else {
@@ -128,13 +128,14 @@ class RemoveProviderConfirmModal extends Modal {
 		const cancel = row.createEl('button', { text: 'Cancel' })
 		cancel.addEventListener('click', () => this.close())
 		const confirm = row.createEl('button', { text: 'Remove', cls: 'mod-destructive' })
-		confirm.style.backgroundColor = 'var(--text-error)'
-		confirm.style.color = 'white'
-		confirm.addEventListener('click', async () => {
-			await applyRemoval(this.plugin, this.providerId, this.impact)
-			this.close()
-			new Notice(`${this.providerName} removed`)
-			this.onDone()
+		confirm.classList.add('bragi-danger-button')
+		confirm.addEventListener('click', () => {
+			void (async () => {
+				await applyRemoval(this.plugin, this.providerId, this.impact)
+				this.close()
+				new Notice(`${this.providerName} removed`)
+				this.onDone()
+			})()
 		})
 	}
 

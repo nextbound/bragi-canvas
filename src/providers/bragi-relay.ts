@@ -58,7 +58,7 @@ export async function testBragiRelay(cfg: BragiRelayConfig): Promise<{ ok: boole
 		if (resp.status === 200 && resp.json?.ok) return { ok: true }
 		if (resp.status === 401) return { ok: false, error: 'Invalid token' }
 		return { ok: false, error: `HTTP ${resp.status}: ${JSON.stringify(resp.json || '').substring(0, 100)}` }
-	} catch (err: any) {
+	} catch (err: unknown) {
 		return { ok: false, error: err?.message || String(err) }
 	}
 }

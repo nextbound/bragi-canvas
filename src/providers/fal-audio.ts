@@ -1,6 +1,7 @@
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { AudioProvider, GenerateAudioResult } from './types'
+import { optionalStringParam } from './params'
 
 /**
  * fal.ai audio wrapper — submits to `https://fal.run/{apiModelId}` and downloads the resulting URL.
@@ -18,11 +19,11 @@ export class FalAudioProvider implements AudioProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, upstreamPrompts?: string[], [k: string]: any }): Promise<GenerateAudioResult> {
+	async generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, upstreamPrompts?: string[], [k: string]: unknown }): Promise<GenerateAudioResult> {
 		const apiModelId = options.modelId
 		if (!apiModelId) throw new Error('fal audio: modelId required')
 
-		const body = buildAudioInput(prompt, options as Record<string, any>, options.mode, options.upstreamPrompts)
+		const body = buildAudioInput(prompt, options, options.mode, options.upstreamPrompts)
 
 		const response = await requestUrl({
 			url: `https://fal.run/${apiModelId}`,
@@ -52,16 +53,17 @@ export class FalAudioProvider implements AudioProvider {
 	}
 }
 
-function buildAudioInput(prompt: string, params: Record<string, any>, mode: any, upstreamPrompts?: string[]): any {
-	const input: any = {}
+function buildAudioInput(prompt: string, params: Record<string, unknown>, mode: unknown, upstreamPrompts?: string[]): unknown {
+	const input: unknown = {}
 	if (mode === 'tts') {
 		input.text = prompt
 		if (params.voice) input.voice_id = params.voice
 		if (params.speed) input.speed = parseFloat(params.speed)
 	} else if (mode === 'music') {
 		input.prompt = prompt
-		if (params.music_length_ms) {
-			input.music_length_ms = parseInt(String(params.music_length_ms)) * 1000
+		const musicLengthMs = optionalStringParam(params.music_length_ms)
+		if (musicLengthMs) {
+			input.music_length_ms = parseInt(musicLengthMs, 10) * 1000
 		}
 		if (params.instrumental === 'true') {
 			input.force_instrumental = true

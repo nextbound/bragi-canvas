@@ -29,14 +29,14 @@ export function getOrderedTextRefs(canvas: Canvas, node: CanvasNode): TextRef[] 
 
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as any).getData?.() || edge
+		const edgeData = (edge as unknown).getData?.() || edge
 		const toEnd = edgeData.toEnd ?? 'arrow'
 		const fromEnd = edgeData.fromEnd ?? 'none'
 		if (toEnd !== 'arrow') continue
 		if (fromEnd === 'arrow') continue
 
 		const src = edge.from.node
-		const data = src.getData() as any
+		const data = src.getData() as unknown
 		const srcId = src.id
 
 		if (data.type === 'text') {
@@ -50,7 +50,7 @@ export function getOrderedTextRefs(canvas: Canvas, node: CanvasNode): TextRef[] 
 		}
 	}
 
-	const nodeData = node.getData() as any
+	const nodeData = node.getData() as unknown
 	const savedOrder: string[] | undefined = nodeData.bragiTextOrder
 	const ordered: TextRef[] = []
 
@@ -86,11 +86,11 @@ export async function getOrderedPrompts(
 	const fullById = new Map<string, { kind: 'text' | 'md'; value: string }>()
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as any).getData?.() || edge
+		const edgeData = (edge as unknown).getData?.() || edge
 		if ((edgeData.toEnd ?? 'arrow') !== 'arrow') continue
 		if ((edgeData.fromEnd ?? 'none') === 'arrow') continue
 		const src = edge.from.node
-		const data = src.getData() as any
+		const data = src.getData() as unknown
 		if (data.type === 'text') {
 			const text = (src.text || data.text || '').trim()
 			if (text) fullById.set(src.id, { kind: 'text', value: text })
@@ -107,7 +107,7 @@ export async function getOrderedPrompts(
 		} else {
 			const file = app.vault.getAbstractFileByPath(full.value)
 			if (file) {
-				const content = await app.vault.read(file as any)
+				const content = await app.vault.read(file as unknown)
 				if (content.trim()) result.push(content.trim())
 			}
 		}
@@ -118,7 +118,7 @@ export async function getOrderedPrompts(
 export function updateTextRefStrip(canvas: Canvas, node: CanvasNode, app: App): void {
 	if (isDragging) return
 
-	const nodeData = node.getData() as any
+	const nodeData = node.getData() as unknown
 	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && /\.md$/i.test(nodeData.file || ''))) {
 		return
 	}
@@ -143,33 +143,33 @@ export function updateTextRefStrip(canvas: Canvas, node: CanvasNode, app: App): 
 
 	existing?.remove()
 
-	const strip = document.createElement('div')
+	const strip = activeDocument.createDiv()
 	strip.className = STRIP_CLASS
 	strip.setAttribute('data-fingerprint', fingerprint)
 
 	for (let i = 0; i < refs.length; i++) {
 		const ref = refs[i]
-		const row = document.createElement('div')
+		const row = activeDocument.createDiv()
 		row.className = 'bragi-text-ref-row'
 		row.setAttribute('data-ref-id', ref.nodeId)
 		row.draggable = true
 
-		const leading = document.createElement('div')
+		const leading = activeDocument.createDiv()
 		leading.className = 'bragi-ref-leading'
 
-		const handle = document.createElement('span')
+		const handle = activeDocument.createSpan()
 		handle.className = 'bragi-text-ref-handle'
 		handle.textContent = '⠿'
 		leading.appendChild(handle)
 
-		const badge = document.createElement('span')
+		const badge = activeDocument.createSpan()
 		badge.className = 'bragi-ref-badge bragi-ref-badge-inline'
 		badge.textContent = String(i + 1)
 		leading.appendChild(badge)
 
 		row.appendChild(leading)
 
-		const preview = document.createElement('span')
+		const preview = activeDocument.createSpan()
 		preview.className = 'bragi-text-ref-preview'
 		preview.textContent = ref.preview
 		preview.title = ref.preview
@@ -206,7 +206,7 @@ export function updateTextRefStrip(canvas: Canvas, node: CanvasNode, app: App): 
 			order.splice(fromIdx, 1)
 			order.splice(toIdx, 0, draggedId)
 
-			const d = node.getData() as any
+			const d = node.getData() as unknown
 			node.setData({ ...d, bragiTextOrder: order })
 
 			isDragging = false
@@ -231,16 +231,16 @@ export function refreshAllTextRefs(canvas: Canvas, app: App): void {
 	if (!canvas.nodes) return
 	const nodes = canvas.nodes instanceof Map
 		? Array.from(canvas.nodes.values())
-		: (canvas.nodes as any[])
+		: (canvas.nodes as unknown[])
 	for (const node of nodes) {
 		const data = node.getData()
-		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data as any).file || ''))) {
+		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data).file || ''))) {
 			updateTextRefStrip(canvas, node, app)
 		}
 	}
 }
 
 export function removeAllTextRefs(): void {
-	document.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
-	document.querySelectorAll(`.${NODE_HAS_TEXT_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_TEXT_REFS_CLASS))
+	activeDocument.querySelectorAll(`.${STRIP_CLASS}`).forEach(el => el.remove())
+	activeDocument.querySelectorAll(`.${NODE_HAS_TEXT_REFS_CLASS}`).forEach(el => el.classList.remove(NODE_HAS_TEXT_REFS_CLASS))
 }

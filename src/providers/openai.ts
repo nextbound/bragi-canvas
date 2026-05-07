@@ -28,7 +28,7 @@ export class OpenAIProvider implements ImageProvider {
 		this.baseUrl = baseUrl.replace(/\/$/, '')
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		const modelId = params?.modelId || 'gpt-image-2'
 		const refImages: string[] = params?.refImages || []
 		const quality = params?.quality || 'auto'

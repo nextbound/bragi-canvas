@@ -1,6 +1,7 @@
 import type { ImageProvider, GenerateImageResult } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
+import { stringParam } from './params'
 
 /**
  * APIMart GPT Image 2 provider.
@@ -28,7 +29,7 @@ const FIRST_POLL_DELAY_MS = 10000
 const MAX_WAIT_MS = 300000
 
 async function sleep(ms: number): Promise<void> {
-	return new Promise(r => setTimeout(r, ms))
+	return new Promise(r => activeWindow.setTimeout(r, ms))
 }
 
 export class APIMartProvider implements ImageProvider {
@@ -43,14 +44,14 @@ export class APIMartProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		const refImages: string[] = params?.refImages || []
 
-		const size = params?.aspectRatio || '1:1'
-		const tier = params?.imageSize || '2K'
-		const resolution = tier === 'auto' ? '2k' : String(tier).toLowerCase()
+		const size = stringParam(params?.aspectRatio, '1:1')
+		const tier = stringParam(params?.imageSize, '2K')
+		const resolution = tier === 'auto' ? '2k' : tier.toLowerCase()
 
-		const body: any = {
+		const body: unknown = {
 			model: APIMART_MODEL,
 			prompt,
 			size,

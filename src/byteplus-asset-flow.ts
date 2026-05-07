@@ -36,7 +36,7 @@ const IMAGE_EXTS = /\.(png|jpe?g|webp|gif)$/i
 
 function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 	for (const node of canvas.nodes.values()) {
-		const d = node.getData() as any
+		const d = node.getData() as unknown
 		if (d.type === 'file' && d.file === filePath) return node
 	}
 	return null
@@ -57,42 +57,42 @@ export function getBytePlusAssetCreds(plugin: BragiCanvas): BytePlusAssetCreds |
 
 
 async function getOrCreateGroupId(canvas: Canvas, creds: BytePlusAssetCreds): Promise<string> {
-	const data = canvas.getData() as any
+	const data = canvas.getData() as unknown
 	const existing = data?.bragi?.byteplusGroupId as string | undefined
 	if (existing) return existing
 	const groupId = await createAssetGroup(creds)
-	const current = canvas.getData() as any
+	const current = canvas.getData() as unknown
 	canvas.importData({
 		...current,
 		bragi: { ...(current.bragi || {}), byteplusGroupId: groupId },
 	})
-	canvas.requestSave()
+	void canvas.requestSave()
 	return groupId
 }
 
 /** Invalidate the canvas-level group id (e.g. after a group-not-found error). */
 function clearGroupId(canvas: Canvas) {
-	const current = canvas.getData() as any
+	const current = canvas.getData() as unknown
 	if (current?.bragi?.byteplusGroupId) {
 		const { byteplusGroupId, ...rest } = current.bragi
 		canvas.importData({ ...current, bragi: rest })
-		canvas.requestSave()
+		void canvas.requestSave()
 	}
 }
 
 function getCachedAssetId(node: CanvasNode): string | null {
-	const d = node.getData() as any
+	const d = node.getData() as unknown
 	return d?.bragiAssetIds?.[PROVIDER_KEY] ?? null
 }
 
 function setCachedAssetId(node: CanvasNode, assetId: string) {
-	const d = node.getData() as any
+	const d = node.getData() as unknown
 	const map = { ...(d.bragiAssetIds || {}), [PROVIDER_KEY]: assetId }
 	node.setData({ ...d, bragiAssetIds: map })
 }
 
 function clearCachedAssetId(node: CanvasNode) {
-	const d = node.getData() as any
+	const d = node.getData() as unknown
 	if (!d.bragiAssetIds) return
 	const { [PROVIDER_KEY]: _, ...rest } = d.bragiAssetIds
 	node.setData({ ...d, bragiAssetIds: rest })
@@ -135,7 +135,7 @@ export async function ensureBytePlusAsset(
 				} else {
 					clearCachedAssetId(node)
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				if (isAssetNotFound(err)) {
 					clearCachedAssetId(node)
 				} else {
@@ -155,7 +155,7 @@ export async function ensureBytePlusAsset(
 	let assetId: string
 	try {
 		assetId = await createAsset(creds, groupId, url, assetType)
-	} catch (err: any) {
+	} catch (err: unknown) {
 		if (isGroupNotFound(err)) {
 			clearGroupId(canvas)
 			groupId = await getOrCreateGroupId(canvas, creds)

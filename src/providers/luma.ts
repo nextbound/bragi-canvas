@@ -27,7 +27,7 @@ export class LumaProvider implements ImageProvider {
 		this.outputDir = outputDir
 	}
 
-	async generateImage(prompt: string, params?: Record<string, any>): Promise<GenerateImageResult> {
+	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		const refImages: string[] = params?.refImages || []
 		const aspectRatio = VALID_RATIOS.has(params?.aspectRatio) ? params.aspectRatio : '1:1'
 
@@ -94,7 +94,7 @@ export class LumaProvider implements ImageProvider {
 	private extractUrl(resp: { status: number; text?: string }): string {
 		// Parse body defensively — upstream infra (Vercel, Cloudflare) occasionally returns
 		// plain-text error pages like "Request Entity Too Large" which would crash resp.json.
-		let body: any = null
+		let body: unknown = null
 		const rawText = resp.text || ''
 		try { body = rawText ? JSON.parse(rawText) : null } catch { body = null }
 
