@@ -1,66 +1,63 @@
-import { Workspace, WorkspaceLeaf, TFile, App } from 'obsidian'
+import { WorkspaceLeaf, TFile, App } from 'obsidian'
 import { around } from 'monkey-around'
 
 /**
- * Force all file-open actions to land in a new tab instead of replacing the
- * current one — with deduplication so an already-open file focuses its
- * existing tab instead of spawning a duplicate.
+ * Protect active canvas views from being replaced when Obsidian opens another
+ * file into the current leaf. Already-open files still focus their existing tab
+ * instead of spawning a duplicate.
  *
  * Critical for Bragi because in-flight generation placeholders disappear the
  * moment a canvas is swapped out of the active leaf.
  *
  * Distilled from obsidian-open-tab-settings (MIT, Jesse Hines):
  *   https://github.com/jesse-r-s-hines/obsidian-open-tab-settings
- * We keep two patches:
- *   1. Workspace.getLeaf / getUnpinnedLeaf → default openMode to 'tab'
- *   2. WorkspaceLeaf.openFile            → if file is already open elsewhere,
- *                                           redirect openFile onto that leaf
- *                                           and detach the just-created empty one
+ * We patch WorkspaceLeaf.openFile only. Patching Workspace.getLeaf globally is
+ * too broad because Obsidian and this plugin also use getLeaf(false) as a read
+ * of the active leaf; rewriting that path creates empty tabs.
  *
  * Returns the uninstaller; register it with `this.register(...)`.
  */
 export function installAlwaysNewTab(app: App): () => void {
 	const uninstallers: Array<() => void> = []
 
-	uninstallers.push(around(Workspace.prototype, {
-			getLeaf(oldMethod: unknown) {
-				return function (this: Workspace, openMode?: unknown, ...args: unknown[]) {
-					if (openMode == null) {
-						return oldMethod.call(this, 'tab', ...args)
-					}
-					return oldMethod.call(this, openMode, ...args)
-				}
-		},
-		getUnpinnedLeaf(oldMethod: unknown) {
-			return function (this: Workspace, ...args: unknown[]) {
-				return (this as unknown).getLeaf('tab')
-			}
-		},
-	}))
-
 	uninstallers.push(around(WorkspaceLeaf.prototype, {
 		openFile(oldMethod: unknown) {
 			return async function (this: WorkspaceLeaf, file: TFile, openState?: unknown, ...args: unknown[]) {
+				const openFile = oldMethod as OpenFileMethod
+
 				// Find other main-area leaves already showing this file. Split panes, popouts,
 				// sidebars, and different view types (outgoing-links, etc.) are skipped.
 				const match = findExistingLeaf(app, this, file)
-				if (!match) {
-					return oldMethod.call(this, file, openState, ...args)
+				if (match) {
+					// Point openFile at the existing leaf, then drop the just-created blank one.
+					const shouldActivate = readOpenState(openState).active !== false
+					const wasEmpty = isEmptyLeaf(this) && this !== match
+					const result = await openFile.call(match, file, { ...readOpenState(openState), active: shouldActivate }, ...args)
+					if (wasEmpty) {
+						try { this.detach() } catch { /* noop */ }
+					}
+					return result
 				}
 
-				// Point openFile at the existing leaf, then drop the just-created blank one.
-				const shouldActivate = openState?.active !== false
-				const wasEmpty = isEmptyLeaf(this) && this !== match
-				const result = await oldMethod.call(match, file, { ...openState, active: shouldActivate }, ...args)
-				if (wasEmpty) {
-					try { this.detach() } catch { /* noop */ }
+				if (isMainLeaf(this) && isCanvasLeaf(this) && getLeafFilePath(this) !== file.path) {
+					const target = app.workspace.getLeaf('tab')
+					return openFile.call(target, file, openState, ...args)
 				}
-				return result
+
+				return openFile.call(this, file, openState, ...args)
 			}
 		},
 	}))
 
 	return () => { for (const un of uninstallers) un() }
+}
+
+type OpenState = { active?: boolean; [key: string]: unknown }
+type OpenFileMethod = (this: WorkspaceLeaf, file: TFile, openState?: unknown, ...args: unknown[]) => Promise<unknown>
+
+function readOpenState(openState: unknown): OpenState {
+	if (openState && typeof openState === 'object') return openState as OpenState
+	return {}
 }
 
 function findExistingLeaf(app: App, currentLeaf: WorkspaceLeaf, file: TFile): WorkspaceLeaf | null {
@@ -84,6 +81,17 @@ function isMainLeaf(leaf: WorkspaceLeaf): boolean {
 	const workspace = (leaf as unknown).app?.workspace
 	// Main area = rootSplit (not sidebars, not popouts)
 	return !!root && !!workspace && root === workspace.rootSplit
+}
+
+function isCanvasLeaf(leaf: WorkspaceLeaf): boolean {
+	return leaf.view?.getViewType?.() === 'canvas'
+}
+
+function getLeafFilePath(leaf: WorkspaceLeaf): string | undefined {
+	const statePath = leaf.getViewState?.().state?.file
+	if (typeof statePath === 'string') return statePath
+	const viewFilePath = (leaf.view as unknown)?.file?.path
+	return typeof viewFilePath === 'string' ? viewFilePath : undefined
 }
 
 function isEmptyLeaf(leaf: WorkspaceLeaf): boolean {
