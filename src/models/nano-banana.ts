@@ -17,6 +17,10 @@ const FULL_ASPECT_RATIOS = [
 	{ label: '8:1', value: '8:1' },
 ]
 
+const PRO_ASPECT_RATIOS = FULL_ASPECT_RATIOS.filter(
+	(ratio) => !['1:4', '4:1', '1:8', '8:1'].includes(ratio.value),
+)
+
 export const nanoBananaPro: ModelConfig = {
 	id: 'nano-banana-pro',
 	name: 'Nano Banana Pro',
@@ -31,7 +35,7 @@ export const nanoBananaPro: ModelConfig = {
 			id: 'aspectRatio',
 			label: 'Aspect Ratio',
 			type: 'select',
-			options: FULL_ASPECT_RATIOS,
+			options: PRO_ASPECT_RATIOS,
 			default: '1:1',
 		},
 		{

@@ -5,6 +5,23 @@ import { stringParam } from './params'
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
+interface VeoImage {
+	inlineData: {
+		mimeType: string
+		data: string
+	}
+}
+
+interface VeoInstance {
+	prompt: string
+	image?: VeoImage
+	lastFrame?: VeoImage
+	referenceImages?: Array<{
+		image: VeoImage
+		referenceType: 'asset'
+	}>
+}
+
 export class VeoProvider implements VideoProvider {
 	name = 'Veo'
 	private apiKey: string
@@ -19,25 +36,41 @@ export class VeoProvider implements VideoProvider {
 
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = stringParam(params?.modelId, 'veo-3.1-generate-preview')
-		const durationSeconds = parseInt(params?.durationSeconds || '6')
-		const aspectRatio = params?.aspectRatio || '16:9'
-		const resolution = params?.resolution || '720p'
-		const refImages: string[] = params?.refImages || []
+		const genMode = stringParam(params?.genMode, 'text-to-video')
+		const aspectRatio = stringParam(params?.aspectRatio, '16:9')
+		const resolution = stringParam(params?.resolution, '720p')
+		const refImages = Array.isArray(params?.refImages) ? params.refImages : []
+		const parsedImages = refImages
+			.filter((dataUri): dataUri is string => typeof dataUri === 'string')
+			.map(parseDataUri)
+			.filter((image): image is VeoImage => image !== null)
 
 		// Build instance
-		const instance: unknown = { prompt }
+		const instance: VeoInstance = { prompt }
+		const effectiveMode = getEffectiveMode(genMode, parsedImages.length)
 
-		if (refImages.length >= 2) {
+		if (effectiveMode === 'image-ref' && parsedImages.length >= 1) {
+			instance.referenceImages = parsedImages.slice(0, 3).map((image) => ({
+				image,
+				referenceType: 'asset',
+			}))
+		} else if (effectiveMode === 'first-last-frame' && parsedImages.length >= 2) {
 			// First + last frame (interpolation)
-			const first = parseDataUri(refImages[0])
-			const last = parseDataUri(refImages[1])
-			if (first) instance.image = { inlineData: first }
-			if (last) instance.lastFrame = { inlineData: last }
-		} else if (refImages.length === 1) {
+			instance.image = parsedImages[0]
+			instance.lastFrame = parsedImages[1]
+		} else if (effectiveMode === 'first-frame' && parsedImages.length >= 1) {
 			// Image-to-video (first frame)
-			const img = parseDataUri(refImages[0])
-			if (img) instance.image = { inlineData: img }
+			instance.image = parsedImages[0]
 		}
+
+		const usesImageInput = Boolean(instance.image || instance.lastFrame || instance.referenceImages?.length)
+		const usesReferenceImages = Boolean(instance.referenceImages?.length)
+		const durationSeconds = normalizeDuration(
+			stringParam(params?.durationSeconds, '6'),
+			resolution,
+			usesReferenceImages,
+			effectiveMode === 'first-last-frame',
+		)
 
 		const response = await requestUrl({
 			url: `${BASE_URL}/models/${modelId}:predictLongRunning`,
@@ -52,7 +85,7 @@ export class VeoProvider implements VideoProvider {
 					aspectRatio,
 					resolution,
 					durationSeconds,
-					personGeneration: 'allow_all',
+					personGeneration: usesImageInput ? 'allow_adult' : 'allow_all',
 				},
 			}),
 		})
@@ -90,17 +123,13 @@ export class VeoProvider implements VideoProvider {
 		if (data.done) {
 			// Extract video URI
 			const samples = data.response?.generateVideoResponse?.generatedSamples
-			const videoUri = samples?.[0]?.video?.uri
+			const generatedVideos = data.response?.generatedVideos
+			const videoUri = samples?.[0]?.video?.uri || generatedVideos?.[0]?.video?.uri
 			if (!videoUri) {
 				throw new Error('Veo: No video URI in completed operation')
 			}
 
-			// Download video (append API key for auth)
-			const downloadUrl = videoUri.includes('?')
-				? `${videoUri}&key=${this.apiKey}`
-				: `${videoUri}?key=${this.apiKey}`
-
-			const filePath = await this.downloadVideo(downloadUrl)
+			const filePath = await this.downloadVideo(videoUri)
 			return { done: true, filePath }
 		}
 
@@ -109,7 +138,12 @@ export class VeoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({ url })
+		const response = await requestUrl({
+			url,
+			headers: {
+				'x-goog-api-key': this.apiKey,
+			},
+		})
 		const timestamp = Date.now()
 		const fileName = `vid_${timestamp}.mp4`
 		const filePath = `${this.outputDir}/${fileName}`
@@ -124,8 +158,37 @@ export class VeoProvider implements VideoProvider {
 	}
 }
 
-function parseDataUri(dataUri: string): { mimeType: string; data: string } | null {
+function parseDataUri(dataUri: string): VeoImage | null {
 	const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 	if (!match) return null
-	return { mimeType: match[1], data: match[2] }
+	return {
+		inlineData: {
+			mimeType: match[1],
+			data: match[2],
+		},
+	}
+}
+
+function getEffectiveMode(genMode: string, imageCount: number): string {
+	if (genMode === 'image-ref' || genMode === 'first-last-frame' || genMode === 'first-frame') {
+		return genMode
+	}
+	if (imageCount >= 2) return 'first-last-frame'
+	if (imageCount === 1) return 'first-frame'
+	return 'text-to-video'
+}
+
+function normalizeDuration(
+	durationSeconds: string,
+	resolution: string,
+	usesReferenceImages: boolean,
+	usesInterpolation: boolean,
+): string {
+	if (
+		(resolution === '1080p' || resolution === '4k' || usesReferenceImages || usesInterpolation)
+		&& durationSeconds !== '8'
+	) {
+		return '8'
+	}
+	return durationSeconds
 }
