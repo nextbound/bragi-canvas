@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Bragi preserves product names, acronyms, and exact CTA copy. */
 import { Plugin, Notice, requestUrl, Menu, Modal, Setting } from 'obsidian'
 import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab } from './settings'
 import { uploadRef } from './providers/upload'
@@ -682,7 +681,7 @@ export default class BragiCanvas extends Plugin {
 		modal.modalEl.classList.add('bragi-modal')
 		modal.titleEl.setText('Set asset ID')
 		modal.contentEl.createEl('p', {
-			text: 'Paste a Volcengine asset ID to use this image as a Seedance face reference.',
+			text: 'Paste a volcengine asset ID to use this image as a seedance face reference.',
 			cls: 'setting-item-description',
 		})
 
@@ -691,11 +690,11 @@ export default class BragiCanvas extends Plugin {
 		new Setting(modal.contentEl)
 			.setName('Asset ID')
 			.addText(text => {
-				text.setPlaceholder('asset-20260401123823-6d4x2')
+				text.setPlaceholder('Asset-20260401123823-6d4x2')
 					.setValue(currentId)
 					.onChange(v => { inputValue = v })
-				text.inputEl.classList.add('bragi-full-width')
-			})
+			text.inputEl.classList.add('bragi-full-width')
+		})
 
 		const btnContainer = modal.contentEl.createDiv({ cls: 'modal-button-container' })
 

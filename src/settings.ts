@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Bragi preserves product names, acronyms, and exact CTA copy. */
 import { App, Modal, Notice, PluginSettingTab, Setting, setIcon, setTooltip, requestUrl } from 'obsidian'
 import type BragiCanvas from './main'
 import { ALL_MODELS, getModelsByType, getActiveProvider } from './models/index'
@@ -180,12 +179,12 @@ export class BragiSettingTab extends PluginSettingTab {
 
 		this.renderCloudStorageSection(containerEl)
 
-		// ── MCP Server ──
-		addSettingHeading(containerEl, 'MCP Server')
+		// ── MCP server ──
+		addSettingHeading(containerEl, 'Mcp server')
 
 		new Setting(containerEl)
-			.setName('Enable MCP server')
-			.setDesc('Expose canvas operations to Claude Code via MCP protocol')
+			.setName('Enable mcp server')
+			.setDesc('Expose canvas operations to Claude code via mcp protocol')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.mcpEnabled)
 				.onChange((v) => {
@@ -198,8 +197,8 @@ export class BragiSettingTab extends PluginSettingTab {
 				}))
 
 		new Setting(containerEl)
-			.setName('MCP port')
-			.setDesc('Localhost port for MCP server (requires restart)')
+			.setName('Mcp port')
+			.setDesc('Localhost port for mcp server (requires restart)')
 			.addText(text => text
 				.setValue(String(this.plugin.settings.mcpPort))
 				.onChange((v) => {
@@ -213,11 +212,11 @@ export class BragiSettingTab extends PluginSettingTab {
 				}))
 
 		new Setting(containerEl)
-			.setName('MCP access token')
+			.setName('Mcp access token')
 			.setDesc('Optional. When set, clients must send "Authorization: Bearer <token>" on every request. Leave blank for open localhost access.')
 			.addText(text => {
 				text.inputEl.type = 'password'
-				text.setPlaceholder('(leave blank to disable auth)')
+				text.setPlaceholder('(Leave blank to disable auth)')
 					.setValue(this.plugin.settings.mcpToken)
 					.onChange((v) => {
 						void (async () => {
@@ -242,7 +241,7 @@ export class BragiSettingTab extends PluginSettingTab {
 	private renderCloudStorageSection(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName('Temporary cloud')
-			.setDesc('Briefly hosts your files so model APIs can fetch them. Auto-deleted after 24h.')
+			.setDesc('Briefly hosts your files so model apis can fetch them. Auto-deleted after 24h.')
 			.addDropdown(dd => {
 				dd.addOption('bragi', 'Bragi')
 				dd.setValue('bragi')
@@ -301,7 +300,7 @@ export class BragiSettingTab extends PluginSettingTab {
 			})
 		}
 
-		const addBtn = containerEl.createEl('button', { cls: 'bragi-add-btn', text: '+ Add provider' })
+		const addBtn = containerEl.createEl('button', { cls: 'bragi-add-btn', text: '+ add provider' })
 		addBtn.addEventListener('click', () => {
 			new AddProviderModal(this.plugin, undefined, () => this.display()).open()
 		})

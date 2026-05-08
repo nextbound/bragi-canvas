@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Bragi package copy keeps the product spelling intact. */
 import { App, Notice, TFile } from 'obsidian'
 import { remote } from 'electron'
 import * as fs from 'fs'
@@ -177,7 +176,7 @@ export async function importCanvas(
 		const canvasJsonFile = zip.file('canvas.json')
 		if (!canvasJsonFile) {
 			notice.hide()
-			new Notice("This doesn't look like a valid Bragi package")
+			new Notice("This doesn't look like a valid bragi package")
 			return
 		}
 

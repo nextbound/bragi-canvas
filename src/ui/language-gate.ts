@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Bragi preserves exact copy. */
 import { App, Modal, getLanguage } from 'obsidian'
 
 /**
@@ -22,10 +21,10 @@ export class LanguageGateModal extends Modal {
 	onOpen() {
 		const { contentEl, titleEl, modalEl } = this
 		modalEl.classList.add('bragi-modal', 'bragi-language-gate')
-		titleEl.setText('Bragi Canvas needs English')
+		titleEl.setText('Bragi canvas needs english')
 
 		contentEl.createEl('p', {
-			text: 'Bragi Canvas relies on Obsidian being in English. Please switch your language to English or English (GB), then restart Obsidian.',
+			text: 'Bragi canvas relies on Obsidian being in english. Please switch your language to english or english (gb), then restart Obsidian.',
 		})
 
 		const row = contentEl.createDiv({ cls: 'modal-button-container' })
@@ -42,7 +41,7 @@ export class LanguageGateModal extends Modal {
 			})()
 		})
 
-		const switchBtn = row.createEl('button', { text: 'Switch to English & restart', cls: 'mod-cta' })
+		const switchBtn = row.createEl('button', { text: 'Switch to english & restart', cls: 'mod-cta' })
 		switchBtn.addEventListener('click', () => {
 			try {
 				window.localStorage.setItem('language', 'en')

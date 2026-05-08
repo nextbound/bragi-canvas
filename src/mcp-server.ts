@@ -1,11 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- MCP tools pass arbitrary Canvas JSON and Obsidian internals through a stable JSON boundary. */
 import * as http from 'http'
 import { randomUUID } from 'crypto'
 import { McpServer, type ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import { Modal, TFile, type App } from 'obsidian'
-import type { Canvas, CanvasNode } from './types/canvas-internal'
+import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
+import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './types/canvas-internal'
 import type { PanelResult } from './panel'
 import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
 import { getConfiguredProviderIds } from './providers/registry'
@@ -14,6 +14,7 @@ import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
 import type { TaskQueue, TaskSnapshot } from './task-queue'
+import type { BragiSettings } from './settings'
 
 type GetCanvas = () => Canvas | null
 type RunGeneration = (node: CanvasNode, result: PanelResult) => Promise<{
@@ -21,6 +22,10 @@ type RunGeneration = (node: CanvasNode, result: PanelResult) => Promise<{
 	expectedOutputType: 'image' | 'video' | 'text' | 'audio'
 }>
 type ToolSchema = z.ZodRawShape
+type JsonMap = Record<string, unknown>
+type BragiCanvasNodeData = AllCanvasNodeData & { bragiAssetId?: string }
+type SerializableEdge = CanvasEdgeData | CanvasEdge
+type FileView = { file?: TFile }
 
 function requireCanvas(getCanvas: GetCanvas): Canvas {
 	const canvas = getCanvas()
@@ -35,7 +40,7 @@ function findNode(canvas: Canvas, id: string): CanvasNode {
 }
 
 function serializeNode(node: CanvasNode) {
-	const d = node.getData() as any
+	const d = node.getData() as BragiCanvasNodeData
 	return {
 		id: node.id,
 		type: d.type,
@@ -49,19 +54,21 @@ function serializeNode(node: CanvasNode) {
 	}
 }
 
-function serializeEdge(edge: any) {
-	const d = typeof edge.getData === 'function' ? edge.getData() : edge
+function serializeEdge(edge: SerializableEdge) {
+	const d = 'getData' in edge && typeof edge.getData === 'function' ? edge.getData() : edge
+	const runtimeFrom = 'from' in edge ? edge.from : undefined
+	const runtimeTo = 'to' in edge ? edge.to : undefined
 	return {
 		id: edge.id || d.id,
-		fromNode: d.fromNode || edge.from?.node?.id,
-		fromSide: d.fromSide || edge.from?.side,
-		toNode: d.toNode || edge.to?.node?.id,
-		toSide: d.toSide || edge.to?.side,
+		fromNode: d.fromNode || runtimeFrom?.node?.id,
+		fromSide: d.fromSide || runtimeFrom?.side,
+		toNode: d.toNode || runtimeTo?.node?.id,
+		toSide: d.toSide || runtimeTo?.side,
 		...(d.label ? { label: d.label } : {}),
 	}
 }
 
-function ok(data: any = { status: 'ok' }) {
+function ok(data: unknown = { status: 'ok' }) {
 	return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
 }
 
@@ -92,7 +99,7 @@ export class BragiMcpServer {
 		private getCanvas: GetCanvas,
 		private app: App,
 		private runGeneration?: RunGeneration,
-		private getSettings?: () => any,
+		private getSettings?: () => BragiSettings,
 		private taskQueue?: TaskQueue,
 		private getOutputDir?: () => string,
 	) {}
@@ -116,7 +123,7 @@ export class BragiMcpServer {
 			({ type }) => {
 				const canvas = requireCanvas(getCanvas)
 				let nodes = Array.from(canvas.nodes.values())
-				if (type) nodes = nodes.filter(n => (n.getData() as any).type === type)
+				if (type) nodes = nodes.filter(n => n.getData().type === type)
 				return ok(nodes.map(serializeNode))
 			},
 		)
@@ -173,7 +180,7 @@ export class BragiMcpServer {
 			({ id, text, x, y, width, height, color }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
-				const d = node.getData() as any
+				const d = node.getData() as BragiCanvasNodeData
 
 				// For geometry-only updates, moveAndResize is safe and fast.
 				// For text/color updates we rebuild the node via importData,
@@ -183,8 +190,8 @@ export class BragiMcpServer {
 				const needsRebuild = text !== undefined || color !== undefined
 
 				if (needsRebuild) {
-					const full = canvas.getData() as any
-					const nodes = (full.nodes || []).map((n: any) => {
+					const full = canvas.getData()
+					const nodes = full.nodes.map((n) => {
 						if (n.id !== id) return n
 						const next = { ...n }
 						if (text !== undefined) next.text = text
@@ -201,7 +208,7 @@ export class BragiMcpServer {
 				}
 
 				// Geometry-only path: moveAndResize keeps live state coherent.
-				const move: any = {}
+				const move: MoveAndResizeOptions = {}
 				if (x !== undefined) move.x = x
 				if (y !== undefined) move.y = y
 				if (width !== undefined) move.width = width
@@ -242,7 +249,7 @@ export class BragiMcpServer {
 				findNode(canvas, toId)
 				if (fromId === toId) throw new Error(`Self-loop not allowed: ${fromId}`)
 				const edgeId = randomId()
-				const edge: any = {
+				const edge: CanvasEdgeData = {
 					id: edgeId,
 					fromNode: fromId,
 					fromSide,
@@ -263,9 +270,9 @@ export class BragiMcpServer {
 			{ edgeId: z.string().describe('Edge ID') },
 			({ edgeId }) => {
 				const canvas = requireCanvas(getCanvas)
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const edgeArr = full.edges || []
-				const filtered = edgeArr.filter((e: any) => e.id !== edgeId)
+				const filtered = edgeArr.filter((e) => e.id !== edgeId)
 				if (filtered.length === edgeArr.length) throw new Error(`Edge not found: ${edgeId}`)
 				canvas.importData({ ...full, edges: filtered })
 				void canvas.requestSave()
@@ -281,7 +288,7 @@ export class BragiMcpServer {
 				const canvas = requireCanvas(getCanvas)
 				// canvas.edges is a Map at runtime (types lie — they say it's an array).
 				// Read the authoritative array from getData() instead.
-				const edges = (canvas.getData() as any).edges || []
+				const edges = canvas.getData().edges || []
 				return ok(edges.map(serializeEdge))
 			},
 		)
@@ -319,7 +326,7 @@ export class BragiMcpServer {
 				const serialized = JSON.stringify(data)
 				const MAX_SIZE = 100 * 1024
 				if (serialized.length > MAX_SIZE) {
-					const d = data as any
+					const d = data
 					return ok({
 						truncated: true,
 						sizeBytes: serialized.length,
@@ -343,7 +350,7 @@ export class BragiMcpServer {
 				if (!settings) throw new Error('Settings not available')
 				const configured = getConfiguredProviderIds(settings)
 				const types: GenerationType[] = type ? [type] : ['image', 'video', 'text', 'audio']
-				const result: any[] = []
+				const result: JsonMap[] = []
 				for (const t of types) {
 					const orderKey = t as keyof typeof settings.modelOrder
 					const models = getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configured)
@@ -419,13 +426,13 @@ export class BragiMcpServer {
 				const apiModelId = model.supportedProviders[provider]?.apiModelId || modelId
 
 				// Read prompt from node
-				const nodeData = node.getData() as any
+				const nodeData = node.getData()
 				let prompt = ''
 				if (nodeData.type === 'text') {
-					prompt = (node as any).text?.trim() || nodeData.text?.trim() || ''
+					prompt = node.text?.trim() || nodeData.text?.trim() || ''
 				} else if (nodeData.type === 'file' && /\.md$/i.test(nodeData.file || '')) {
 					const file = this.app.vault.getAbstractFileByPath(nodeData.file)
-					if (file) prompt = (await this.app.vault.read(file as any)).trim()
+					if (file instanceof TFile) prompt = (await this.app.vault.read(file)).trim()
 				}
 				if (!prompt) throw new Error('Node contains no prompt text')
 
@@ -497,12 +504,12 @@ export class BragiMcpServer {
 			},
 			({ nodes }) => {
 				const canvas = requireCanvas(getCanvas)
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const created: string[] = []
 				const newNodes = nodes.map(n => {
 					const id = randomId()
 					created.push(id)
-					const node: any = {
+					const node: AllCanvasNodeData = {
 						id,
 						type: 'text',
 						text: n.text,
@@ -538,7 +545,7 @@ export class BragiMcpServer {
 			},
 			({ edges }) => {
 				const canvas = requireCanvas(getCanvas)
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const created: string[] = []
 				const newEdges = edges.map(e => {
 					if (!canvas.nodes.has(e.fromId)) throw new Error(`Node not found: ${e.fromId}`)
@@ -546,7 +553,7 @@ export class BragiMcpServer {
 					if (e.fromId === e.toId) throw new Error(`Self-loop not allowed: ${e.fromId}`)
 					const id = randomId()
 					created.push(id)
-					const edge: any = {
+					const edge: CanvasEdgeData = {
 						id,
 						fromNode: e.fromId,
 						fromSide: e.fromSide,
@@ -581,9 +588,9 @@ export class BragiMcpServer {
 			},
 			({ updates }) => {
 				const canvas = requireCanvas(getCanvas)
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const byId = new Map(updates.map(u => [u.id, u]))
-				const nodes = (full.nodes || []).map((n: any) => {
+				const nodes = full.nodes.map((n) => {
 					const u = byId.get(n.id)
 					if (!u) return n
 					const next = { ...n }
@@ -615,9 +622,9 @@ export class BragiMcpServer {
 			},
 			({ label, x, y, width, height, color }) => {
 				const canvas = requireCanvas(getCanvas)
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const id = randomId()
-				const newNode: any = { id, type: 'group', x, y, width, height }
+				const newNode: AllCanvasNodeData = { id, type: 'group', x, y, width, height }
 				if (label) newNode.label = label
 				if (color) newNode.color = color
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
@@ -641,13 +648,15 @@ export class BragiMcpServer {
 			({ ids, cols, originX, originY, gap, cellWidth, cellHeight }) => {
 				const canvas = requireCanvas(getCanvas)
 				if (cols < 1) throw new Error('cols must be >= 1')
-				const full = canvas.getData() as any
-				const nodeById = new Map<string, any>()
+				const full = canvas.getData()
+				const nodeById = new Map<string, AllCanvasNodeData>()
 				for (const n of (full.nodes || [])) nodeById.set(n.id, n)
 				const missing = ids.filter(id => !nodeById.has(id))
 				if (missing.length > 0) throw new Error(`Nodes not found: ${missing.join(', ')}`)
 
-				const targetNodes = ids.map(id => nodeById.get(id))
+				const targetNodes = ids
+					.map(id => nodeById.get(id))
+					.filter((node): node is AllCanvasNodeData => node !== undefined)
 				const cw = cellWidth ?? Math.max(...targetNodes.map(n => n.width || 300))
 				const ch = cellHeight ?? Math.max(...targetNodes.map(n => n.height || 200))
 
@@ -661,7 +670,7 @@ export class BragiMcpServer {
 					})
 				})
 
-				const nodes = (full.nodes || []).map((n: any) => {
+				const nodes = full.nodes.map((n) => {
 					const u = updates.get(n.id)
 					return u ? { ...n, x: u.x, y: u.y } : n
 				})
@@ -692,7 +701,7 @@ export class BragiMcpServer {
 				const file = this.app.vault.getAbstractFileByPath(filePath)
 				if (!file) throw new Error(`File not found in vault: ${filePath}`)
 				const id = randomId()
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const newNode = { id, type: 'file' as const, file: filePath, x, y, width, height }
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
 				void canvas.requestSave()
@@ -738,7 +747,7 @@ export class BragiMcpServer {
 				}
 				await adapter.writeBinary(finalPath, binary)
 				const id = randomId()
-				const full = canvas.getData() as any
+				const full = canvas.getData()
 				const newNode = { id, type: 'file' as const, file: finalPath, x, y, width, height }
 				canvas.importData({ ...full, nodes: [...(full.nodes || []), newNode] })
 				void canvas.requestSave()
@@ -756,7 +765,7 @@ export class BragiMcpServer {
 			({ nodeId, assetId }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, nodeId)
-				const d = node.getData() as any
+				const d = node.getData() as BragiCanvasNodeData
 				if (d.type !== 'file' || !/\.(png|jpg|jpeg|webp|gif)$/i.test(d.file || '')) {
 					throw new Error('Asset ID only applies to image file nodes')
 				}
@@ -776,8 +785,8 @@ export class BragiMcpServer {
 			() => {
 				const canvas = getCanvas()
 				if (!canvas) return ok(null)
-				const data = canvas.getData() as any
-				const file = (this.app.workspace.getLeaf(false)?.view as any)?.file
+				const data = canvas.getData()
+				const file = (this.app.workspace.getLeaf(false)?.view as unknown as FileView | undefined)?.file
 				return ok({
 					path: file?.path || null,
 					basename: file?.basename || null,
@@ -835,62 +844,66 @@ export class BragiMcpServer {
 	}
 
 	async start(port: number): Promise<void> {
-		this.httpServer = http.createServer(async (req, res) => {
-			res.setHeader('Access-Control-Allow-Origin', '*')
-			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-			res.setHeader('Access-Control-Allow-Headers', '*')
-			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id')
-
-			if (req.method === 'OPTIONS') {
-				res.writeHead(204)
-				res.end()
-				return
-			}
-
-			if (req.url !== '/mcp' && !req.url?.startsWith('/mcp?')) {
-				res.writeHead(404)
-				res.end('Not found')
-				return
-			}
-
-			// Optional bearer token auth: when settings.mcpToken is set, every request
-			// must carry a matching Authorization header.
-			const expectedToken = (this.getSettings?.()?.mcpToken || '').trim()
-			if (expectedToken) {
-				const authHeader = req.headers['authorization']
-				const auth = Array.isArray(authHeader) ? authHeader[0] : authHeader
-				const presented = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : ''
-				if (presented !== expectedToken) {
-					res.writeHead(401, { 'Content-Type': 'application/json' })
-					res.end(JSON.stringify({
-						jsonrpc: '2.0',
-						error: { code: -32001, message: 'Unauthorized' },
-						id: null,
-					}))
-					return
-				}
-			}
-
-			try {
-				await this.routeRequest(req, res)
-			} catch (err) {
-				console.error('Bragi MCP error:', err)
-				if (!res.headersSent) {
-					res.writeHead(500)
-					res.end(JSON.stringify({ error: String(err) }))
-				}
-			}
+		this.httpServer = http.createServer((req, res) => {
+			void this.handleHttpRequest(req, res)
 		})
 
-			return new Promise<void>((resolve, reject) => {
-				this.httpServer!.on('error', (err: NodeJS.ErrnoException) => {
-					console.error(`Bragi MCP server failed to start on port ${port}:`, err.message)
-					reject(err instanceof Error ? err : new Error(String(err)))
-				})
+		return new Promise<void>((resolve, reject) => {
+			this.httpServer!.on('error', (err: NodeJS.ErrnoException) => {
+				console.error(`Bragi MCP server failed to start on port ${port}:`, err.message)
+				reject(err instanceof Error ? err : new Error(String(err)))
+			})
 			this.httpServer!.listen(port, '127.0.0.1', () => {
 				resolve()
 			})
 		})
+	}
+
+	private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		res.setHeader('Access-Control-Allow-Origin', '*')
+		res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+		res.setHeader('Access-Control-Allow-Headers', '*')
+		res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id')
+
+		if (req.method === 'OPTIONS') {
+			res.writeHead(204)
+			res.end()
+			return
+		}
+
+		if (req.url !== '/mcp' && !req.url?.startsWith('/mcp?')) {
+			res.writeHead(404)
+			res.end('Not found')
+			return
+		}
+
+		// Optional bearer token auth: when settings.mcpToken is set, every request
+		// must carry a matching Authorization header.
+		const expectedToken = (this.getSettings?.()?.mcpToken || '').trim()
+		if (expectedToken) {
+			const authHeader = req.headers['authorization']
+			const auth = Array.isArray(authHeader) ? authHeader[0] : authHeader
+			const presented = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : ''
+			if (presented !== expectedToken) {
+				res.writeHead(401, { 'Content-Type': 'application/json' })
+				res.end(JSON.stringify({
+					jsonrpc: '2.0',
+					error: { code: -32001, message: 'Unauthorized' },
+					id: null,
+				}))
+				return
+			}
+		}
+
+		try {
+			await this.routeRequest(req, res)
+		} catch (err) {
+			console.error('Bragi MCP error:', err)
+			if (!res.headersSent) {
+				res.writeHead(500)
+				res.end(JSON.stringify({ error: String(err) }))
+			}
+		}
 	}
 
 	private async routeRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

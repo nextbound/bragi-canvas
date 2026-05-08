@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Bragi preserves product names, acronyms, and exact CTA copy. */
 import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode } from './models/types'
 import { getEnabledModels, getActiveProvider } from './models/index'
@@ -110,7 +109,7 @@ export function showGenerateBar(
 
 	const allEnabled = [...getModelsForType('image'), ...getModelsForType('video'), ...getModelsForType('text')]
 	if (allEnabled.length === 0) {
-		new Notice('Bragi Canvas: No models available. Configure API keys in Settings.')
+		new Notice('Bragi canvas: No models available. Configure API keys in settings.')
 		return
 	}
 
@@ -433,11 +432,11 @@ export function showGenerateBar(
 			}
 
 			if (!prompt) {
-				new Notice('Bragi Canvas: No prompt found in this node')
+				new Notice('Bragi canvas: No prompt found in this node')
 				return
 			}
 			if (!selectedModel) {
-				new Notice('Bragi Canvas: No model selected')
+				new Notice('Bragi canvas: No model selected')
 				return
 			}
 			hideGenerateBar()
@@ -568,7 +567,7 @@ export function showBatchGenerateBar(
 
 	const allEnabled = [...getModelsForType('image'), ...getModelsForType('video'), ...getModelsForType('text')]
 	if (allEnabled.length === 0) {
-		new Notice('Bragi Canvas: No models available. Configure API keys in Settings.')
+		new Notice('Bragi canvas: No models available. Configure API keys in settings.')
 		return
 	}
 
@@ -739,7 +738,7 @@ export function showBatchGenerateBar(
 		e.stopPropagation()
 		e.preventDefault()
 		if (!selectedModel) {
-			new Notice('Bragi Canvas: No model selected')
+			new Notice('Bragi canvas: No model selected')
 			return
 		}
 		hideGenerateBar()
