@@ -366,7 +366,7 @@ export class BragiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Import settings')
-			.setDesc('Choose a Bragi Canvas data.json file. If it looks valid, you can replace your current settings.')
+			.setDesc('Choose a data.json file. If it looks valid, you can replace your current settings.')
 			.addButton(btn => btn
 				.setButtonText('Choose file')
 				.onClick(() => importInput.click()))
@@ -528,7 +528,7 @@ export class BragiSettingTab extends PluginSettingTab {
 		modal.modalEl.classList.add('bragi-modal')
 		modal.titleEl.setText('Can\'t import this file')
 		modal.contentEl.createEl('p', {
-			text: 'This does not look like a Bragi Canvas data.json file. Please choose the data.json file from a Bragi Canvas plugin folder.',
+			text: 'This does not look like a settings file. Please choose data.json from a plugin folder.',
 		})
 		modal.contentEl.createEl('p', {
 			text: 'No settings were changed.',

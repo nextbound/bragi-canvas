@@ -226,11 +226,12 @@ export class BedrockClaudeTextProvider implements TextGenProvider {
 				'content-type': 'application/json',
 				accept: 'application/json',
 			},
-		})
+			})
 
 		// Electron's requestUrl forbids manually setting the `host` header (ERR_INVALID_ARGUMENT).
 		// It must still be in the SigV4 signature, but stripped from outgoing headers.
-		const { host: _host, ...sendHeaders } = headers
+		const sendHeaders = { ...headers }
+		delete sendHeaders.host
 		const response = await requestUrl({ url, method: 'POST', headers: sendHeaders, body })
 		const text = parseAnthropicText(response.json)
 		if (!text) throw new Error('Bedrock Claude: No text in response')

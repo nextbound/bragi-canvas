@@ -98,7 +98,8 @@ export async function signRequest(p: SigV4Params): Promise<Record<string, string
 	// Do not return `host` — Chromium/Electron forbids setting it on fetch/requestUrl
 	// (raising net::ERR_INVALID_ARGUMENT). The network stack sets it automatically
 	// from the URL, which matches what we signed.
-	const { host: _host, ...outgoing } = headers
+	const outgoing = { ...headers }
+	delete outgoing.host
 	return {
 		...outgoing,
 		Authorization: authorization,

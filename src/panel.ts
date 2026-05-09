@@ -460,7 +460,8 @@ export function showGenerateBar(
 				batchCount,
 			}
 			// Write new key, drop the legacy one so it doesn't silently drift
-			const { ovidLastGen: _legacy, ...rest } = currentNodeData
+			const rest = { ...currentNodeData }
+			delete rest.ovidLastGen
 			node.setData({ ...rest, bragiLastGen })
 
 			// Resolve active provider and API model ID

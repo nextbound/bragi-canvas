@@ -65,7 +65,8 @@ async function getOrCreateGroupId(canvas: Canvas, creds: BytePlusAssetCreds): Pr
 function clearGroupId(canvas: Canvas) {
 	const current = canvas.getData() as unknown
 	if (current?.bragi?.byteplusGroupId) {
-		const { byteplusGroupId, ...rest } = current.bragi
+		const rest = { ...current.bragi }
+		delete rest.byteplusGroupId
 		canvas.importData({ ...current, bragi: rest })
 		void canvas.requestSave()
 	}

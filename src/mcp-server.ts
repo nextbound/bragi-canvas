@@ -180,7 +180,6 @@ export class BragiMcpServer {
 			({ id, text, x, y, width, height, color }) => {
 				const canvas = requireCanvas(getCanvas)
 				const node = findNode(canvas, id)
-				const d = node.getData() as BragiCanvasNodeData
 
 				// For geometry-only updates, moveAndResize is safe and fast.
 				// For text/color updates we rebuild the node via importData,

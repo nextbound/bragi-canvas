@@ -395,7 +395,11 @@ export function replacePlaceholderWithFile(
  */
 export function markNodeFailed(node: CanvasNode, errorMsg: string): void {
 	const d = node.getData() as unknown
-	const { ovidGenerating: _legacy, bragiGenerating: _g, bragiGenModelName: _mn, bragiGenStartedAt: _sa, ...rest } = d
+	const rest = { ...d }
+	delete rest.ovidGenerating
+	delete rest.bragiGenerating
+	delete rest.bragiGenModelName
+	delete rest.bragiGenStartedAt
 	node.setData({ ...rest, color: '1' })
 	void node.setText(`Generation failed: ${errorMsg}`)
 	const nodeEl = node.nodeEl || node.containerEl
@@ -414,7 +418,11 @@ export function markNodeInterrupted(node: CanvasNode): void {
 	const modelName = d.bragiGenModelName || 'unknown model'
 	const startedAt = typeof d.bragiGenStartedAt === 'number' ? d.bragiGenStartedAt : null
 	const runtime = startedAt ? ` (ran ${Math.floor((Date.now() - startedAt) / 1000)}s before interruption)` : ''
-	const { ovidGenerating: _legacy, bragiGenerating: _g, bragiGenModelName: _mn, bragiGenStartedAt: _sa, ...rest } = d
+	const rest = { ...d }
+	delete rest.ovidGenerating
+	delete rest.bragiGenerating
+	delete rest.bragiGenModelName
+	delete rest.bragiGenStartedAt
 	node.setData({ ...rest, color: '1' })
 	void node.setText(`Generation interrupted: ${modelName}${runtime}. You can delete this node.`)
 	const nodeEl = node.nodeEl || node.containerEl
