@@ -29,7 +29,7 @@ const FIRST_POLL_DELAY_MS = 10000
 const MAX_WAIT_MS = 300000
 
 async function sleep(ms: number): Promise<void> {
-	return new Promise(r => activeWindow.setTimeout(r, ms))
+	return new Promise(r => window.setTimeout(r, ms))
 }
 
 export class APIMartProvider implements ImageProvider {

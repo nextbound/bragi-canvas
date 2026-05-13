@@ -96,7 +96,7 @@ export class LegnextProvider implements ImageProvider {
 	private async pollForResult(jobId: string): Promise<string> {
 		const maxAttempts = 60 // 5 minutes max (5s intervals)
 		for (let i = 0; i < maxAttempts; i++) {
-			await new Promise(resolve => activeWindow.setTimeout(resolve, 5000))
+			await new Promise(resolve => window.setTimeout(resolve, 5000))
 
 			const response = await requestUrl({
 				url: `${BASE_URL}/v1/job/${jobId}`,

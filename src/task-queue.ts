@@ -25,7 +25,7 @@ interface PendingTask {
 
 export class TaskQueue {
 	private tasks: PendingTask[] = []
-	private interval: ReturnType<typeof setInterval> | null = null
+	private interval: ReturnType<typeof window.setInterval> | null = null
 	private pollIntervalMs = 5000
 	/** Set of taskIds that are currently being processed (checkStatus in flight) —
 	 *  prevents re-entering the same task from overlapping poll ticks when a single
@@ -36,12 +36,12 @@ export class TaskQueue {
 
 	start(): void {
 		if (this.interval) return
-		this.interval = activeWindow.setInterval(() => { void this.pollAll() }, this.pollIntervalMs)
+		this.interval = window.setInterval(() => { void this.pollAll() }, this.pollIntervalMs)
 	}
 
 	stop(): void {
 		if (this.interval) {
-			activeWindow.clearInterval(this.interval)
+			window.clearInterval(this.interval)
 			this.interval = null
 		}
 	}

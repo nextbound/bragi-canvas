@@ -45,7 +45,7 @@ async function getAudioDuration(app: App, filePath: string): Promise<number> {
 			const audio = new Audio(url)
 			audio.addEventListener('loadedmetadata', () => resolve(audio.duration))
 			audio.addEventListener('error', () => resolve(0))
-			activeWindow.setTimeout(() => resolve(0), 3000)
+			window.setTimeout(() => resolve(0), 3000)
 		})
 	} catch {
 		return 0

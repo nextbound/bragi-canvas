@@ -109,7 +109,7 @@ export class AddProviderModal extends Modal {
 
 		searchEl.addEventListener('input', () => render(searchEl.value))
 		render('')
-		activeWindow.setTimeout(() => searchEl.focus(), 0)
+		window.setTimeout(() => searchEl.focus(), 0)
 	}
 
 	private renderForm(spec: ProviderSpec, fromPicker: boolean = false) {

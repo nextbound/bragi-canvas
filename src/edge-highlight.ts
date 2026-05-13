@@ -1,7 +1,7 @@
 import type { Canvas, CanvasNode, CanvasEdge } from './types/canvas-internal'
 
 const HIGHLIGHT_CLASS = 'bragi-edge-connected'
-let highlightInterval: ReturnType<typeof setInterval> | null = null
+let highlightInterval: ReturnType<typeof window.setInterval> | null = null
 let lastSelectedId: string | null = null
 
 /**
@@ -40,7 +40,7 @@ function highlightEdgesForNode(canvas: Canvas, node: CanvasNode): void {
 export function startEdgeHighlight(canvas: Canvas): void {
 	stopEdgeHighlight()
 
-	highlightInterval = activeWindow.setInterval(() => {
+	highlightInterval = window.setInterval(() => {
 		const selection = canvas.selection
 		if (!selection || selection.size !== 1) {
 			if (lastSelectedId !== null) {
@@ -61,7 +61,7 @@ export function startEdgeHighlight(canvas: Canvas): void {
 
 export function stopEdgeHighlight(): void {
 	if (highlightInterval) {
-		activeWindow.clearInterval(highlightInterval)
+		window.clearInterval(highlightInterval)
 		highlightInterval = null
 	}
 	clearHighlights()

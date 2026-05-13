@@ -89,7 +89,7 @@ function downloadBlob(fileName: string, data: BlobPart, mimeType: string): void 
 	link.classList.add('bragi-hidden-download-link')
 	activeDocument.body.appendChild(link)
 	link.click()
-	activeWindow.setTimeout(() => {
+	window.setTimeout(() => {
 		link.remove()
 		URL.revokeObjectURL(url)
 	}, 1000)

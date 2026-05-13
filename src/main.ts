@@ -28,7 +28,7 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 
 export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
-	private thumbInterval: ReturnType<typeof setInterval> | null = null
+	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
 	private attachmentRedirectStop: (() => void) | null = null
 	taskQueue = new TaskQueue()
 	private mcpServer: BragiMcpServer | null = null
@@ -139,7 +139,7 @@ export default class BragiCanvas extends Plugin {
 		stopEdgeHighlight()
 		this.taskQueue.stop()
 		stopGeneratingTicker()
-		if (this.thumbInterval) activeWindow.clearInterval(this.thumbInterval)
+		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
 		this.attachmentRedirectStop?.()
 		this.attachmentRedirectStop = null
 	}
@@ -223,11 +223,11 @@ export default class BragiCanvas extends Plugin {
 		)
 
 		// Refresh thumbnails periodically to catch edge changes
-		if (this.thumbInterval) activeWindow.clearInterval(this.thumbInterval)
+		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
 		refreshAllThumbnails(canvas, this.app)
 		refreshAllTextRefs(canvas, this.app)
 		refreshAllAudioRefs(canvas, this.app)
-		this.thumbInterval = activeWindow.setInterval(() => {
+		this.thumbInterval = window.setInterval(() => {
 			refreshAllThumbnails(canvas, this.app)
 			refreshAllTextRefs(canvas, this.app)
 			refreshAllAudioRefs(canvas, this.app)

@@ -89,7 +89,7 @@ function autoSizeSelect(select: HTMLSelectElement): () => void {
 		select.setCssProps({ '--bragi-select-width': `${measure.offsetWidth + 26}px` })
 	}
 	select.addEventListener('change', update)
-	requestAnimationFrame(update)
+	window.requestAnimationFrame(update)
 	return update
 }
 
@@ -534,13 +534,13 @@ export function showGenerateBar(
 		bar.style.left = `${left}px`
 		bar.style.top = `${top}px`
 
-		positionRAF = requestAnimationFrame(updatePosition)
+		positionRAF = window.requestAnimationFrame(updatePosition)
 	}
-	positionRAF = requestAnimationFrame(updatePosition)
+	positionRAF = window.requestAnimationFrame(updatePosition)
 
 	// ── Auto-dismiss ──
 
-	activeWindow.setTimeout(() => {
+	window.setTimeout(() => {
 		const wrapper = nodeCanvas?.wrapperEl
 		if (wrapper) {
 			const handler = (e: Event) => {
@@ -811,12 +811,12 @@ export function showBatchGenerateBar(
 		const top = maxY - parentRect.top + 8
 		bar.style.left = `${left}px`
 		bar.style.top = `${top}px`
-		positionRAF = requestAnimationFrame(updatePosition)
+		positionRAF = window.requestAnimationFrame(updatePosition)
 	}
-	positionRAF = requestAnimationFrame(updatePosition)
+	positionRAF = window.requestAnimationFrame(updatePosition)
 
 	// Auto-dismiss
-	activeWindow.setTimeout(() => {
+	window.setTimeout(() => {
 		const wrapper = nodeCanvas?.wrapperEl
 		if (wrapper) {
 			const handler = (e: Event) => {
@@ -831,7 +831,7 @@ export function showBatchGenerateBar(
 
 export function hideGenerateBar(): void {
 	if (positionRAF !== null) {
-		cancelAnimationFrame(positionRAF)
+		window.cancelAnimationFrame(positionRAF)
 		positionRAF = null
 	}
 	if (activeBar) {

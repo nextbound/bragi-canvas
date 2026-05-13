@@ -26,7 +26,7 @@ function autoSizeSelect(select: HTMLSelectElement): void {
 		select.setCssProps({ '--bragi-select-width': `${measure.offsetWidth + 26}px` })
 	}
 	select.addEventListener('change', update)
-	requestAnimationFrame(update)
+	window.requestAnimationFrame(update)
 }
 
 function addSettingHeading(containerEl: HTMLElement, name: string): void {

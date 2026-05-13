@@ -67,7 +67,7 @@ export class AddModelModal extends Modal {
 		this.updateList(list)
 
 		// Focus the search input (overrides the default dropdown focus)
-		activeWindow.setTimeout(() => searchInput.focus(), 0)
+		window.setTimeout(() => searchInput.focus(), 0)
 	}
 
 	private updateList(list: HTMLElement) {

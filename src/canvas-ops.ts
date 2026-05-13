@@ -144,7 +144,7 @@ interface GeneratingEntry {
 }
 
 const generatingRegistry = new Map<string, GeneratingEntry>()
-let tickInterval: ReturnType<typeof setInterval> | null = null
+let tickInterval: ReturnType<typeof window.setInterval> | null = null
 
 function renderOverlayText(modelName: string, startedAt: number): string {
 	const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
@@ -153,7 +153,7 @@ function renderOverlayText(modelName: string, startedAt: number): string {
 
 function ensureTicker(): void {
 	if (tickInterval) return
-	tickInterval = activeWindow.setInterval(() => {
+	tickInterval = window.setInterval(() => {
 		if (generatingRegistry.size === 0) { stopTicker(); return }
 		for (const entry of generatingRegistry.values()) {
 			entry.overlayEl.textContent = renderOverlayText(entry.modelName, entry.startedAt)
@@ -162,7 +162,7 @@ function ensureTicker(): void {
 }
 
 function stopTicker(): void {
-	if (tickInterval) { activeWindow.clearInterval(tickInterval); tickInterval = null }
+	if (tickInterval) { window.clearInterval(tickInterval); tickInterval = null }
 }
 
 /**

@@ -40,6 +40,7 @@ export class PanoramaViewerModal extends Modal {
 		loadPannellum()
 
 		this.modalEl.classList.add('bragi-pano-modal')
+		this.modalEl.parentElement?.classList.add('bragi-pano-modal-container')
 		const { contentEl } = this
 		contentEl.empty()
 		// Hide modal title bar (empty) so close button sits flush on black background
@@ -93,6 +94,7 @@ export class PanoramaViewerModal extends Modal {
 	}
 
 	onClose() {
+		this.modalEl.parentElement?.classList.remove('bragi-pano-modal-container')
 		try {
 			this.viewer?.destroy?.()
 		} catch {
@@ -161,14 +163,14 @@ export class PanoramaViewerModal extends Modal {
 			pitch,
 			hfov,
 		})
-		activeWindow.setTimeout(() => {
+		window.setTimeout(() => {
 			try {
 				this.viewer?.resize?.()
 			} catch {
 				// Resize is opportunistic; pannellum may have already torn down.
 			}
 		}, 50)
-		activeWindow.setTimeout(() => {
+		window.setTimeout(() => {
 			try {
 				this.viewer?.resize?.()
 			} catch {
@@ -236,15 +238,15 @@ export class PanoramaViewerModal extends Modal {
 		// Wait for load + render
 		await new Promise<void>((resolve, reject) => {
 			let settled = false
-			const timer = activeWindow.setTimeout(() => {
+			const timer = window.setTimeout(() => {
 				if (!settled) { settled = true; reject(new Error('timeout waiting for panorama render')) }
 			}, 8000)
 			shotViewer.on('load', () => {
 				if (settled) return
 				settled = true
-				activeWindow.clearTimeout(timer)
+				window.clearTimeout(timer)
 				// Give the renderer a frame to paint
-				requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+				window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))
 			})
 		})
 

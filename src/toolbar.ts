@@ -20,7 +20,7 @@ async function downloadMediaFile(vaultPath: string, node: CanvasNode): Promise<v
 		link.classList.add('bragi-hidden-download-link')
 		activeDocument.body.appendChild(link)
 		link.click()
-		activeWindow.setTimeout(() => {
+		window.setTimeout(() => {
 			link.remove()
 			URL.revokeObjectURL(url)
 		}, 1000)
@@ -284,18 +284,18 @@ function replaceBuiltinIcons(menuEl: HTMLElement): void {
 }
 
 // ── Native align menu hover control ────────────────────────────────────
-let nativeAlignCloseTimer: ReturnType<typeof setTimeout> | null = null
+let nativeAlignCloseTimer: ReturnType<typeof window.setTimeout> | null = null
 
 function cancelNativeAlignClose(): void {
 	if (nativeAlignCloseTimer) {
-		activeWindow.clearTimeout(nativeAlignCloseTimer)
+		window.clearTimeout(nativeAlignCloseTimer)
 		nativeAlignCloseTimer = null
 	}
 }
 
 function scheduleNativeAlignClose(): void {
 	cancelNativeAlignClose()
-	nativeAlignCloseTimer = activeWindow.setTimeout(() => closeNativeAlignMenu(), 150)
+	nativeAlignCloseTimer = window.setTimeout(() => closeNativeAlignMenu(), 150)
 }
 
 function getOpenAlignMenu(): HTMLElement | null {
@@ -318,26 +318,27 @@ function openNativeAlignMenu(alignBtn: HTMLElement): void {
 	if (getOpenAlignMenu()) return
 	alignBtn.click()
 	// Attach hover handlers once the native menu renders
-	requestAnimationFrame(() => {
+	window.requestAnimationFrame(() => {
 		const m = getOpenAlignMenu()
 		if (!m) return
+		m.classList.add('bragi-native-align-menu')
 		m.addEventListener('mouseenter', cancelNativeAlignClose)
 		m.addEventListener('mouseleave', scheduleNativeAlignClose)
 	})
 }
 
-let bragiDropdownCloseTimer: ReturnType<typeof setTimeout> | null = null
+let bragiDropdownCloseTimer: ReturnType<typeof window.setTimeout> | null = null
 
 function cancelBragiDropdownClose(): void {
 	if (bragiDropdownCloseTimer) {
-		activeWindow.clearTimeout(bragiDropdownCloseTimer)
+		window.clearTimeout(bragiDropdownCloseTimer)
 		bragiDropdownCloseTimer = null
 	}
 }
 
 function scheduleBragiDropdownClose(): void {
 	cancelBragiDropdownClose()
-	bragiDropdownCloseTimer = activeWindow.setTimeout(() => {
+	bragiDropdownCloseTimer = window.setTimeout(() => {
 		closeBragiDropdown()
 	}, 150)
 }

@@ -127,7 +127,7 @@ export async function waitForActive(creds: BytePlusAssetCreds, assetId: string):
 		if (status === 'Failed') {
 			throw new Error(`BytePlus asset failed. ${raw?.FailedReason || ''}`.trim())
 		}
-		await new Promise(r => activeWindow.setTimeout(r, POLL_INTERVAL_MS))
+		await new Promise(r => window.setTimeout(r, POLL_INTERVAL_MS))
 	}
 	throw new Error(`BytePlus asset timed out after ${POLL_TIMEOUT_MS / 1000}s`)
 }
