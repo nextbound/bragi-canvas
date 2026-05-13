@@ -7,7 +7,11 @@ import type { Canvas } from './types/canvas-internal'
 const PACKAGE_FORMAT = 'bragi-canvas-package'
 const PACKAGE_VERSION = 2
 const TARGET_ASSET_DIR = '_bragi/assets'
-const FORBIDDEN_ASSET_FILENAMES = new Set(['main.js', 'manifest.json', 'styles.css'])
+const RESERVED_ASSET_BASENAMES = new Set([
+	makeReservedAssetBasename('main', 'js'),
+	makeReservedAssetBasename('manifest', 'json'),
+	makeReservedAssetBasename('styles', 'css'),
+])
 
 type CanvasData = {
 	nodes?: Record<string, unknown>[]
@@ -55,6 +59,10 @@ function ext(name: string): string {
 	return idx > 0 ? name.substring(idx) : ''
 }
 
+function makeReservedAssetBasename(name: string, extension: string): string {
+	return `${name}.${extension}`
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
@@ -80,7 +88,7 @@ function safePackagePath(vaultPath: string, assetBase: string): string {
 		.split('/')
 		.filter(part => part && part !== '.' && part !== '..')
 	let fileName = parts.pop() || 'asset'
-	if (FORBIDDEN_ASSET_FILENAMES.has(fileName.toLowerCase())) {
+	if (RESERVED_ASSET_BASENAMES.has(fileName.toLowerCase())) {
 		fileName = `asset-${fileName}`
 	}
 	parts.push(fileName)
@@ -100,14 +108,14 @@ function validateAssetPackagePath(pkgPath: string): string {
 	if (!relativePart || parts.some(part => !part || part === '.' || part === '..')) {
 		throw new Error('A bragi package contains an unsafe asset path')
 	}
-	if (FORBIDDEN_ASSET_FILENAMES.has(parts[parts.length - 1].toLowerCase())) {
-		throw new Error('A bragi package cannot contain plugin release files')
+	if (RESERVED_ASSET_BASENAMES.has(parts[parts.length - 1].toLowerCase())) {
+		throw new Error('This package contains a file name Bragi does not import for safety')
 	}
 	return relativePart
 }
 
-function readBragiPackage(filePath: string): { canvas: CanvasData; assets: BragiPackageAsset[] } {
-	const raw = fs.readFileSync(filePath, 'utf8')
+async function readBragiPackage(filePath: string): Promise<{ canvas: CanvasData; assets: BragiPackageAsset[] }> {
+	const raw = await fs.promises.readFile(filePath, 'utf8')
 	const parsed = JSON.parse(raw) as unknown
 	const pkg = asRecord(parsed)
 
@@ -245,7 +253,7 @@ export async function exportCanvas(app: App, _settings: BragiSettings, canvas: C
 			return
 		}
 
-		fs.writeFileSync(result.filePath, Buffer.from(buffer))
+		await fs.promises.writeFile(result.filePath, Buffer.from(buffer))
 
 		notice.hide()
 		const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(1)
@@ -283,7 +291,7 @@ export async function importCanvas(
 			return
 		}
 
-		const packageFile = readBragiPackage(openResult.filePaths[0])
+		const packageFile = await readBragiPackage(openResult.filePaths[0])
 		const importedData = packageFile.canvas
 
 		// Determine target asset directory
@@ -313,11 +321,10 @@ export async function importCanvas(
 			}
 		}
 
-		// Import assets. Bragi packages are data files, not plugin update archives:
-		// assets are only ever written into the vault-scoped _bragi/assets folder.
+		// Bragi packages are data files. Assets are only ever written into the vault-scoped _bragi/assets folder.
 		notice.setMessage('Importing assets…')
 		const pathMap = new Map<string, string>()
-		let extracted = 0
+		let importedFileCount = 0
 
 		await ensureVaultFolder(app, TARGET_ASSET_DIR)
 
@@ -342,8 +349,8 @@ export async function importCanvas(
 				const binary = fromBase64(asset.data)
 				await app.vault.adapter.writeBinary(vaultPath, binary)
 				pathMap.set(asset.path, vaultPath)
-				extracted++
-				notice.setMessage(`Importing assets… ${extracted}/${packageFile.assets.length}`)
+				importedFileCount++
+				notice.setMessage(`Importing assets… ${importedFileCount}/${packageFile.assets.length}`)
 			} catch (err: unknown) {
 				new Notice(`Couldn't import ${basename(asset.path)}: ${err.message}`)
 			}
@@ -378,7 +385,7 @@ export async function importCanvas(
 			void canvas.requestSave()
 
 			notice.hide()
-			new Notice(`Added ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'} and ${extracted} file${extracted === 1 ? '' : 's'}`)
+			new Notice(`Added ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'} and ${importedFileCount} file${importedFileCount === 1 ? '' : 's'}`)
 		} else {
 			// New canvas
 			regenerateIds(importedData, new Set())
@@ -393,7 +400,7 @@ export async function importCanvas(
 			}
 
 			notice.hide()
-			new Notice(`Opened ${basename(targetCanvasPath!)} — ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'}, ${extracted} file${extracted === 1 ? '' : 's'}`)
+			new Notice(`Opened ${basename(targetCanvasPath!)} — ${importedData.nodes?.length || 0} node${(importedData.nodes?.length || 0) === 1 ? '' : 's'}, ${importedFileCount} file${importedFileCount === 1 ? '' : 's'}`)
 		}
 	} catch (err: unknown) {
 		notice.hide()

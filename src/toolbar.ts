@@ -29,8 +29,7 @@ async function downloadMediaFile(vaultPath: string, node: CanvasNode): Promise<v
 
 		if (result.canceled || !result.filePath) return
 
-		// Write using Node.js fs
-		fs.writeFileSync(result.filePath, Buffer.from(data))
+		await fs.promises.writeFile(result.filePath, Buffer.from(data))
 		new Notice(`Saved: ${result.filePath.split('/').pop()}`)
 	} catch (err: unknown) {
 		// Fallback: create a download link
