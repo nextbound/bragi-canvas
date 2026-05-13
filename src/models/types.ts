@@ -1,7 +1,7 @@
 export type GenerationType = 'image' | 'video' | 'text' | 'audio'
 
 export type ImageMode = 'text-to-image' | 'image-ref-to-image'
-export type VideoMode = 'text-to-video' | 'first-frame' | 'image-ref' | 'first-last-frame' | 'multi-image-ref' | 'video-extend' | 'video-edit'
+export type VideoMode = 'text-to-video' | 'first-frame' | 'image-ref' | 'first-last-frame' | 'multi-image-ref' | 'video-ref' | 'video-extend' | 'video-edit'
 export type TextMode = 'text-to-text'
 export type AudioMode = 'tts' | 'music' | 'sound-effect'
 

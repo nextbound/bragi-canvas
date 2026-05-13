@@ -26,7 +26,12 @@ export class SeedanceProvider implements VideoProvider {
 		const resolution = params?.resolution || '720p'
 		const refImages: string[] = params?.refImages || []
 		const refAudios: string[] = params?.refAudios || []
+		const refVideos: string[] = params?.refVideos || []
 		const generateAudio = params?.generate_audio !== 'false'
+
+		if (refImages.length > 9) throw new Error('Seedance supports up to 9 reference images.')
+		if (refVideos.length > 3) throw new Error('Seedance supports up to 3 reference videos.')
+		if (refAudios.length > 3) throw new Error('Seedance supports up to 3 reference audio files.')
 
 		// Build content array
 		const content: unknown[] = []
@@ -61,6 +66,15 @@ export class SeedanceProvider implements VideoProvider {
 				type: 'audio_url',
 				audio_url: { url: audioUrl },
 				role: 'reference_audio',
+			})
+		}
+
+		// Add reference videos
+		for (const videoUrl of refVideos) {
+			content.push({
+				type: 'video_url',
+				video_url: { url: videoUrl },
+				role: 'reference_video',
 			})
 		}
 

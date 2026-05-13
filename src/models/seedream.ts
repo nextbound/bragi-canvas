@@ -46,6 +46,7 @@ export const seedream45: ModelConfig = {
 	type: 'image',
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedream-4-5-251128' },
+		tokenrouter: { apiModelId: 'bytedance-seed/seedream-4.5' },
 	},
 	modes: ['text-to-image'],
 	params: [

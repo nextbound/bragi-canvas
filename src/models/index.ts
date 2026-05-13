@@ -4,6 +4,7 @@ import { nanoBananaPro, nanoBanana2 } from './nano-banana'
 import { seedream5, seedream45 } from './seedream'
 import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
+import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
 import { gpt54, gpt54Pro, gemini31Pro, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
 import { grokImagine, grokVideo } from './grok'
@@ -28,6 +29,8 @@ export const ALL_MODELS: ModelConfig[] = [
 	seedance2Fast,
 	kling3,
 	kling26,
+	happyHorseT2V,
+	happyHorseI2V,
 	veo31,
 	veo31Lite,
 	grokVideo,

@@ -6,6 +6,7 @@ export const gpt54: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		openai: { apiModelId: 'gpt-5.4' },
+		tokenrouter: { apiModelId: 'openai/gpt-5.4' },
 	},
 	modes: ['text-to-text'],
 	params: [],
@@ -17,6 +18,7 @@ export const gpt54Pro: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		openai: { apiModelId: 'gpt-5.4-pro' },
+		tokenrouter: { apiModelId: 'openai/gpt-5.4-pro' },
 	},
 	modes: ['text-to-text'],
 	params: [],
@@ -40,6 +42,7 @@ export const gemini3Flash: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		gemini: { apiModelId: 'gemini-3-flash-preview' },
+		tokenrouter: { apiModelId: 'google/gemini-3-flash-preview' },
 	},
 	modes: ['text-to-text'],
 	params: [],
@@ -88,6 +91,7 @@ export const grok43: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		xai: { apiModelId: 'grok-4.3' },
+		tokenrouter: { apiModelId: 'x-ai/grok-4.3' },
 	},
 	modes: ['text-to-text'],
 	params: [],
@@ -99,6 +103,7 @@ export const grok4Fast: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		xai: { apiModelId: 'grok-4-fast-non-reasoning' },
+		tokenrouter: { apiModelId: 'x-ai/grok-4.1-fast' },
 	},
 	modes: ['text-to-text'],
 	params: [],

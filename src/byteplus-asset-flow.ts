@@ -23,7 +23,30 @@ function audioExtToMime(ext: string): string {
 	return 'audio/mpeg'
 }
 
+function videoExtToMime(ext: string): string {
+	if (ext === 'mov') return 'video/quicktime'
+	return 'video/mp4'
+}
+
 const IMAGE_EXTS = /\.(png|jpe?g|webp|gif)$/i
+const AUDIO_EXTS = /\.(mp3|wav|flac)$/i
+const VIDEO_EXTS = /\.(mp4|mov)$/i
+
+type BytePlusAssetType = 'Image' | 'Audio' | 'Video'
+
+function getAssetFileInfo(filePath: string): { assetType: BytePlusAssetType; ext: string; mime: string } {
+	const ext = (filePath.split('.').pop() || '').toLowerCase()
+	if (IMAGE_EXTS.test(filePath)) {
+		return { assetType: 'Image', ext: ext || 'png', mime: imageExtToMime(ext || 'png') }
+	}
+	if (AUDIO_EXTS.test(filePath)) {
+		return { assetType: 'Audio', ext: ext || 'mp3', mime: audioExtToMime(ext || 'mp3') }
+	}
+	if (VIDEO_EXTS.test(filePath)) {
+		return { assetType: 'Video', ext: ext || 'mp4', mime: videoExtToMime(ext || 'mp4') }
+	}
+	throw new Error(`BytePlus assets support image, audio, MP4, or MOV files only: ${filePath.split('/').pop() || filePath}`)
+}
 
 function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 	for (const node of canvas.nodes.values()) {
@@ -92,7 +115,7 @@ function clearCachedAssetId(node: CanvasNode) {
 }
 
 /**
- * Ensure the given local image is available as an `asset://...` URI.
+ * Ensure the given local media file is available as an `asset://...` URI.
  * Uses per-node + per-canvas caches, with pre-validation via GetAsset.
  *
  * Throws on Rejected / Failed / timeout / fatal errors — caller should propagate
@@ -104,10 +127,7 @@ export async function ensureBytePlusAsset(
 	filePath: string,
 	creds: BytePlusAssetCreds,
 ): Promise<string> {
-	const isImage = IMAGE_EXTS.test(filePath)
-	const assetType: 'Image' | 'Audio' = isImage ? 'Image' : 'Audio'
-	const ext = (filePath.split('.').pop() || (isImage ? 'png' : 'mp3')).toLowerCase()
-	const mime = isImage ? imageExtToMime(ext) : audioExtToMime(ext)
+	const { assetType, ext, mime } = getAssetFileInfo(filePath)
 	const node = findNodeByPath(canvas, filePath)
 
 	// 1. Check cache + pre-validate

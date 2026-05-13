@@ -60,7 +60,7 @@ Use the MCP server only for trusted local clients that you want to let read or m
 
 ## Providers
 
-Bragi Canvas supports multiple provider integrations, including OpenAI, Anthropic, AWS Bedrock, Google Gemini (Gemini, Imagen, and Veo), Volcengine, BytePlus, Kling, fal.ai, ElevenLabs, MiniMax, Legnext, TokenRouter, APIMart, xAI, and Luma. Availability depends on the models and credentials configured in plugin settings.
+Bragi Canvas supports multiple provider integrations, including OpenAI, Anthropic, AWS Bedrock, Google Gemini (Gemini, Imagen, and Veo), Volcengine, BytePlus, Kling, fal.ai, ElevenLabs, MiniMax, Legnext, TokenRouter (`https://api.tokenrouter.com/v1`), APIMart, xAI, and Luma. Availability depends on the models and credentials configured in plugin settings.
 
 Provider credentials are stored by Obsidian in this plugin's local settings data. They are used only to make the provider requests selected by the user.
 
@@ -68,7 +68,7 @@ No provider API keys are bundled with the plugin or included in release assets.
 
 ## Network and data disclosure
 
-Bragi Canvas sends prompts and selected upstream reference files to the AI providers configured by the user when a generation is run. Some providers require publicly fetchable reference URLs; for those workflows, Bragi Canvas may upload temporary copies of selected reference files to the Bragi Relay service at `relay.bragi.now` so the provider can fetch them. Relay-hosted files are intended as temporary transfer files and are not used for client-side telemetry.
+Bragi Canvas sends prompts and selected upstream reference files to the AI providers configured by the user when a generation is run. Some providers require publicly fetchable reference URLs; for those workflows, Bragi Canvas may upload temporary copies of selected reference files to the built-in Bragi Relay service so the provider can fetch them. Relay-hosted files are intended as temporary transfer files and are not used for client-side telemetry.
 
 The plugin can also run an optional local MCP server on `127.0.0.1` when enabled in settings. If an MCP access token is configured, clients must send the matching bearer token.
 

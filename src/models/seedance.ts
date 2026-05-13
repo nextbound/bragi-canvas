@@ -8,8 +8,9 @@ export const seedance2: ModelConfig = {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-260128' },
 		byteplus: { apiModelId: 'ep-20260423151427-fj6dh' },
 		fal: { apiModelId: 'bytedance/seedance-2.0' },
+		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-260128' },
 	},
-	modes: ['text-to-video', 'first-frame', 'image-ref'],
+	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-ref'],
 	params: [
 		{
 			id: 'duration',
@@ -76,8 +77,9 @@ export const seedance2Fast: ModelConfig = {
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-fast-260128' },
 		byteplus: { apiModelId: 'ep-20260423151341-p2zm9' },
+		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-fast-260128' },
 	},
-	modes: ['text-to-video', 'first-frame', 'image-ref'],
+	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-ref'],
 	params: [
 		{
 			id: 'duration',

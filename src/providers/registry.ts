@@ -17,6 +17,7 @@ import { LegnextProvider } from './legnext'
 import { APIMartProvider } from './apimart'
 import { LumaProvider } from './luma'
 import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
+import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
 import { OpenAITextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider } from './text-gen'
@@ -350,14 +351,16 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'tokenrouter',
 		name: 'TokenRouter',
-		description: 'Multi-model gateway.',
+		description: 'All-in-one model gateway.',
 		docUrl: 'https://www.tokenrouter.com',
 		fields: [{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.tokenrouter,
 		makeImage: ({ settings, app, outputDir }) =>
-			new OpenAIProvider(settings.providers.tokenrouter, app, outputDir, 'https://api.tokenrouter.com/v1'),
+			new TokenRouterImageProvider(settings.providers.tokenrouter, app, outputDir, 'https://api.tokenrouter.com/v1'),
+		makeVideo: ({ settings, app, outputDir }) =>
+			new TokenRouterVideoProvider(settings.providers.tokenrouter, app, outputDir, 'https://api.tokenrouter.com/v1'),
 		makeText: ({ settings }) =>
-			new OpenAITextProvider(settings.providers.tokenrouter, 'https://api.tokenrouter.com/v1'),
+			new TokenRouterTextProvider(settings.providers.tokenrouter, 'https://api.tokenrouter.com/v1'),
 		testConnection: (d) => testListModels('https://api.tokenrouter.com/v1/models', d.tokenrouter || ''),
 	},
 	{

@@ -367,11 +367,14 @@ export default class BragiCanvas extends Plugin {
 
 			// Read reference images in user-defined order (from thumbnail drag)
 			const uniqueImages = getOrderedImages(canvas, node)
-			// Only use asset IDs for Seedance (bytedance/byteplus provider)
-			const isSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && model.id.startsWith('seedance')
-			const assetIdMap = isSeedance ? getAssetIds(canvas, node) : {}
-			// BytePlus asset library: only run when ref images exist AND AK/SK configured
-			const bytePlusCreds = (activeProvider === 'byteplus' && isSeedance && (uniqueImages.length > 0 || upstream.audios.length > 0))
+			const uniqueVideos = [...new Set(upstream.videos)]
+			// Only native Volcengine / BytePlus Seedance can consume asset:// IDs.
+			const isSeedanceModel = model.id.startsWith('seedance')
+			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
+			const supportsSeedanceRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
+			const assetIdMap = isNativeSeedance ? getAssetIds(canvas, node) : {}
+			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
+			const bytePlusCreds = (activeProvider === 'byteplus' && isNativeSeedance && (uniqueImages.length > 0 || upstream.audios.length > 0 || uniqueVideos.length > 0))
 				? getBytePlusAssetCreds(this)
 				: null
 			const refImages: string[] = []
@@ -392,7 +395,7 @@ export default class BragiCanvas extends Plugin {
 
 			// Upload reference audios for Seedance
 			const refAudios: string[] = []
-			if (isSeedance && upstream.audios.length > 0) {
+			if (isNativeSeedance && upstream.audios.length > 0) {
 				for (const audioPath of upstream.audios) {
 					if (bytePlusCreds) {
 						// Route audio through asset library for content review
@@ -407,15 +410,32 @@ export default class BragiCanvas extends Plugin {
 				}
 			}
 
-			// Upload reference videos (used by video-extend mode)
+			// Upload reference videos. BytePlus Seedance videos must go through asset://
+			// so face-containing clips are reviewed by the asset library first.
 			const refVideos: string[] = []
-			if (model.type === 'video' && mode === 'video-extend' && upstream.videos.length > 0) {
-				for (const videoPath of upstream.videos) {
-					const binary = await this.app.vault.adapter.readBinary(videoPath)
-					const ext = videoPath.split('.').pop()?.toLowerCase() || 'mp4'
-					const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4'
-					const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, mime)
-					refVideos.push(videoUrl)
+			if (model.type === 'video' && uniqueVideos.length > 0) {
+				if (mode === 'video-ref' && !supportsSeedanceRefs) {
+					throw new Error('Reference video is only available with Volcengine, BytePlus, or TokenRouter Seedance.')
+				}
+				if (supportsSeedanceRefs && uniqueVideos.length > 3) {
+					throw new Error('Seedance supports up to 3 reference videos.')
+				}
+				if (isNativeSeedance && activeProvider === 'byteplus' && !bytePlusCreds) {
+					throw new Error('Add BytePlus access key and secret key in settings to use reference videos.')
+				}
+				const shouldUseVideos = supportsSeedanceRefs || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref'
+				if (shouldUseVideos) {
+					for (const videoPath of uniqueVideos) {
+						if (isNativeSeedance && bytePlusCreds) {
+							refVideos.push(await ensureBytePlusAsset(this, canvas, videoPath, bytePlusCreds))
+						} else {
+							const binary = await this.app.vault.adapter.readBinary(videoPath)
+							const ext = videoPath.split('.').pop()?.toLowerCase() || 'mp4'
+							const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4'
+							const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, mime)
+							refVideos.push(videoUrl)
+						}
+					}
 				}
 			}
 

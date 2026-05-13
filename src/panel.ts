@@ -24,6 +24,7 @@ const MODE_LABELS: Record<string, string> = {
 	'image-ref': 'Ref Image',
 	'first-last-frame': 'First + Last Frame',
 	'multi-image-ref': 'Multi Image Ref',
+	'video-ref': 'Reference video',
 	'video-extend': 'Extend Video',
 	'video-edit': 'Edit Video',
 	'text-to-text': 'Text → Text',
@@ -37,8 +38,10 @@ const MODE_LABELS: Record<string, string> = {
  * Falls through priorities — if the model doesn't support a mode, skip it.
  */
 function inferMode(modes: Mode[], imageCount: number, videoCount: number): Mode {
-	// Video upstream → extend
+	// Video upstream → reference or extend
+	if (videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
 	if (videoCount > 0 && modes.includes('video-extend')) return 'video-extend'
+	if (videoCount > 0 && modes.includes('video-edit')) return 'video-edit'
 
 	// 2+ images → prefer first-last-frame, then multi-ref, then image-ref
 	if (imageCount >= 2) {
@@ -286,10 +289,12 @@ export function showGenerateBar(
 	function modelSupportsInputs(m: ModelConfig): boolean {
 		// Text and image models — always compatible for now
 		if (m.type !== 'video') return true
-		// No special inputs — all video models support text-to-video
-		if (upstreamImageCount === 0 && upstreamVideoCount === 0) return true
-		// Has video input — needs video-extend
-		if (upstreamVideoCount > 0) return m.modes.includes('video-extend')
+		// No special inputs — only text-to-video models can run without refs.
+		if (upstreamImageCount === 0 && upstreamVideoCount === 0) return m.modes.includes('text-to-video')
+		// Has video input — needs a video-input mode
+		if (upstreamVideoCount > 0) {
+			return m.modes.includes('video-ref') || m.modes.includes('video-extend') || m.modes.includes('video-edit')
+		}
 		// Has 2+ images — needs first-last-frame, multi-image-ref, or image-ref
 		if (upstreamImageCount >= 2) {
 			return m.modes.includes('first-last-frame') || m.modes.includes('multi-image-ref') || m.modes.includes('image-ref')

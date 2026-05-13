@@ -28,6 +28,7 @@ export const nanoBananaPro: ModelConfig = {
 	supportedProviders: {
 		gemini: { apiModelId: 'gemini-3-pro-image-preview' },
 		fal: { apiModelId: 'fal-ai/nano-banana-pro' },
+		tokenrouter: { apiModelId: 'google/gemini-3-pro-image-preview' },
 	},
 	modes: ['text-to-image'],
 	params: [
@@ -59,6 +60,7 @@ export const nanoBanana2: ModelConfig = {
 	supportedProviders: {
 		gemini: { apiModelId: 'gemini-3.1-flash-image-preview' },
 		fal: { apiModelId: 'fal-ai/nano-banana-2' },
+		tokenrouter: { apiModelId: 'google/gemini-3.1-flash-image-preview' },
 	},
 	modes: ['text-to-image'],
 	params: [
