@@ -2,6 +2,7 @@
 import { requestUrl } from 'obsidian'
 import { signRequest } from './sigv4'
 import { stringParam } from './params'
+import { throwForGoogleError } from './google-errors'
 
 export interface TextGenResult {
 	text: string
@@ -203,6 +204,7 @@ export class GeminiTextProvider implements TextGenProvider {
 				'Content-Type': 'application/json',
 				'x-goog-api-key': this.apiKey,
 			},
+			throw: false,
 			body: JSON.stringify({
 				systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
 				contents: [{ parts }],
@@ -210,6 +212,7 @@ export class GeminiTextProvider implements TextGenProvider {
 		})
 
 		const data = response.json
+		throwForGoogleError('Gemini text', response)
 		const text = data.candidates?.[0]?.content?.parts
 			?.filter((p: unknown) => p.text)
 			?.map((p: unknown) => p.text)
