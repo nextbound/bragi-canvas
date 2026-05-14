@@ -1,24 +1,24 @@
 import type { ModelConfig } from './types'
 
-export const gpt54: ModelConfig = {
-	id: 'gpt-5.4',
-	name: 'GPT-5.4',
+export const gpt55: ModelConfig = {
+	id: 'gpt-5.5',
+	name: 'GPT-5.5',
 	type: 'text',
 	supportedProviders: {
-		openai: { apiModelId: 'gpt-5.4' },
-		tokenrouter: { apiModelId: 'openai/gpt-5.4' },
+		openai: { apiModelId: 'gpt-5.5' },
+		tokenrouter: { apiModelId: 'openai/gpt-5.5' },
 	},
 	modes: ['text-to-text'],
 	params: [],
 }
 
-export const gpt54Pro: ModelConfig = {
-	id: 'gpt-5.4-pro',
-	name: 'GPT-5.4 Pro',
+export const gpt55Pro: ModelConfig = {
+	id: 'gpt-5.5-pro',
+	name: 'GPT-5.5 Pro',
 	type: 'text',
 	supportedProviders: {
-		openai: { apiModelId: 'gpt-5.4-pro' },
-		tokenrouter: { apiModelId: 'openai/gpt-5.4-pro' },
+		openai: { apiModelId: 'gpt-5.5-pro' },
+		tokenrouter: { apiModelId: 'openai/gpt-5.5-pro' },
 	},
 	modes: ['text-to-text'],
 	params: [],

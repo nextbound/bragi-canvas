@@ -259,7 +259,7 @@ export class TokenRouterTextProvider implements TextGenProvider {
 	}
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
-		const modelId = stringParam(params?.modelId, 'openai/gpt-5.4')
+		const modelId = stringParam(params?.modelId, 'openai/gpt-5.5')
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
 		const content: unknown[] = []
 

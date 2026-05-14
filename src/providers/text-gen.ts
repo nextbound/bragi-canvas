@@ -15,11 +15,75 @@ export interface TextGenProvider {
 	generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult>
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function asArray(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : []
+}
+
+function parseProviderError(provider: string, resp: { status: number; text?: string; json?: unknown }): string {
+	const body = asRecord(resp.json) || (() => {
+		try { return asRecord(JSON.parse(resp.text || '')) } catch { return null }
+	})()
+	const error = asRecord(body?.error)
+	const msg = stringParam(error?.message || body?.message || resp.text, `HTTP ${resp.status}`)
+	const code = stringParam(error?.code || error?.type || body?.code, '')
+	return `${provider}: ${code ? code + ' — ' : ''}${msg}`
+}
+
+function isOpenAIResponsesModel(modelId: string): boolean {
+	return /^gpt-5\.[45]-pro(?:-|$)/.test(modelId)
+}
+
+function extractOpenAIChatText(data: unknown): string {
+	const choices = asArray(asRecord(data)?.choices)
+	const message = asRecord(asRecord(choices[0])?.message)
+	const content = message?.content
+	if (typeof content === 'string') return content.trim()
+	if (Array.isArray(content)) {
+		return content
+			.map(part => asRecord(part))
+			.filter(Boolean)
+			.filter(part => part?.type === 'text')
+			.map(part => stringParam(part?.text, ''))
+			.join('\n')
+			.trim()
+	}
+	return ''
+}
+
+function extractOpenAIResponsesText(data: unknown): string {
+	const direct = stringParam(asRecord(data)?.output_text, '').trim()
+	if (direct) return direct
+
+	const chunks: string[] = []
+	const visit = (value: unknown, depth = 0): void => {
+		if (depth > 8 || value == null) return
+		if (typeof value === 'string') return
+		if (Array.isArray(value)) {
+			for (const item of value) visit(item, depth + 1)
+			return
+		}
+
+		const record = asRecord(value)
+		if (!record) return
+		const type = stringParam(record.type, '')
+		const text = stringParam(record.text, '')
+		if ((type === 'output_text' || type === 'text') && text) chunks.push(text)
+		for (const key of ['output', 'content', 'message', 'data']) visit(record[key], depth + 1)
+	}
+
+	visit(data)
+	return chunks.join('\n').trim()
+}
+
 /**
  * OpenAI text generation (GPT-4o) with vision support.
  */
 export class OpenAITextProvider implements TextGenProvider {
-	name = 'GPT-4o'
+	name = 'OpenAI'
 	private apiKey: string
 	private baseUrl: string
 
@@ -29,7 +93,10 @@ export class OpenAITextProvider implements TextGenProvider {
 	}
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
-		const refImages: string[] = params?.refImages || []
+		const modelId = stringParam(params?.modelId, 'gpt-5.5')
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+
+		if (isOpenAIResponsesModel(modelId)) return this.generateViaResponses(modelId, prompt, refImages)
 
 		// Build messages with optional images
 		const content: unknown[] = []
@@ -50,8 +117,9 @@ export class OpenAITextProvider implements TextGenProvider {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${this.apiKey}`,
 			},
+			throw: false,
 			body: JSON.stringify({
-				model: params?.modelId || 'gpt-5.4',
+				model: modelId,
 				messages: [
 					{ role: 'system', content: SYSTEM_PROMPT },
 					{ role: 'user', content },
@@ -60,10 +128,39 @@ export class OpenAITextProvider implements TextGenProvider {
 			}),
 		})
 
-		const data = response.json
-		const text = data.choices?.[0]?.message?.content?.trim()
+		if (response.status >= 400) throw new Error(parseProviderError('OpenAI text', response))
+		const text = extractOpenAIChatText(response.json)
 		if (!text) throw new Error('GPT: No text in response')
 
+		return { text }
+	}
+
+	private async generateViaResponses(modelId: string, prompt: string, refImages: string[]): Promise<TextGenResult> {
+		const content: unknown[] = []
+		for (const dataUri of refImages) {
+			content.push({ type: 'input_image', image_url: dataUri })
+		}
+		content.push({ type: 'input_text', text: prompt })
+
+		const response = await requestUrl({
+			url: `${this.baseUrl}/responses`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			throw: false,
+			body: JSON.stringify({
+				model: modelId,
+				instructions: SYSTEM_PROMPT,
+				input: [{ role: 'user', content }],
+				max_output_tokens: 4096,
+			}),
+		})
+
+		if (response.status >= 400) throw new Error(parseProviderError('OpenAI responses', response))
+		const text = extractOpenAIResponsesText(response.json)
+		if (!text) throw new Error('GPT: No text in response')
 		return { text }
 	}
 }

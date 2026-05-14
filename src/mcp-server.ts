@@ -27,6 +27,7 @@ type JsonMap = Record<string, unknown>
 type BragiCanvasNodeData = AllCanvasNodeData & { bragiAssetId?: string }
 type SerializableEdge = CanvasEdgeData | CanvasEdge
 type FileView = { file?: TFile }
+type EdgeStore = Map<string, CanvasEdge> | CanvasEdge[]
 
 function requireCanvas(getCanvas: GetCanvas): Canvas {
 	const canvas = getCanvas()
@@ -67,6 +68,53 @@ function serializeEdge(edge: SerializableEdge) {
 		toSide: d.toSide || runtimeTo?.side,
 		...(d.label ? { label: d.label } : {}),
 	}
+}
+
+function canvasEdgeData(canvas: Canvas): CanvasEdgeData[] {
+	return canvas.getData().edges || []
+}
+
+function edgeStillExists(canvas: Canvas, edgeId: string): boolean {
+	return canvasEdgeData(canvas).some(e => e.id === edgeId)
+}
+
+function findRuntimeEdge(canvas: Canvas, edgeId: string): CanvasEdge | null {
+	const store = canvas.edges as unknown as EdgeStore
+	if (store instanceof Map) return store.get(edgeId) || null
+	if (Array.isArray(store)) return store.find(edge => edge.id === edgeId) || null
+	return null
+}
+
+function removeFromRuntimeEdgeStore(canvas: Canvas, edgeId: string): boolean {
+	const store = canvas.edges as unknown as EdgeStore
+	if (store instanceof Map) return store.delete(edgeId)
+	if (!Array.isArray(store)) return false
+	const index = store.findIndex(edge => edge.id === edgeId)
+	if (index < 0) return false
+	store.splice(index, 1)
+	return true
+}
+
+function callRuntimeEdgeRemoval(canvas: Canvas, edgeId: string): boolean {
+	const edge = findRuntimeEdge(canvas, edgeId)
+	if (!edge) return false
+	const runtime = canvas as unknown as Record<string, unknown>
+	for (const methodName of ['removeEdge', 'deleteEdge']) {
+		const method = runtime[methodName]
+		if (typeof method !== 'function') continue
+		try {
+			method.call(canvas, edge)
+			return true
+		} catch {
+			try {
+				method.call(canvas, edgeId)
+				return true
+			} catch {
+				// Try the next known Canvas runtime method shape.
+			}
+		}
+	}
+	return false
 }
 
 function ok(data: unknown = { status: 'ok' }) {
@@ -268,15 +316,28 @@ export class BragiMcpServer {
 			'delete_edge',
 			'Delete an edge from the canvas',
 			{ edgeId: z.string().describe('Edge ID') },
-			({ edgeId }) => {
+			async ({ edgeId }) => {
 				const canvas = requireCanvas(getCanvas)
 				const full = canvas.getData()
 				const edgeArr = full.edges || []
 				const filtered = edgeArr.filter((e) => e.id !== edgeId)
 				if (filtered.length === edgeArr.length) throw new Error(`Edge not found: ${edgeId}`)
 				canvas.importData({ ...full, edges: filtered })
-				void canvas.requestSave()
-				return ok()
+				await canvas.requestFrame()
+
+				if (edgeStillExists(canvas, edgeId)) {
+					callRuntimeEdgeRemoval(canvas, edgeId)
+					removeFromRuntimeEdgeStore(canvas, edgeId)
+					await canvas.requestFrame()
+				}
+
+				if (edgeStillExists(canvas, edgeId)) {
+					const remaining = canvasEdgeData(canvas).map(edge => edge.id).join(', ')
+					throw new Error(`Edge delete did not apply: ${edgeId}. Remaining edge IDs: ${remaining || '(none)'}`)
+				}
+
+				await canvas.requestSave()
+				return ok({ status: 'ok', edgeId, deleted: true })
 			},
 		)
 

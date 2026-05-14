@@ -6,7 +6,7 @@ import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
-import { gpt54, gpt54Pro, gemini31Pro, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
+import { gpt55, gpt55Pro, gemini31Pro, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
 import { lumaUni1 } from './luma'
@@ -42,8 +42,8 @@ export const ALL_MODELS: ModelConfig[] = [
 	grok43,
 	grok4Fast,
 	qwen36Plus,
-	gpt54Pro,
-	gpt54,
+	gpt55Pro,
+	gpt55,
 	// Audio
 	elevenLabsTTS,
 	minimaxTTS,
@@ -60,6 +60,8 @@ export function getModelsByType(type: GenerationType): ModelConfig[] {
 
 /** Get model by ID */
 export function getModelById(id: string): ModelConfig | undefined {
+	if (id === 'gpt-5.4') return gpt55
+	if (id === 'gpt-5.4-pro') return gpt55Pro
 	return ALL_MODELS.find(m => m.id === id)
 }
 
