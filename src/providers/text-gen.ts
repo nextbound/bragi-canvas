@@ -178,12 +178,21 @@ export class GeminiTextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = stringParam(params?.modelId, 'gemini-2.5-flash')
-		const refImages: string[] = params?.refImages || []
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos : []
 
-		// Build parts: images first, then text
+		// Build parts: media first, then text
 		const parts: unknown[] = []
 
 		for (const dataUri of refImages) {
+			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
+			if (match) {
+				parts.push({
+					inlineData: { mimeType: match[1], data: match[2] },
+				})
+			}
+		}
+		for (const dataUri of refVideos) {
 			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 			if (match) {
 				parts.push({

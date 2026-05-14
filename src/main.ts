@@ -27,6 +27,8 @@ import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 
+const GEMINI_INLINE_VIDEO_LIMIT_BYTES = 20 * 1024 * 1024
+
 export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
 	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
@@ -411,10 +413,20 @@ export default class BragiCanvas extends Plugin {
 				}
 			}
 
-			// Upload reference videos. BytePlus Seedance videos must go through asset://
-			// so face-containing clips are reviewed by the asset library first.
 			const refVideos: string[] = []
-			if (model.type === 'video' && uniqueVideos.length > 0) {
+			if (model.type === 'text' && activeProvider === 'gemini' && uniqueVideos.length > 0) {
+				for (const videoPath of uniqueVideos) {
+					const binary = await this.app.vault.adapter.readBinary(videoPath)
+					if (binary.byteLength > GEMINI_INLINE_VIDEO_LIMIT_BYTES) {
+						throw new Error('Gemini text video input supports inline videos up to 20 MB. Use a shorter clip or split the video.')
+					}
+					const ext = videoPath.split('.').pop()?.toLowerCase() || 'mp4'
+					const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4'
+					refVideos.push(`data:${mime};base64,${arrayBufferToBase64(binary)}`)
+				}
+			} else if (model.type === 'video' && uniqueVideos.length > 0) {
+				// Upload reference videos. BytePlus Seedance videos must go through asset://
+				// so face-containing clips are reviewed by the asset library first.
 				if (mode === 'video-ref' && !supportsSeedanceRefs) {
 					throw new Error('Reference video is only available with Volcengine, BytePlus, or TokenRouter Seedance.')
 				}
@@ -499,7 +511,7 @@ export default class BragiCanvas extends Plugin {
 					markNodeFailed(placeholder, `${activeProvider} doesn't support text generation`)
 					return
 				}
-				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages })
+				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages, refVideos })
 
 				// Split result into multiple nodes if ---SPLIT--- is present
 				canvas.removeNode(placeholder)

@@ -50,7 +50,7 @@ You can also manually copy `manifest.json`, `main.js`, and `styles.css` from the
 4. Select a model and parameters in the generation bar.
 5. Run the generation. Bragi Canvas creates the output node near the source node and connects it back to the source.
 
-Incoming directed edges are treated as upstream references. Text nodes contribute prompt text, image nodes become image references, video nodes can be used for supported video workflows, and audio nodes can be used for supported audio workflows.
+Incoming directed edges are treated as upstream references. Text nodes contribute prompt text, image nodes become image references, video nodes can be used for supported video workflows and Gemini text understanding, and audio nodes can be used for supported audio workflows.
 
 ## MCP server
 
