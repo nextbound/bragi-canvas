@@ -3,6 +3,7 @@ import { requestUrl } from 'obsidian'
 import { signRequest } from './sigv4'
 import { stringParam } from './params'
 import { uploadRef } from './upload'
+import { throwForGoogleError } from './google-errors'
 
 export interface TextGenResult {
 	text: string
@@ -388,7 +389,7 @@ export class GeminiTextProvider implements TextGenProvider {
 			}),
 		})
 
-		if (response.status >= 400) throw new Error(parseProviderError('Gemini text', response))
+		throwForGoogleError('Gemini text', response)
 		const data = response.json
 		const text = asArray(asRecord(asRecord(asArray(asRecord(data)?.candidates)[0])?.content)?.parts)
 			.map(part => asRecord(part))
