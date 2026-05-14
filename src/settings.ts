@@ -135,7 +135,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		text: [],
 		audio: [],
 	},
-	mcpEnabled: true,
+	mcpEnabled: false,
 	mcpPort: 17775,
 	mcpToken: '',
 }

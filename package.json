@@ -1,6 +1,6 @@
 {
   "name": "bragi-canvas",
-  "version": "1.12.14",
+  "version": "1.12.15",
   "description": "Obsidian Canvas AI generation pipeline",
   "license": "MPL-2.0",
   "main": "main.js",

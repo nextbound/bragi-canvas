@@ -1,5 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, Modal, getLanguage } from 'obsidian'
+
+interface AppWithPluginControls extends App {
+	plugins?: {
+		disablePlugin(id: string): Promise<void>
+	}
+}
 
 /**
  * Bragi Canvas relies on Obsidian's built-in English aria-labels for many of
@@ -25,7 +30,7 @@ export class LanguageGateModal extends Modal {
 		titleEl.setText('Bragi canvas needs english')
 
 		contentEl.createEl('p', {
-			text: 'Bragi canvas relies on Obsidian being in english. Please switch your language to english or english (gb), then restart Obsidian.',
+			text: 'Bragi canvas relies on Obsidian being in english. Please switch Obsidian to english or english (gb), then restart Obsidian.',
 		})
 
 		const row = contentEl.createDiv({ cls: 'modal-button-container' })
@@ -34,7 +39,7 @@ export class LanguageGateModal extends Modal {
 		disable.addEventListener('click', () => {
 			void (async () => {
 				try {
-					await (this.app as unknown).plugins.disablePlugin(this.pluginId)
+					await (this.app as AppWithPluginControls).plugins?.disablePlugin(this.pluginId)
 				} catch (err) {
 					console.error('Bragi: failed to disable plugin', err)
 				}
@@ -42,33 +47,11 @@ export class LanguageGateModal extends Modal {
 			})()
 		})
 
-		const switchBtn = row.createEl('button', { text: 'Switch to english & restart', cls: 'mod-cta' })
-		switchBtn.addEventListener('click', () => {
-			try {
-				window.localStorage.setItem('language', 'en')
-			} catch (err) {
-				console.error('Bragi: failed to set language', err)
-			}
-			// Relaunch Obsidian via Electron
-			try {
-				const remote = (window as unknown).require?.('@electron/remote')
-					?? (window as unknown).require?.('electron')?.remote
-				if (remote?.app) {
-					remote.app.relaunch()
-					remote.app.exit(0)
-					return
-				}
-			} catch (err) {
-				console.error('Bragi: relaunch failed', err)
-			}
-			// Fallback: full page reload
-			window.location.reload()
-		})
+		const closeBtn = row.createEl('button', { text: 'Close', cls: 'mod-cta' })
+		closeBtn.addEventListener('click', () => this.close())
 	}
 
 	onClose() {
 		this.contentEl.empty()
 	}
 }
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */

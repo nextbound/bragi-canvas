@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, Notice, TFile } from 'obsidian'
-import { remote } from 'electron'
-import * as fs from 'fs'
 import type { BragiSettings } from './settings'
 import type { Canvas } from './types/canvas-internal'
 
@@ -130,8 +128,7 @@ function validateAssetPackagePath(pkgPath: string): string {
 	return relativePart
 }
 
-async function readBragiPackage(filePath: string): Promise<{ canvas: CanvasData; assets: BragiPackageAsset[] }> {
-	const raw = await fs.promises.readFile(filePath, 'utf8')
+async function readBragiPackage(raw: string): Promise<{ canvas: CanvasData; assets: BragiPackageAsset[] }> {
 	const parsed = JSON.parse(raw) as unknown
 	const pkg = asRecord(parsed)
 
@@ -160,6 +157,34 @@ async function readBragiPackage(filePath: string): Promise<{ canvas: CanvasData;
 	}
 
 	return { canvas: JSON.parse(JSON.stringify(canvas)) as CanvasData, assets }
+}
+
+function chooseBragiPackageFile(): Promise<File | null> {
+	return new Promise((resolve) => {
+		const input = createEl('input')
+		input.type = 'file'
+		input.accept = '.bragi,application/json'
+		input.classList.add('bragi-hidden')
+		activeDocument.body.appendChild(input)
+
+		let done = false
+		const finish = (file: File | null) => {
+			if (done) return
+			done = true
+			window.removeEventListener('focus', onFocus)
+			input.remove()
+			resolve(file)
+		}
+		const onFocus = () => {
+			window.setTimeout(() => {
+				if (!input.files || input.files.length === 0) finish(null)
+			}, 500)
+		}
+
+		input.addEventListener('change', () => finish(input.files?.[0] ?? null), { once: true })
+		window.addEventListener('focus', onFocus, { once: true })
+		input.click()
+	})
 }
 
 async function ensureVaultFolder(app: App, dir: string): Promise<void> {
@@ -277,22 +302,13 @@ export async function importCanvas(
 	const notice = new Notice('Importing…', 0)
 
 	try {
-		// Open dialog
-		const openResult = await remote.dialog.showOpenDialog({
-			title: 'Import Bragi Canvas Package',
-			filters: [
-				{ name: 'Bragi Canvas Package', extensions: ['bragi'] },
-				{ name: 'All Files', extensions: ['*'] },
-			],
-			properties: ['openFile'],
-		})
-
-		if (openResult.canceled || openResult.filePaths.length === 0) {
+		const selectedFile = await chooseBragiPackageFile()
+		if (!selectedFile) {
 			notice.hide()
 			return
 		}
 
-		const packageFile = await readBragiPackage(openResult.filePaths[0])
+		const packageFile = await readBragiPackage(await selectedFile.text())
 		const importedData = packageFile.canvas
 
 		// Determine target asset directory
@@ -312,7 +328,7 @@ export async function importCanvas(
 			const currentPath = getCanvasFilePath(app)
 			targetCanvasDir = currentPath ? dirname(currentPath) : ''
 
-			const bragiName = withoutExt(basename(openResult.filePaths[0]))
+			const bragiName = withoutExt(basename(selectedFile.name))
 			targetCanvasPath = targetCanvasDir ? `${targetCanvasDir}/${bragiName}.canvas` : `${bragiName}.canvas`
 			let counter = 1
 			while (await app.vault.adapter.exists(targetCanvasPath)) {
