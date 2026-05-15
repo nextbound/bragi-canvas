@@ -37,6 +37,13 @@ function isOpenAIResponsesModel(modelId: string): boolean {
 	return /^gpt-5\.[45]-pro(?:-|$)/.test(modelId)
 }
 
+function videoMimeTypeFromRef(ref: string): string {
+	const path = ref.split(/[?#]/)[0].toLowerCase()
+	if (path.endsWith('.mov')) return 'video/quicktime'
+	if (path.endsWith('.webm')) return 'video/webm'
+	return 'video/mp4'
+}
+
 function extractOpenAIChatText(data: unknown): string {
 	const choices = asArray(asRecord(data)?.choices)
 	const message = asRecord(asRecord(choices[0])?.message)
@@ -178,8 +185,8 @@ export class GeminiTextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = stringParam(params?.modelId, 'gemini-2.5-flash')
-		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
-		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos : []
+		const refImages = Array.isArray(params?.refImages) ? params.refImages.filter((ref): ref is string => typeof ref === 'string') : []
+		const refVideos = Array.isArray(params?.refVideos) ? params.refVideos.filter((ref): ref is string => typeof ref === 'string') : []
 
 		// Build parts: media first, then text
 		const parts: unknown[] = []
@@ -192,11 +199,15 @@ export class GeminiTextProvider implements TextGenProvider {
 				})
 			}
 		}
-		for (const dataUri of refVideos) {
-			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
+		for (const ref of refVideos) {
+			const match = ref.match(/^data:([^;]+);base64,(.+)$/)
 			if (match) {
 				parts.push({
 					inlineData: { mimeType: match[1], data: match[2] },
+				})
+			} else {
+				parts.push({
+					fileData: { mimeType: videoMimeTypeFromRef(ref), fileUri: ref },
 				})
 			}
 		}

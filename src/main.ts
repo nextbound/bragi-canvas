@@ -27,8 +27,6 @@ import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 
-const GEMINI_INLINE_VIDEO_LIMIT_BYTES = 20 * 1024 * 1024
-
 export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
 	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
@@ -413,20 +411,20 @@ export default class BragiCanvas extends Plugin {
 				}
 			}
 
+			// Prepare reference videos for models/providers that can consume upstream video inputs.
+			// BytePlus Seedance videos must go through asset:// so face-containing clips are reviewed first.
 			const refVideos: string[] = []
-			if (model.type === 'text' && activeProvider === 'gemini' && uniqueVideos.length > 0) {
+			if (model.type === 'text' && uniqueVideos.length > 0) {
+				if (!textProviderSupportsVideoRefs(activeProvider)) {
+					throw new Error('Video references for text generation are currently supported only with Google Gemini.')
+				}
 				for (const videoPath of uniqueVideos) {
 					const binary = await this.app.vault.adapter.readBinary(videoPath)
-					if (binary.byteLength > GEMINI_INLINE_VIDEO_LIMIT_BYTES) {
-						throw new Error('Gemini text video input supports inline videos up to 20 MB. Use a shorter clip or split the video.')
-					}
-					const ext = videoPath.split('.').pop()?.toLowerCase() || 'mp4'
-					const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4'
-					refVideos.push(`data:${mime};base64,${arrayBufferToBase64(binary)}`)
+					const ext = getFileExtension(videoPath, 'mp4')
+					const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, videoMimeType(videoPath))
+					refVideos.push(videoUrl)
 				}
 			} else if (model.type === 'video' && uniqueVideos.length > 0) {
-				// Upload reference videos. BytePlus Seedance videos must go through asset://
-				// so face-containing clips are reviewed by the asset library first.
 				if (mode === 'video-ref' && !supportsSeedanceRefs) {
 					throw new Error('Reference video is only available with Volcengine, BytePlus, or TokenRouter Seedance.')
 				}
@@ -443,9 +441,8 @@ export default class BragiCanvas extends Plugin {
 							refVideos.push(await ensureBytePlusAsset(this, canvas, videoPath, bytePlusCreds))
 						} else {
 							const binary = await this.app.vault.adapter.readBinary(videoPath)
-							const ext = videoPath.split('.').pop()?.toLowerCase() || 'mp4'
-							const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4'
-							const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, mime)
+							const ext = getFileExtension(videoPath, 'mp4')
+							const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, videoMimeType(videoPath))
 							refVideos.push(videoUrl)
 						}
 					}
@@ -845,6 +842,21 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 		binary += String.fromCharCode(bytes[i])
 	}
 	return btoa(binary)
+}
+
+function getFileExtension(filePath: string, fallback: string): string {
+	return filePath.split('.').pop()?.toLowerCase() || fallback
+}
+
+function videoMimeType(filePath: string): string {
+	const ext = getFileExtension(filePath, 'mp4')
+	if (ext === 'mov') return 'video/quicktime'
+	if (ext === 'webm') return 'video/webm'
+	return 'video/mp4'
+}
+
+function textProviderSupportsVideoRefs(activeProvider: string): boolean {
+	return activeProvider === 'gemini'
 }
 
 /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
