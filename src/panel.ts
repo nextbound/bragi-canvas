@@ -4,8 +4,10 @@ import type { ModelConfig, GenerationType, Mode } from './models/types'
 import { getEnabledModels, getActiveProvider } from './models/index'
 import { getConfiguredProviderIds } from './providers/registry'
 import { getUpstreamInputs } from './edge-parser'
+import { getOrderedAudios } from './audio-refs'
 import type { BragiSettings } from './settings'
 import type { CanvasNode } from './types/canvas-internal'
+import { VoicePickerModal } from './ui/voice-picker-modal'
 
 export interface PanelResult {
 	prompt: string
@@ -32,6 +34,79 @@ const MODE_LABELS: Record<string, string> = {
 	'tts': 'Text to Speech',
 	'music': 'Music',
 	'sound-effect': 'Sound Effect',
+}
+
+type LastSelectionKey = 'lastImage' | 'lastVideo' | 'lastAudio' | 'lastText'
+type VoiceMode = 'builtin' | 'custom'
+type AudioIntent = 'speech' | 'music'
+
+function lastSelectionKey(type: GenerationType): LastSelectionKey {
+	if (type === 'image') return 'lastImage'
+	if (type === 'video') return 'lastVideo'
+	if (type === 'audio') return 'lastAudio'
+	return 'lastText'
+}
+
+function allConfiguredModels(getModelsForType: (type: GenerationType) => ModelConfig[]): ModelConfig[] {
+	return [
+		...getModelsForType('image'),
+		...getModelsForType('video'),
+		...getModelsForType('text'),
+		...getModelsForType('audio'),
+	]
+}
+
+function voiceDisplayLabel(
+	params: Record<string, string | number>,
+	options: Array<{ label: string; value: string }> | undefined,
+	fallback: string | number,
+): string {
+	const value = String(params.voice ?? fallback ?? '')
+	const savedLabel = typeof params.voiceLabel === 'string' ? params.voiceLabel : ''
+	return savedLabel || options?.find(o => o.value === value)?.label || value || 'Choose'
+}
+
+function resolveProvider(
+	model: ModelConfig,
+	settings: BragiSettings,
+	configuredProviders: string[],
+): { provider: string; apiModelId: string } {
+	const pref = settings.modelPrefs[model.id]
+	const provider = getActiveProvider(model, pref?.selectedProvider, configuredProviders) || Object.keys(model.supportedProviders)[0]
+	const apiModelId = model.supportedProviders[provider]?.apiModelId || model.id
+	return { provider, apiModelId }
+}
+
+function catalogProviderFor(_model: ModelConfig, activeProvider: string): string {
+	return activeProvider
+}
+
+function voiceConfigFor(model: ModelConfig | null): { builtin: boolean; clone: boolean } {
+	return model?.voiceConfig || { builtin: true, clone: false }
+}
+
+function audioOrdinal(index: number): string {
+	return `Audio ${index + 1}`
+}
+
+function selectedVoiceMode(params: Record<string, string | number>): VoiceMode {
+	return params.voiceMode === 'custom' ? 'custom' : 'builtin'
+}
+
+function audioIntentForModel(model: ModelConfig): AudioIntent {
+	return model.modes.includes('tts') ? 'speech' : 'music'
+}
+
+function supportsAudioIntent(model: ModelConfig, intent: AudioIntent): boolean {
+	if (model.type !== 'audio') return false
+	if (intent === 'speech') return model.modes.includes('tts')
+	return model.modes.includes('music') || model.modes.includes('sound-effect')
+}
+
+function supportsVoiceSource(model: ModelConfig, source: VoiceMode): boolean {
+	const config = voiceConfigFor(model)
+	if (!model.modes.includes('tts')) return false
+	return source === 'custom' ? config.clone : config.builtin
 }
 
 /**
@@ -111,7 +186,7 @@ export function showGenerateBar(
 		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
 	}
 
-	const allEnabled = [...getModelsForType('image'), ...getModelsForType('video'), ...getModelsForType('text')]
+	const allEnabled = allConfiguredModels(getModelsForType)
 	if (allEnabled.length === 0) {
 		new Notice('Bragi canvas: no models available. Configure API keys in settings.')
 		return
@@ -135,6 +210,16 @@ export function showGenerateBar(
 	const leftGroup = createDiv()
 	leftGroup.className = 'bragi-bar-left'
 	bar.appendChild(leftGroup)
+
+	const audioIntentSelect = createEl('select')
+	audioIntentSelect.className = 'bragi-bar-select'
+	audioIntentSelect.title = 'Audio'
+	leftGroup.appendChild(audioIntentSelect)
+
+	const audioVoiceSourceSelect = createEl('select')
+	audioVoiceSourceSelect.className = 'bragi-bar-select'
+	audioVoiceSourceSelect.title = 'Voice source'
+	leftGroup.appendChild(audioVoiceSourceSelect)
 
 	// Model selector
 	const modelSelect = createEl('select')
@@ -179,16 +264,126 @@ export function showGenerateBar(
 
 	let upstreamImageCount = 0
 	let upstreamVideoCount = 0
+	let orderedAudios: string[] = []
 	const canvas = node.canvas
 	if (canvas) {
 		const upstream = getUpstreamInputs(canvas, node)
 		upstreamImageCount = [...new Set(upstream.images)].length
 		upstreamVideoCount = upstream.videos.length
+		orderedAudios = getOrderedAudios(canvas, node)
 	}
 
 	let selectedMode: Mode | null = null
+	let audioIntent: AudioIntent = 'speech'
+	let audioVoiceSource: VoiceMode = orderedAudios.length > 0 ? 'custom' : 'builtin'
+	let audioControlsInitialized = false
 
 	// ── Define functions (all DOM elements exist now) ──
+
+	function lastSelectionForCurrentType(): Record<string, unknown> | null {
+		const nodeData = node.getData() as unknown
+		const nodeLastGen = (nodeData.bragiLastGen || nodeData.ovidLastGen)?.[currentType]
+		const globalLastKey = lastSelectionKey(currentType)
+		const globalLast = (settings as unknown)[globalLastKey]
+		return nodeLastGen || globalLast || null
+	}
+
+	function audioModelsFor(intent: AudioIntent, source: VoiceMode): ModelConfig[] {
+		const audioModels = getModelsForType('audio')
+		if (intent === 'music') return audioModels.filter(model => supportsAudioIntent(model, 'music'))
+		return audioModels.filter(model => supportsAudioIntent(model, 'speech') && supportsVoiceSource(model, source))
+	}
+
+	function filteredModelsForCurrentSelection(): ModelConfig[] {
+		if (currentType !== 'audio') return getModelsForType(currentType)
+		return audioModelsFor(audioIntent, audioVoiceSource)
+	}
+
+	function normalizeAudioControls() {
+		if (currentType !== 'audio') return
+		const speechBuiltin = audioModelsFor('speech', 'builtin')
+		const speechCustom = orderedAudios.length > 0 ? audioModelsFor('speech', 'custom') : []
+		const musicModels = audioModelsFor('music', audioVoiceSource)
+
+		if (audioIntent === 'music') {
+			if (musicModels.length === 0 && (speechBuiltin.length > 0 || speechCustom.length > 0)) {
+				audioIntent = 'speech'
+				audioVoiceSource = speechCustom.length > 0 ? 'custom' : 'builtin'
+			}
+			return
+		}
+
+		if (audioVoiceSource === 'custom' && speechCustom.length === 0) {
+			audioVoiceSource = speechBuiltin.length > 0 ? 'builtin' : 'custom'
+		}
+		if (audioVoiceSource === 'builtin' && speechBuiltin.length === 0 && speechCustom.length > 0) {
+			audioVoiceSource = 'custom'
+		}
+		if (audioModelsFor('speech', audioVoiceSource).length === 0 && musicModels.length > 0) {
+			audioIntent = 'music'
+		}
+	}
+
+	function hydrateAudioControlsFromLastSelection() {
+		if (currentType !== 'audio' || audioControlsInitialized) return
+		const last = lastSelectionForCurrentType()
+		const lastModel = last?.modelId
+			? getModelsForType('audio').find(model => model.id === last.modelId)
+			: null
+		if (lastModel && audioIntentForModel(lastModel) === 'music') {
+			audioIntent = 'music'
+		} else {
+			audioIntent = 'speech'
+			audioVoiceSource = orderedAudios.length > 0 ? 'custom' : 'builtin'
+		}
+		normalizeAudioControls()
+		audioControlsInitialized = true
+	}
+
+	function rebuildAudioSelectors() {
+		if (currentType !== 'audio') {
+			audioIntentSelect.classList.add('bragi-hidden')
+			audioVoiceSourceSelect.classList.add('bragi-hidden')
+			return
+		}
+
+		normalizeAudioControls()
+
+		audioIntentSelect.classList.remove('bragi-hidden')
+		audioIntentSelect.innerHTML = ''
+		for (const [value, label] of [['speech', 'Speech'], ['music', 'Music']] as Array<[AudioIntent, string]>) {
+			const opt = createEl('option')
+			opt.value = value
+			opt.textContent = label
+			opt.disabled = value === 'speech'
+				? audioModelsFor('speech', 'builtin').length === 0 && (orderedAudios.length === 0 || audioModelsFor('speech', 'custom').length === 0)
+				: audioModelsFor('music', audioVoiceSource).length === 0
+			audioIntentSelect.appendChild(opt)
+		}
+		audioIntentSelect.value = audioIntent
+		resizeAudioIntent()
+
+		if (audioIntent !== 'speech') {
+			audioVoiceSourceSelect.classList.add('bragi-hidden')
+			return
+		}
+
+		audioVoiceSourceSelect.classList.remove('bragi-hidden')
+		audioVoiceSourceSelect.innerHTML = ''
+		const builtin = createEl('option')
+		builtin.value = 'builtin'
+		builtin.textContent = 'Built-in'
+		builtin.disabled = audioModelsFor('speech', 'builtin').length === 0
+		audioVoiceSourceSelect.appendChild(builtin)
+
+		const custom = createEl('option')
+		custom.value = 'custom'
+		custom.textContent = 'Custom'
+		custom.disabled = orderedAudios.length === 0 || audioModelsFor('speech', 'custom').length === 0
+		audioVoiceSourceSelect.appendChild(custom)
+		audioVoiceSourceSelect.value = audioVoiceSource
+		resizeAudioVoiceSource()
+	}
 
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
@@ -213,18 +408,99 @@ export function showGenerateBar(
 		resizeMode()
 	}
 
-	function initDefaults() {
+	function initDefaults(preserveDynamicVoice = true) {
 		const prev = { ...paramValues }
 		paramValues = {}
 		if (!selectedModel) return
 		for (const p of selectedModel.params) {
 			// Keep current value if same param exists and value is valid in new model
-			if (prev[p.id] !== undefined && p.options?.some(o => o.value === String(prev[p.id]))) {
+			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
+			if (prev[p.id] !== undefined && (canKeepDynamicVoice || p.options?.some(o => o.value === String(prev[p.id])))) {
 				paramValues[p.id] = prev[p.id]
 			} else {
 				paramValues[p.id] = p.default
 			}
 		}
+		if (preserveDynamicVoice && typeof prev.voiceLabel === 'string') paramValues.voiceLabel = prev.voiceLabel
+		applyInitialVoiceModeDefaults()
+	}
+
+	function applyInitialVoiceModeDefaults() {
+		const config = voiceConfigFor(selectedModel)
+		if (!selectedModel || selectedModel.type !== 'audio' || !config.clone) {
+			delete paramValues.voiceMode
+			delete paramValues.voiceRefAudioIndex
+			return
+		}
+		paramValues.voiceMode = currentType === 'audio' && audioIntent === 'speech'
+			? audioVoiceSource
+			: orderedAudios.length > 0 ? 'custom' : (config.builtin ? 'builtin' : 'custom')
+		const rawIndex = typeof paramValues.voiceRefAudioIndex === 'number'
+			? paramValues.voiceRefAudioIndex
+			: parseInt(String(paramValues.voiceRefAudioIndex ?? '0'), 10)
+		const maxIndex = Math.max(0, orderedAudios.length - 1)
+		paramValues.voiceRefAudioIndex = Number.isFinite(rawIndex) ? Math.min(Math.max(rawIndex, 0), maxIndex) : 0
+	}
+
+	function renderVoiceModeControl(config: { builtin: boolean; clone: boolean }) {
+		const select = createEl('select')
+		select.className = 'bragi-bar-select'
+		select.title = 'Voice mode'
+
+		const builtin = createEl('option')
+		builtin.value = 'builtin'
+		builtin.textContent = 'Built-in'
+		builtin.disabled = !config.builtin
+		select.appendChild(builtin)
+
+		const custom = createEl('option')
+		custom.value = 'custom'
+		custom.textContent = 'Custom'
+		custom.disabled = orderedAudios.length === 0
+		select.appendChild(custom)
+
+		select.value = String(paramValues.voiceMode || (config.builtin ? 'builtin' : 'custom'))
+		select.disabled = (!config.builtin && orderedAudios.length === 0)
+		select.addEventListener('change', () => {
+			paramValues.voiceMode = select.value
+			rebuildParams()
+			updateRunState()
+		})
+		paramsEl.appendChild(select)
+		autoSizeSelect(select)
+	}
+
+	function renderVoiceReferenceSelect() {
+		const select = createEl('select')
+		select.className = 'bragi-bar-select'
+		select.title = 'Voice reference'
+		if (orderedAudios.length === 0) {
+			const opt = createEl('option')
+			opt.value = '0'
+			opt.textContent = 'Connect audio'
+			select.appendChild(opt)
+			select.disabled = true
+			paramValues.voiceRefAudioIndex = 0
+		} else {
+			for (let i = 0; i < orderedAudios.length; i++) {
+				const opt = createEl('option')
+				opt.value = String(i)
+				opt.textContent = audioOrdinal(i)
+				select.appendChild(opt)
+			}
+			const current = Math.min(
+				Math.max(parseInt(String(paramValues.voiceRefAudioIndex ?? '0'), 10) || 0, 0),
+				orderedAudios.length - 1,
+			)
+			paramValues.voiceRefAudioIndex = current
+			select.value = String(current)
+			select.addEventListener('change', () => {
+				paramValues.voiceRefAudioIndex = parseInt(select.value, 10) || 0
+				updateRunState()
+			})
+		}
+		paramsEl.appendChild(select)
+		autoSizeSelect(select)
 	}
 
 	function rebuildParams() {
@@ -238,7 +514,58 @@ export function showGenerateBar(
 				// If current value isn't valid in the new option set, snap back to default.
 				const currentValue = String(paramValues[param.id] ?? param.default)
 				const valid = effectiveOptions.some(o => o.value === currentValue)
-				if (!valid) paramValues[param.id] = param.default
+				if (!valid && param.id !== 'voice') paramValues[param.id] = param.default
+
+				if (param.id === 'voice') {
+					const config = voiceConfigFor(selectedModel)
+					if (config.clone) {
+						applyInitialVoiceModeDefaults()
+						if (currentType === 'audio' && audioIntent === 'speech') {
+							if (audioVoiceSource === 'custom') {
+								renderVoiceReferenceSelect()
+								continue
+							}
+						} else {
+							renderVoiceModeControl(config)
+						}
+						if (selectedVoiceMode(paramValues) === 'custom') {
+							renderVoiceReferenceSelect()
+							continue
+						}
+					}
+					const button = createEl('button')
+					button.className = 'bragi-bar-voice-btn'
+						button.title = param.label
+						button.disabled = config.clone && !config.builtin
+						const updateLabel = () => {
+							button.textContent = voiceDisplayLabel(paramValues, effectiveOptions, param.default)
+						}
+					updateLabel()
+					button.addEventListener('click', () => {
+						if (!selectedModel) return
+						const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+						const catalogProvider = catalogProviderFor(selectedModel, provider)
+						new VoicePickerModal(app, {
+							settings,
+							model: selectedModel,
+							activeProvider: provider,
+							catalogProvider,
+							apiModelId,
+							currentVoice: String(paramValues[param.id] ?? ''),
+							currentVoiceLabel: typeof paramValues.voiceLabel === 'string' ? paramValues.voiceLabel : '',
+							staticOptions: effectiveOptions,
+							voiceSource: selectedVoiceMode(paramValues) === 'custom' ? 'custom' : 'builtin',
+							onSelect: (voice) => {
+								paramValues[param.id] = voice.id
+								paramValues.voiceLabel = voice.name || voice.id
+								updateLabel()
+								updateRunState()
+							},
+						}).open()
+					})
+					paramsEl.appendChild(button)
+					continue
+				}
 
 				const select = createEl('select')
 				select.className = 'bragi-bar-select'
@@ -309,7 +636,9 @@ export function showGenerateBar(
 
 	function rebuildModelList() {
 		modelSelect.innerHTML = ''
-		models = getModelsForType(currentType)
+		hydrateAudioControlsFromLastSelection()
+		rebuildAudioSelectors()
+		models = filteredModelsForCurrentSelection()
 
 		if (models.length === 0) {
 			const opt = createEl('option')
@@ -333,13 +662,7 @@ export function showGenerateBar(
 				modelSelect.appendChild(opt)
 			}
 			// Priority: node metadata > global memory > first compatible
-			const nodeData = node.getData() as unknown
-			const nodeLastGen = (nodeData.bragiLastGen || nodeData.ovidLastGen)?.[currentType]
-			const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
-			const globalLast = (settings as unknown)[globalLastKey]
-
-			// Try node-level first, then global
-			const last = nodeLastGen || globalLast
+			const last = lastSelectionForCurrentType()
 			const lastModel = last?.modelId ? models.find(m => m.id === last.modelId && modelSupportsInputs(m)) : null
 
 			selectedModel = lastModel || firstCompatible || models[0]
@@ -354,6 +677,7 @@ export function showGenerateBar(
 		// Restore saved params AFTER initDefaults (which resets to defaults)
 		if (savedParams) {
 			paramValues = { ...paramValues, ...savedParams }
+			applyInitialVoiceModeDefaults()
 		}
 
 		rebuildParams()
@@ -397,6 +721,19 @@ export function showGenerateBar(
 			}
 		}
 
+		const voiceConfig = voiceConfigFor(selectedModel)
+		if (selectedModel?.type === 'audio' && selectedMode === 'tts' && voiceConfig.clone) {
+			if (selectedVoiceMode(paramValues) === 'custom') {
+				if (orderedAudios.length === 0) {
+					disabled = true
+					title = 'Connect an upstream audio node to use a custom voice'
+				}
+			} else if (!voiceConfig.builtin) {
+				disabled = true
+				title = 'This model requires a custom voice. Connect an upstream audio node.'
+			}
+		}
+
 		runBtn.disabled = disabled
 		runBtn.title = title
 		runBtn.style.opacity = disabled ? '0.4' : '1'
@@ -405,9 +742,27 @@ export function showGenerateBar(
 
 	// ── Wire up events ──
 
+	audioIntentSelect.addEventListener('change', () => {
+		audioIntent = audioIntentSelect.value === 'music' ? 'music' : 'speech'
+		if (audioIntent === 'speech' && audioVoiceSource === 'custom' && orderedAudios.length === 0) {
+			audioVoiceSource = 'builtin'
+		}
+		savedParams = null
+		rebuildModelList()
+		updateRunState()
+	})
+
+	audioVoiceSourceSelect.addEventListener('change', () => {
+		audioVoiceSource = audioVoiceSourceSelect.value === 'custom' ? 'custom' : 'builtin'
+		paramValues.voiceMode = audioVoiceSource
+		savedParams = null
+		rebuildModelList()
+		updateRunState()
+	})
+
 	modelSelect.addEventListener('change', () => {
 		selectedModel = models.find(m => m.id === modelSelect.value) || models[0]
-		initDefaults()
+		initDefaults(false)
 		rebuildModeList()
 		rebuildParams()
 		updateRunState()
@@ -449,7 +804,7 @@ export function showGenerateBar(
 			const batchCount = parseInt(batchSelect.value) || 1
 
 			// Save to global memory
-			const lastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+			const lastKey = lastSelectionKey(currentType)
 			;(settings as unknown)[lastKey] = {
 				modelId: selectedModel.id,
 				params: { ...paramValues },
@@ -471,9 +826,7 @@ export function showGenerateBar(
 			node.setData({ ...rest, bragiLastGen })
 
 			// Resolve active provider and API model ID
-			const pref = settings.modelPrefs[selectedModel.id]
-			const provider = getActiveProvider(selectedModel, pref?.selectedProvider, configuredProviders) || Object.keys(selectedModel.supportedProviders)[0]
-			const apiModelId = selectedModel.supportedProviders[provider]?.apiModelId || selectedModel.id
+			const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
 
 			onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: paramValues, batchCount })
 		})()
@@ -483,6 +836,8 @@ export function showGenerateBar(
 
 	// Register auto-sizers BEFORE first rebuild so rebuildModeList can call resizeMode()
 	// after it programmatically fills options (.value = … doesn't fire `change`).
+	const resizeAudioIntent = autoSizeSelect(audioIntentSelect)
+	const resizeAudioVoiceSource = autoSizeSelect(audioVoiceSourceSelect)
 	const resizeModel = autoSizeSelect(modelSelect)
 	const resizeMode = autoSizeSelect(modeSelect)
 	autoSizeSelect(batchSelect)
@@ -492,7 +847,7 @@ export function showGenerateBar(
 	// Restore last batch count (node metadata > global)
 	const initNodeData = node.getData() as unknown
 	const initNodeLast = (initNodeData.bragiLastGen || initNodeData.ovidLastGen)?.[currentType]
-	const initGlobalKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+	const initGlobalKey = lastSelectionKey(currentType)
 	const initGlobalLast = (settings as unknown)[initGlobalKey]
 	const initLast = initNodeLast || initGlobalLast
 	if (initLast?.batchCount) {
@@ -559,7 +914,7 @@ export function showBatchGenerateBar(
 	nodes: CanvasNode[],
 	type: GenerationType,
 	settings: BragiSettings,
-	_app: App,
+	app: App,
 	onSubmit: (nodes: CanvasNode[], result: PanelResult) => void,
 	onSaveSettings?: () => void,
 ): void {
@@ -572,7 +927,7 @@ export function showBatchGenerateBar(
 		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
 	}
 
-	const allEnabled = [...getModelsForType('image'), ...getModelsForType('video'), ...getModelsForType('text')]
+	const allEnabled = allConfiguredModels(getModelsForType)
 	if (allEnabled.length === 0) {
 		new Notice('Bragi canvas: no models available. Configure API keys in settings.')
 		return
@@ -647,12 +1002,19 @@ export function showBatchGenerateBar(
 		resizeMode()
 	}
 
-	function initDefaults() {
+	function initDefaults(preserveDynamicVoice = true) {
+		const prev = { ...paramValues }
 		paramValues = {}
 		if (!selectedModel) return
 		for (const p of selectedModel.params) {
-			paramValues[p.id] = p.default
+			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
+			if (prev[p.id] !== undefined && (canKeepDynamicVoice || p.options?.some(o => o.value === String(prev[p.id])))) {
+				paramValues[p.id] = prev[p.id]
+			} else {
+				paramValues[p.id] = p.default
+			}
 		}
+		if (preserveDynamicVoice && typeof prev.voiceLabel === 'string') paramValues.voiceLabel = prev.voiceLabel
 	}
 
 	function rebuildParams() {
@@ -662,7 +1024,45 @@ export function showBatchGenerateBar(
 			if (param.type === 'select' && param.options) {
 				const effectiveOptions = (selectedMode && param.optionsByMode?.[selectedMode]) || param.options
 				const currentValue = String(paramValues[param.id] ?? param.default)
-				if (!effectiveOptions.some(o => o.value === currentValue)) paramValues[param.id] = param.default
+				if (!effectiveOptions.some(o => o.value === currentValue) && param.id !== 'voice') paramValues[param.id] = param.default
+
+				if (param.id === 'voice') {
+					const config = voiceConfigFor(selectedModel)
+					const button = createEl('button')
+					button.className = 'bragi-bar-voice-btn'
+					button.title = param.label
+						button.disabled = config.clone && !config.builtin
+						const updateLabel = () => {
+							button.textContent = config.clone && !config.builtin
+								? 'Connect audio'
+								: voiceDisplayLabel(paramValues, effectiveOptions, param.default)
+						}
+					updateLabel()
+					button.addEventListener('click', () => {
+						if (button.disabled) return
+						if (!selectedModel) return
+						const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+						const catalogProvider = catalogProviderFor(selectedModel, provider)
+						new VoicePickerModal(app, {
+							settings,
+							model: selectedModel,
+							activeProvider: provider,
+							catalogProvider,
+							apiModelId,
+							currentVoice: String(paramValues[param.id] ?? ''),
+							currentVoiceLabel: typeof paramValues.voiceLabel === 'string' ? paramValues.voiceLabel : '',
+							staticOptions: effectiveOptions,
+							voiceSource: selectedVoiceMode(paramValues) === 'custom' ? 'custom' : 'builtin',
+							onSelect: (voice) => {
+								paramValues[param.id] = voice.id
+								paramValues.voiceLabel = voice.name || voice.id
+								updateLabel()
+							},
+						}).open()
+					})
+					paramsEl.appendChild(button)
+					continue
+				}
 
 				const select = createEl('select')
 				select.className = 'bragi-bar-select'
@@ -717,7 +1117,7 @@ export function showBatchGenerateBar(
 				opt.textContent = m.name
 				modelSelect.appendChild(opt)
 			}
-			const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+			const globalLastKey = lastSelectionKey(currentType)
 			const globalLast = (settings as unknown)[globalLastKey]
 			const lastModel = globalLast?.modelId ? models.find(m => m.id === globalLast.modelId) : null
 			selectedModel = lastModel || models[0]
@@ -727,18 +1127,30 @@ export function showBatchGenerateBar(
 		initDefaults()
 		rebuildModeList()
 		rebuildParams()
+		updateRunState()
+	}
+
+	function updateRunState() {
+		const config = voiceConfigFor(selectedModel)
+		const disabled = !!(selectedModel?.type === 'audio' && selectedMode === 'tts' && config.clone && !config.builtin)
+		runBtn.disabled = disabled
+		runBtn.title = disabled ? 'This model requires an upstream audio reference. Use a single-node generate flow.' : ''
+		runBtn.style.opacity = disabled ? '0.4' : '1'
+		runBtn.style.cursor = disabled ? 'not-allowed' : 'pointer'
 	}
 
 	modelSelect.addEventListener('change', () => {
 		selectedModel = models.find(m => m.id === modelSelect.value) || models[0]
-		initDefaults()
+		initDefaults(false)
 		rebuildModeList()
 		rebuildParams()
+		updateRunState()
 	})
 
 	modeSelect.addEventListener('change', () => {
 		selectedMode = (modeSelect.value as Mode) || null
 		rebuildParams()
+		updateRunState()
 	})
 
 	runBtn.addEventListener('click', (e) => {
@@ -751,7 +1163,7 @@ export function showBatchGenerateBar(
 		hideGenerateBar()
 
 		const batchCount = parseInt(batchSelect.value) || 1
-		const lastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+		const lastKey = lastSelectionKey(currentType)
 		;(settings as unknown)[lastKey] = {
 			modelId: selectedModel.id,
 			params: { ...paramValues },
@@ -759,9 +1171,7 @@ export function showBatchGenerateBar(
 		}
 		onSaveSettings?.()
 
-		const pref = settings.modelPrefs[selectedModel.id]
-		const provider = getActiveProvider(selectedModel, pref?.selectedProvider, configuredProviders) || Object.keys(selectedModel.supportedProviders)[0]
-		const apiModelId = selectedModel.supportedProviders[provider]?.apiModelId || selectedModel.id
+		const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
 
 		onSubmit(nodes, {
 			prompt: '',
@@ -780,7 +1190,7 @@ export function showBatchGenerateBar(
 
 	rebuildModelList()
 
-	const globalLastKey = currentType === 'image' ? 'lastImage' : currentType === 'video' ? 'lastVideo' : 'lastText'
+	const globalLastKey = lastSelectionKey(currentType)
 	const globalLast = (settings as unknown)[globalLastKey]
 	if (globalLast?.batchCount) batchSelect.value = String(globalLast.batchCount)
 

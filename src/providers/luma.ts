@@ -65,7 +65,7 @@ export class LumaProvider implements ImageProvider {
 
 	private async img2img(prompt: string, aspectRatio: string, refImage: string): Promise<string> {
 		// Resolve ref to a public URL. Multipart uploads go through the Luma Proxy on Vercel,
-		// which has a ~4.5MB body limit; the Bragi Relay route is more reliable and keeps the
+		// which has a ~4.5MB body limit; Bragi temporary storage is more reliable and keeps the
 		// proxy request tiny (JSON + URL).
 		let imageUrl: string
 		if (/^https?:/.test(refImage)) {

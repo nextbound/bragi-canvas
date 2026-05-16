@@ -73,9 +73,10 @@ export interface BragiSettings {
 		legnext: string
 		tokenrouter: string
 		apimart: string
-		lumaToken: string
-		xai: string
-	}
+			lumaToken: string
+			xai: string
+			dashscope: string
+		}
 
 	// Per-model preferences
 	modelPrefs: Record<string, ModelPref>
@@ -125,9 +126,10 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		legnext: '',
 		tokenrouter: '',
 		apimart: '',
-		lumaToken: '',
-		xai: '',
-	},
+			lumaToken: '',
+			xai: '',
+			dashscope: '',
+		},
 	modelPrefs: {},
 	modelOrder: {
 		image: [],
@@ -231,6 +233,50 @@ function readLastSelection(source: UnknownRecord, key: string, errors: string[])
 	return result
 }
 
+const DASHSCOPE_PROVIDER_ID = 'dashscope'
+const LEGACY_DASHSCOPE_PROVIDER_ID = ['bai', 'lian'].join('')
+const LEGACY_DASHSCOPE_MODEL_PREFIX = `${LEGACY_DASHSCOPE_PROVIDER_ID}-`
+const DASHSCOPE_MODEL_PREFIX = 'dashscope-'
+
+function normalizeDashScopeProviderId(provider: string): string {
+	return provider === LEGACY_DASHSCOPE_PROVIDER_ID ? DASHSCOPE_PROVIDER_ID : provider
+}
+
+function normalizeDashScopeModelId(modelId: string | undefined): string | undefined {
+	if (!modelId) return modelId
+	return modelId.startsWith(LEGACY_DASHSCOPE_MODEL_PREFIX)
+		? `${DASHSCOPE_MODEL_PREFIX}${modelId.slice(LEGACY_DASHSCOPE_MODEL_PREFIX.length)}`
+		: modelId
+}
+
+export function migrateDashScopeSettings(settings: BragiSettings, raw?: unknown): BragiSettings {
+	const rawProviders = isRecord(raw) && isRecord(raw.providers) ? raw.providers : null
+	const legacyKey = rawProviders?.[LEGACY_DASHSCOPE_PROVIDER_ID]
+	if (!settings.providers.dashscope && typeof legacyKey === 'string') {
+		settings.providers.dashscope = legacyKey
+	}
+	delete (settings.providers as UnknownRecord)[LEGACY_DASHSCOPE_PROVIDER_ID]
+
+	const modelPrefs: Record<string, ModelPref> = {}
+	for (const [modelId, pref] of Object.entries(settings.modelPrefs)) {
+		modelPrefs[normalizeDashScopeModelId(modelId) || modelId] = {
+			...pref,
+			selectedProvider: normalizeDashScopeProviderId(pref.selectedProvider || ''),
+		}
+	}
+	settings.modelPrefs = modelPrefs
+
+	for (const type of ['image', 'video', 'text', 'audio'] as const) {
+		settings.modelOrder[type] = settings.modelOrder[type].map(id => normalizeDashScopeModelId(id) || id)
+	}
+
+	for (const selection of [settings.lastImage, settings.lastVideo, settings.lastAudio, settings.lastText]) {
+		if (selection?.modelId) selection.modelId = normalizeDashScopeModelId(selection.modelId)
+	}
+
+	return settings
+}
+
 function validateImportedSettings(raw: unknown): ImportValidationResult {
 	if (!isRecord(raw)) return { ok: false }
 
@@ -323,6 +369,7 @@ function validateImportedSettings(raw: unknown): ImportValidationResult {
 	if (lastAudio) settings.lastAudio = lastAudio
 	if (lastText) settings.lastText = lastText
 
+	migrateDashScopeSettings(settings, raw)
 	if (errors.length > 0) return { ok: false }
 	return { ok: true, settings }
 }

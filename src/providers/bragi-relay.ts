@@ -3,12 +3,12 @@ import { requestUrl } from 'obsidian'
 import type { BragiSettings } from '../settings'
 
 /**
- * Built-in Bragi Relay — the plugin ships with this endpoint + token so users
+ * Built-in Bragi temporary storage — the plugin ships with this endpoint + token so users
  * don't have to deploy their own worker. All reference-image / audio uploads
  * from Seedance, fal, STT, and audio-isolation flow through here.
  */
 export const BUILTIN_BRAGI_RELAY: BragiRelayConfig = {
-	endpoint: 'https://bragi-relay.hisimon-me.workers.dev',
+	endpoint: 'https://temp.bragi.now',
 	token: 'eca59a4c6895d6c31a63db967e2c704264517f69f1ab35043976fe72fcf618d4',
 }
 
@@ -25,7 +25,7 @@ function joinUrl(base: string, path: string): string {
 	return base.replace(/\/+$/, '') + path
 }
 
-/** Upload raw bytes to the Bragi Relay worker; returns the public URL of the uploaded file. */
+/** Upload raw bytes to the Bragi temporary storage worker; returns the public URL of the uploaded file. */
 export async function uploadToBragiRelay(
 	cfg: BragiRelayConfig,
 	fileData: ArrayBuffer,
@@ -44,7 +44,7 @@ export async function uploadToBragiRelay(
 		body: fileData,
 	})
 	const data = resp.json as { url?: string; error?: string }
-	if (!data?.url) throw new Error(data?.error || `Bragi Relay: no URL in response`)
+	if (!data?.url) throw new Error(data?.error || `Bragi temporary storage: no URL in response`)
 	return data.url
 }
 
@@ -64,7 +64,7 @@ export async function testBragiRelay(cfg: BragiRelayConfig): Promise<{ ok: boole
 	}
 }
 
-/** Pick the active cloud storage config from settings. Bragi Relay first, then R2 fallback. */
+/** Pick the active cloud storage config from settings. Bragi temporary storage first, then R2 fallback. */
 export function getActiveRelay(settings: BragiSettings): { kind: 'bragi'; cfg: BragiRelayConfig } | { kind: 'r2' } | null {
 	if (settings.cloudStorage?.provider === 'bragi' && isBragiRelayConfigured(settings.cloudStorage)) {
 		return { kind: 'bragi', cfg: { endpoint: settings.cloudStorage.endpoint, token: settings.cloudStorage.token } }

@@ -55,7 +55,7 @@ export function getUpstreamInputs(canvas: Canvas, node: CanvasNode): UpstreamInp
 				result.images.push(filePath)
 			} else if (/\.(mp4|mov|webm)$/i.test(filePath)) {
 				result.videos.push(filePath)
-			} else if (/\.(mp3|wav)$/i.test(filePath)) {
+			} else if (/\.(mp3|wav|m4a|mp4|aac|flac|ogg|opus)$/i.test(filePath)) {
 				result.audios.push(filePath)
 			}
 		}

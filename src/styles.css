@@ -256,29 +256,69 @@ g:hover > .canvas-display-path {
 	-webkit-appearance: none;
 	appearance: none;
 	padding: 4px 20px 4px 6px;
-	border: none;
+	border: 0;
 	border-radius: 4px;
 	background: transparent url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(0,0,0,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 6px center;
 	box-shadow: none;
 	color: var(--text-normal);
 	font-size: 13px;
 	cursor: pointer;
-	outline: none;
+	outline: 0;
 }
 
 .bragi-bar-select:hover {
 	background-color: var(--background-modifier-hover);
+	border: 0;
+	box-shadow: none;
 }
 
-.bragi-bar-select:focus {
+.bragi-bar-select:focus,
+.bragi-bar-select:focus-visible,
+.bragi-bar-select:active {
+	border: 0;
 	box-shadow: none;
-	border: none;
+	outline: 0;
 }
 
 .bragi-bar-params {
 	display: flex;
 	gap: 6px;
 	align-items: center;
+}
+
+.bragi-bar-voice-btn {
+	-webkit-appearance: none;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	max-width: 180px;
+	padding: 4px 20px 4px 8px;
+	border: 0;
+	border-radius: 4px;
+	background: transparent url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(0,0,0,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 6px center;
+	color: var(--text-normal);
+	font-size: 13px;
+	line-height: 1.2;
+	box-shadow: none;
+	outline: 0;
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.bragi-bar-voice-btn:hover {
+	background-color: var(--background-modifier-hover);
+	border: 0;
+	box-shadow: none;
+}
+
+.bragi-bar-voice-btn:focus,
+.bragi-bar-voice-btn:focus-visible,
+.bragi-bar-voice-btn:active {
+	border: 0;
+	box-shadow: none;
+	outline: 0;
 }
 
 .bragi-bar-run {
@@ -539,6 +579,10 @@ g:hover > .canvas-display-path {
 
 /* Chevron: white in dark mode */
 .theme-dark .bragi-bar-select {
+	background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.theme-dark .bragi-bar-voice-btn {
 	background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -1113,13 +1157,194 @@ g:hover > .canvas-display-path {
 }
 
 .bragi-add-model-modal,
-.bragi-add-provider-modal {
+.bragi-add-provider-modal,
+.bragi-voice-picker-modal {
 	width: 560px;
 	max-width: 90vw;
 }
 
 .bragi-modal .modal-content::-webkit-scrollbar {
 	display: none;
+}
+
+/* ── Voice Picker Modal ─────────────────────────────────────────────── */
+
+.bragi-voice-picker-modal .modal-content {
+	max-height: 72vh;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.bragi-voice-search-row {
+	display: flex;
+	margin: 0 -2px 8px -2px;
+	padding: 2px;
+}
+
+.bragi-voice-search {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-sizing: border-box;
+	box-shadow: none;
+	outline: 0;
+}
+
+.bragi-voice-search:focus,
+.bragi-voice-search:focus-visible,
+.bragi-voice-filter:focus,
+.bragi-voice-filter:focus-visible {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+	outline: 0;
+}
+
+.bragi-voice-filter-row {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+	margin: 0 -2px 8px -2px;
+	padding: 2px;
+}
+
+.bragi-voice-filter {
+	min-width: 0;
+	padding: 5px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-sizing: border-box;
+	box-shadow: none;
+	outline: 0;
+}
+
+.bragi-voice-filter:hover {
+	border-color: var(--background-modifier-border);
+	box-shadow: none;
+}
+
+.bragi-voice-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	overflow-y: auto;
+	padding-right: 2px;
+	min-height: 0;
+}
+
+.bragi-voice-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+}
+
+.bragi-voice-row.is-selected {
+	border-color: var(--interactive-accent);
+}
+
+.bragi-voice-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.bragi-voice-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-normal);
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.bragi-voice-desc {
+	margin-top: 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.bragi-voice-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.bragi-voice-badge {
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
+.bragi-voice-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.bragi-voice-preview {
+	width: 28px;
+	height: 28px;
+	padding: 4px;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	outline: 0;
+	color: var(--text-muted);
+}
+
+.bragi-voice-preview:hover,
+.bragi-voice-preview:focus,
+.bragi-voice-preview:focus-visible,
+.bragi-voice-preview:active {
+	border: 0;
+	background: var(--background-modifier-hover);
+	box-shadow: none;
+	outline: 0;
+	color: var(--text-normal);
+}
+
+.bragi-voice-preview:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.bragi-voice-select {
+	padding: 5px 10px;
+	border-radius: 6px;
+}
+
+.bragi-voice-empty {
+	padding: 24px 8px;
+	color: var(--text-muted);
+	text-align: center;
+}
+
+@media (max-width: 560px) {
+	.bragi-voice-picker-modal .bragi-voice-filter-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.bragi-voice-picker-modal .bragi-voice-row {
+		align-items: flex-start;
+	}
 }
 
 .bragi-add-model-search-row {

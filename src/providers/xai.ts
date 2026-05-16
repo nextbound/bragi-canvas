@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
-import type { ImageProvider, GenerateImageResult, VideoProvider, GenerateVideoResult, AudioProvider, GenerateAudioResult } from './types'
+import type { ImageProvider, GenerateImageResult, VideoProvider, GenerateVideoResult, AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceOption } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './upload'
@@ -18,6 +18,31 @@ function parseErr(resp: { status: number; text?: string; json?: unknown }): stri
  */
 function toImageUrlStruct(ref: string): { url: string } {
 	return { url: ref }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stringValue(value: unknown): string {
+	if (typeof value === 'string') return value
+	if (typeof value === 'number') return String(value)
+	return ''
+}
+
+function normalizeXaiVoice(record: Record<string, unknown>, source: VoiceOption['source']): VoiceOption | null {
+	const id = stringValue(record.voice_id || record.id)
+	if (!id) return null
+	const name = stringValue(record.name || record.voice_id || id)
+	return {
+		id,
+		name: name || id,
+		language: stringValue(record.language) || undefined,
+		gender: stringValue(record.gender) || undefined,
+		age: stringValue(record.age) || undefined,
+		category: source === 'custom' ? 'Custom' : 'System',
+		source,
+	}
 }
 
 /**
@@ -214,7 +239,7 @@ export class XAIVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
-	/** Accept data: URI or http(s) URL; upload data URIs to the Bragi Relay for a short public URL. */
+	/** Accept data: URI or http(s) URL; upload data URIs to Bragi temporary storage for a short public URL. */
 	private async ensureUrl(ref: string): Promise<string> {
 		if (/^https?:/.test(ref)) return ref
 		const match = ref.match(/^data:([^;]+);base64,(.+)$/)
@@ -275,6 +300,47 @@ export class XAIAudioProvider implements AudioProvider {
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		await adapter.writeBinary(filePath, resp.arrayBuffer)
 		return { filePath }
+	}
+
+	async listVoices(options?: ListVoicesOptions): Promise<VoiceOption[]> {
+		const source = options?.source || 'all'
+		const voices: VoiceOption[] = []
+		if (source !== 'custom') voices.push(...await this.fetchVoices(`${XAI_BASE}/tts/voices`, 'builtin'))
+		if (source !== 'builtin') {
+			try {
+				voices.push(...await this.fetchVoices(`${XAI_BASE}/custom-voices`, 'custom'))
+			} catch (err) {
+				if (voices.length === 0) throw err
+			}
+		}
+
+		const query = options?.query?.trim().toLowerCase()
+		if (!query) return voices
+		return voices.filter(voice => [
+			voice.id,
+			voice.name,
+			voice.description,
+			voice.gender,
+			voice.age,
+			voice.language,
+			voice.category,
+		].some(value => String(value || '').toLowerCase().includes(query)))
+	}
+
+	private async fetchVoices(url: string, source: VoiceOption['source']): Promise<VoiceOption[]> {
+		const resp = await requestUrl({
+			url,
+			method: 'GET',
+			headers: { 'Authorization': `Bearer ${this.apiKey}` },
+			throw: false,
+		})
+		if (resp.status === 401 || resp.status === 403) throw new Error('xAI: invalid API key or TTS not authorized')
+		if (resp.status >= 400) throw new Error(`xAI voices: ${parseErr(resp)}`)
+		const list = Array.isArray(resp.json?.voices) ? resp.json.voices : Array.isArray(resp.json?.data) ? resp.json.data : []
+		return list
+			.filter(isRecord)
+			.map(record => normalizeXaiVoice(record, source))
+			.filter((voice): voice is VoiceOption => !!voice)
 	}
 }
 

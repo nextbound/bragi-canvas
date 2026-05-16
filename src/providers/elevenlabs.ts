@@ -1,9 +1,15 @@
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
-import type { AudioProvider, GenerateAudioResult } from './types'
+import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceOption } from './types'
 import { optionalStringParam, stringParam } from './params'
 
 const BASE_URL = 'https://api.elevenlabs.io'
+
+function voiceString(value: unknown, fallback = ''): string {
+	if (typeof value === 'string') return value
+	if (typeof value === 'number') return String(value)
+	return fallback
+}
 
 /**
  * ElevenLabs native provider for audio generation.
@@ -26,6 +32,47 @@ export class ElevenLabsProvider implements AudioProvider {
 		if (options.mode === 'music') return this.generateMusic(prompt, options)
 		if (options.mode === 'sound-effect') return this.generateSFX(prompt, options)
 		throw new Error('ElevenLabs: unsupported audio mode')
+	}
+
+	async listVoices(options?: ListVoicesOptions): Promise<VoiceOption[]> {
+		const response = await requestUrl({
+			url: `${BASE_URL}/v1/voices`,
+			method: 'GET',
+			headers: { 'xi-api-key': this.apiKey },
+			throw: false,
+		})
+		if (response.status === 401 || response.status === 403) throw new Error('ElevenLabs: invalid API key')
+		if (response.status >= 400) throw new Error(`ElevenLabs voices: status ${response.status}`)
+
+		const voices = Array.isArray(response.json?.voices) ? response.json.voices : []
+		const query = options?.query?.trim().toLowerCase()
+		return voices.map((voice: unknown) => {
+			const record = voice as Record<string, unknown>
+			const labels = (record.labels || {}) as Record<string, string>
+			return {
+				id: voiceString(record.voice_id),
+				name: voiceString(record.name, voiceString(record.voice_id, 'Untitled voice')),
+				description: typeof record.description === 'string' ? record.description : labels.description || labels.use_case,
+				gender: labels.gender,
+				age: labels.age,
+				language: labels.language || labels.accent,
+				category: labels.use_case || (typeof record.category === 'string' ? record.category : undefined),
+				previewUrl: typeof record.preview_url === 'string' ? record.preview_url : undefined,
+				source: record.category === 'cloned' ? 'custom' : 'provider',
+			}
+		}).filter((voice: VoiceOption) => {
+			if (!voice.id) return false
+			if (!query) return true
+			return [
+				voice.id,
+				voice.name,
+				voice.description,
+				voice.gender,
+				voice.age,
+				voice.language,
+				voice.category,
+			].some(value => String(value || '').toLowerCase().includes(query))
+		})
 	}
 
 	/**

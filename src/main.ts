@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Plugin, Notice, requestUrl, Menu, Modal, Setting } from 'obsidian'
-import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab } from './settings'
+import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, migrateDashScopeSettings } from './settings'
 import { uploadRef } from './providers/upload'
 import { getProvider } from './providers/registry'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
@@ -12,11 +12,11 @@ import { showGenerateBar, showBatchGenerateBar, hideGenerateBar } from './panel'
 import { getUpstreamInputs } from './edge-parser'
 import { refreshAllThumbnails, removeAllThumbnails, getOrderedImages, getAssetIds } from './ref-thumbnails'
 import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text-refs'
-import { refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
+import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
 import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
-import type { VideoProvider } from './providers/types'
+import type { AudioProvider, VideoProvider } from './providers/types'
 import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
 import { migrateProviderPrefs } from './migrate-providers'
@@ -556,11 +556,21 @@ export default class BragiCanvas extends Plugin {
 					markNodeFailed(placeholder, `${activeProvider} doesn't support audio generation`)
 					return
 				}
+				const audioParams: Record<string, unknown> = { ...params }
+				const wantsCustomVoice = audioParams.voiceMode === 'custom'
+					|| (!audioParams.voiceMode && model.voiceConfig?.clone && upstream.audios.length > 0)
+				if (mode === 'tts' && wantsCustomVoice) {
+					const refIndex = readVoiceRefAudioIndex(audioParams.voiceRefAudioIndex)
+					await applyUpstreamVoiceClone(this.app, canvas, provider, activeProvider, apiModelId, getOrderedAudios(canvas, node), refIndex, audioParams)
+				}
+				delete audioParams.voiceMode
+				delete audioParams.voiceRefAudioIndex
+				delete audioParams.voiceLabel
 				const audioResult = await provider.generateAudio(finalPrompt, {
 					mode: mode as 'tts' | 'music' | 'sound-effect',
 					modelId: apiModelId,
 					upstreamPrompts,
-					...params,
+					...audioParams,
 				})
 				replacePlaceholderWithFile(canvas, placeholder, audioResult.filePath, node)
 				new Notice('Audio ready')
@@ -758,7 +768,18 @@ export default class BragiCanvas extends Plugin {
 	async loadSettings() {
 		const raw = (await this.loadData()) || {}
 		const { _pendingTasks, ...settingsData } = raw
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, settingsData)
+		this.settings = migrateDashScopeSettings({
+			...DEFAULT_SETTINGS,
+			...settingsData,
+			providers: {
+				...DEFAULT_SETTINGS.providers,
+				...(settingsData.providers || {}),
+			},
+			modelOrder: {
+				...DEFAULT_SETTINGS.modelOrder,
+				...(settingsData.modelOrder || {}),
+			},
+		}, raw)
 		this.pendingTaskSnapshots = Array.isArray(_pendingTasks) ? _pendingTasks : []
 	}
 
@@ -844,8 +865,159 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	return btoa(binary)
 }
 
+interface VoiceCloneRecord {
+	provider: string
+	region: string
+	modelId: string
+	sourceHash: string
+	sourcePath: string
+	voiceId: string
+	name?: string
+	previewUrl?: string
+	createdAt: number
+}
+
+function isVoiceCloneRecord(value: unknown): value is VoiceCloneRecord {
+	if (!value || typeof value !== 'object') return false
+	const record = value as Record<string, unknown>
+	return typeof record.provider === 'string'
+		&& typeof record.region === 'string'
+		&& typeof record.modelId === 'string'
+		&& typeof record.sourceHash === 'string'
+		&& typeof record.sourcePath === 'string'
+		&& typeof record.voiceId === 'string'
+		&& typeof record.createdAt === 'number'
+}
+
+function providerSupportsVoiceClone(provider: AudioProvider): provider is AudioProvider & { cloneVoice: NonNullable<AudioProvider['cloneVoice']> } {
+	return typeof provider.cloneVoice === 'function'
+}
+
+function findFileNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
+	for (const node of canvas.nodes.values()) {
+		const data = node.getData() as Record<string, unknown>
+		if (data.type === 'file' && data.file === filePath) return node
+	}
+	return null
+}
+
+function getVoiceCloneRecords(node: CanvasNode): VoiceCloneRecord[] {
+	const data = node.getData() as Record<string, unknown>
+	const raw = Array.isArray(data.bragiVoiceClones) ? data.bragiVoiceClones : []
+	return raw.filter(isVoiceCloneRecord)
+}
+
+function upsertVoiceCloneRecord(node: CanvasNode, record: VoiceCloneRecord): void {
+	const data = node.getData() as Record<string, unknown>
+	const records = getVoiceCloneRecords(node)
+	const next = [
+		record,
+		...records.filter(item =>
+			item.provider !== record.provider
+			|| item.region !== record.region
+			|| item.modelId !== record.modelId
+			|| item.sourceHash !== record.sourceHash
+		),
+	]
+	node.setData({ ...data, bragiVoiceClones: next })
+}
+
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', buffer)
+	return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function applyUpstreamVoiceClone(
+	app: BragiCanvas['app'],
+	canvas: Canvas,
+	provider: AudioProvider,
+	activeProvider: string,
+	modelId: string,
+	upstreamAudios: string[],
+	voiceRefAudioIndex: number,
+	audioParams: Record<string, unknown>,
+): Promise<void> {
+	const audioPaths = [...new Set(upstreamAudios)]
+	if (audioPaths.length === 0) {
+		throw new Error('Voice cloning needs an upstream audio file.')
+	}
+	if (activeProvider !== 'dashscope' || !providerSupportsVoiceClone(provider)) {
+		throw new Error('Voice cloning is currently available with DashScope TTS models.')
+	}
+
+	if (voiceRefAudioIndex < 0 || voiceRefAudioIndex >= audioPaths.length) {
+		throw new Error('Selected voice reference audio is no longer connected.')
+	}
+
+	const sourcePath = audioPaths[voiceRefAudioIndex]
+	const audioNode = findFileNodeByPath(canvas, sourcePath)
+	if (!audioNode) throw new Error('Voice cloning could not find the upstream audio node.')
+
+	const binary = await app.vault.adapter.readBinary(sourcePath)
+	const sourceHash = await sha256Hex(binary)
+	const region = 'cn-beijing'
+	const existing = getVoiceCloneRecords(audioNode).find(record =>
+		record.provider === activeProvider
+		&& record.region === region
+		&& record.modelId === modelId
+		&& record.sourceHash === sourceHash
+	)
+
+	if (existing) {
+		audioParams.voice = existing.voiceId
+		audioParams.voiceLabel = existing.name || existing.voiceId
+		return
+	}
+
+	new Notice('Creating voice clone...')
+	const ext = getFileExtension(sourcePath, 'mp3')
+	const audioUrl = await uploadRef(undefined, binary, `voice.${ext}`, audioMimeType(sourcePath))
+	const clone = await provider.cloneVoice({
+		modelId,
+		audioUrl,
+		sourceHash,
+		sourcePath,
+	})
+
+	const record: VoiceCloneRecord = {
+		provider: activeProvider,
+		region,
+		modelId,
+		sourceHash,
+		sourcePath,
+		voiceId: clone.voiceId,
+		name: clone.name,
+		previewUrl: clone.previewUrl,
+		createdAt: Date.now(),
+	}
+	upsertVoiceCloneRecord(audioNode, record)
+	await canvas.requestSave?.()
+	audioParams.voice = clone.voiceId
+	audioParams.voiceLabel = clone.name || clone.voiceId
+}
+
+function readVoiceRefAudioIndex(value: unknown): number {
+	const parsed = typeof value === 'number'
+		? value
+		: typeof value === 'string'
+			? parseInt(value, 10)
+			: 0
+	return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0
+}
+
 function getFileExtension(filePath: string, fallback: string): string {
 	return filePath.split('.').pop()?.toLowerCase() || fallback
+}
+
+function audioMimeType(filePath: string): string {
+	const ext = getFileExtension(filePath, 'mp3')
+	if (ext === 'wav') return 'audio/wav'
+	if (ext === 'm4a' || ext === 'mp4') return 'audio/mp4'
+	if (ext === 'aac') return 'audio/aac'
+	if (ext === 'flac') return 'audio/flac'
+	if (ext === 'ogg') return 'audio/ogg'
+	if (ext === 'opus') return 'audio/opus'
+	return 'audio/mpeg'
 }
 
 function videoMimeType(filePath: string): string {

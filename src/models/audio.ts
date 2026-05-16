@@ -1,10 +1,112 @@
-import type { ModelConfig } from './types'
+import type { ModelConfig, ModelParam } from './types'
 
 // ── TTS Models ──
 
+function dashScopeVoiceParams(defaultVoice = ''): ModelParam[] {
+	return [
+		{
+			id: 'voice',
+			label: 'Voice',
+			type: 'select',
+			options: [],
+			default: defaultVoice,
+		},
+	]
+}
+
+const qwen3BuiltinVoices = [
+	{ label: 'Cherry', value: 'Cherry' },
+	{ label: 'Serena', value: 'Serena' },
+	{ label: 'Ethan', value: 'Ethan' },
+	{ label: 'Chelsie', value: 'Chelsie' },
+	{ label: 'Momo', value: 'Momo' },
+	{ label: 'Vivian', value: 'Vivian' },
+	{ label: 'Moon', value: 'Moon' },
+	{ label: 'Maia', value: 'Maia' },
+	{ label: 'Kai', value: 'Kai' },
+	{ label: 'Nofish', value: 'Nofish' },
+	{ label: 'Bella', value: 'Bella' },
+	{ label: 'Jennifer', value: 'Jennifer' },
+	{ label: 'Ryan', value: 'Ryan' },
+	{ label: 'Katerina', value: 'Katerina' },
+	{ label: 'Aiden', value: 'Aiden' },
+	{ label: 'Eldric Sage', value: 'Eldric Sage' },
+	{ label: 'Mia', value: 'Mia' },
+	{ label: 'Mochi', value: 'Mochi' },
+	{ label: 'Bellona', value: 'Bellona' },
+	{ label: 'Vincent', value: 'Vincent' },
+	{ label: 'Bunny', value: 'Bunny' },
+	{ label: 'Neil', value: 'Neil' },
+	{ label: 'Elias', value: 'Elias' },
+	{ label: 'Arthur', value: 'Arthur' },
+	{ label: 'Nini', value: 'Nini' },
+	{ label: 'Seren', value: 'Seren' },
+	{ label: 'Pip', value: 'Pip' },
+	{ label: 'Stella', value: 'Stella' },
+	{ label: 'Bodega', value: 'Bodega' },
+	{ label: 'Sonrisa', value: 'Sonrisa' },
+	{ label: 'Alek', value: 'Alek' },
+	{ label: 'Dolce', value: 'Dolce' },
+	{ label: 'Sohee', value: 'Sohee' },
+	{ label: 'Ono Anna', value: 'Ono Anna' },
+	{ label: 'Lenn', value: 'Lenn' },
+	{ label: 'Emilien', value: 'Emilien' },
+	{ label: 'Andre', value: 'Andre' },
+	{ label: 'Radio Gol', value: 'Radio Gol' },
+	{ label: 'Jada', value: 'Jada' },
+	{ label: 'Dylan', value: 'Dylan' },
+	{ label: 'Li', value: 'Li' },
+	{ label: 'Marcus', value: 'Marcus' },
+	{ label: 'Roy', value: 'Roy' },
+	{ label: 'Peter', value: 'Peter' },
+	{ label: 'Sunny', value: 'Sunny' },
+	{ label: 'Eric', value: 'Eric' },
+	{ label: 'Rocky', value: 'Rocky' },
+	{ label: 'Kiki', value: 'Kiki' },
+]
+
+const qwen3InstructUnsupportedVoices = new Set([
+	'Jennifer',
+	'Ryan',
+	'Katerina',
+	'Aiden',
+	'Bodega',
+	'Sonrisa',
+	'Alek',
+	'Dolce',
+	'Sohee',
+	'Ono Anna',
+	'Lenn',
+	'Emilien',
+	'Andre',
+	'Radio Gol',
+	'Jada',
+	'Dylan',
+	'Li',
+	'Marcus',
+	'Roy',
+	'Peter',
+	'Sunny',
+	'Eric',
+	'Rocky',
+	'Kiki',
+])
+
+function qwen3VoiceParams(defaultVoice = 'Cherry', instruct = false): ModelParam[] {
+	return [
+		{
+			id: 'voice',
+			label: 'Voice',
+			type: 'select',
+			options: instruct ? qwen3BuiltinVoices.filter(voice => !qwen3InstructUnsupportedVoices.has(voice.value)) : qwen3BuiltinVoices,
+			default: defaultVoice,
+		},
+	]
+}
+
 export const elevenLabsTTS: ModelConfig = {
 	id: 'elevenlabs-tts-v3',
-	name: 'ElevenLabs TTS v3',
+	name: 'ElevenLabs v3',
 	type: 'audio',
 	supportedProviders: {
 		elevenlabs: { apiModelId: 'eleven_v3' },
@@ -33,7 +135,7 @@ export const elevenLabsTTS: ModelConfig = {
 
 export const minimaxTTS: ModelConfig = {
 	id: 'minimax-tts',
-	name: 'MiniMax TTS',
+	name: 'MiniMax',
 	type: 'audio',
 	supportedProviders: {
 		fal: { apiModelId: 'fal-ai/minimax/speech-2.8-hd' },
@@ -51,13 +153,13 @@ export const minimaxTTS: ModelConfig = {
 				{ label: 'Radiant Girl', value: 'English_radiant_girl' },
 				{ label: 'Persuasive Man', value: 'English_Persuasive_Man' },
 				{ label: 'Lucky Robot', value: 'English_Lucky_Robot' },
-				{ label: '绅士', value: 'Chinese (Mandarin)_Gentleman' },
-				{ label: '不羁青年', value: 'Chinese (Mandarin)_Unrestrained_Young_Man' },
-				{ label: '爽朗少年', value: 'Chinese (Mandarin)_Straightforward_Boy' },
-				{ label: '温暖女生', value: 'Chinese (Mandarin)_Warm_HeartedGirl' },
-				{ label: '知性女声', value: 'Chinese (Mandarin)_IntellectualGirl' },
-				{ label: '可爱精灵', value: 'Chinese (Mandarin)_Cute_Spirit' },
-				{ label: '倔强老友', value: 'Chinese (Mandarin)_Stubborn_Friend' },
+				{ label: 'Gentleman', value: 'Chinese (Mandarin)_Gentleman' },
+				{ label: 'Unrestrained young man', value: 'Chinese (Mandarin)_Unrestrained_Young_Man' },
+				{ label: 'Straightforward boy', value: 'Chinese (Mandarin)_Straightforward_Boy' },
+				{ label: 'Warm-hearted girl', value: 'Chinese (Mandarin)_Warm_HeartedGirl' },
+				{ label: 'Intellectual girl', value: 'Chinese (Mandarin)_IntellectualGirl' },
+				{ label: 'Cute spirit', value: 'Chinese (Mandarin)_Cute_Spirit' },
+				{ label: 'Stubborn friend', value: 'Chinese (Mandarin)_Stubborn_Friend' },
 			],
 			default: 'English_Graceful_Lady',
 		},
@@ -78,9 +180,69 @@ export const minimaxTTS: ModelConfig = {
 	],
 }
 
+export const dashScopeCosyVoice35Plus: ModelConfig = {
+	id: 'dashscope-cosyvoice-v3-5-plus',
+	name: 'CosyVoice v3.5 Plus',
+	type: 'audio',
+	supportedProviders: {
+		dashscope: { apiModelId: 'cosyvoice-v3.5-plus' },
+	},
+	modes: ['tts'],
+	params: dashScopeVoiceParams(),
+	voiceConfig: { builtin: false, clone: true },
+}
+
+export const dashScopeCosyVoice35Flash: ModelConfig = {
+	id: 'dashscope-cosyvoice-v3-5-flash',
+	name: 'CosyVoice v3.5 Flash',
+	type: 'audio',
+	supportedProviders: {
+		dashscope: { apiModelId: 'cosyvoice-v3.5-flash' },
+	},
+	modes: ['tts'],
+	params: dashScopeVoiceParams(),
+	voiceConfig: { builtin: false, clone: true },
+}
+
+export const dashScopeQwen3TTSInstructFlash: ModelConfig = {
+	id: 'dashscope-qwen3-tts-instruct-flash',
+	name: 'Qwen3 Instruct Flash',
+	type: 'audio',
+	supportedProviders: {
+		dashscope: { apiModelId: 'qwen3-tts-instruct-flash' },
+	},
+	modes: ['tts'],
+	params: qwen3VoiceParams('Cherry', true),
+	voiceConfig: { builtin: true, clone: false },
+}
+
+export const dashScopeQwen3TTSFlash: ModelConfig = {
+	id: 'dashscope-qwen3-tts-flash',
+	name: 'Qwen3 Flash',
+	type: 'audio',
+	supportedProviders: {
+		dashscope: { apiModelId: 'qwen3-tts-flash' },
+	},
+	modes: ['tts'],
+	params: qwen3VoiceParams(),
+	voiceConfig: { builtin: true, clone: false },
+}
+
+export const dashScopeQwen3TTSVC: ModelConfig = {
+	id: 'dashscope-qwen3-tts-vc',
+	name: 'Qwen3 VC',
+	type: 'audio',
+	supportedProviders: {
+		dashscope: { apiModelId: 'qwen3-tts-vc-2026-01-22' },
+	},
+	modes: ['tts'],
+	params: dashScopeVoiceParams(),
+	voiceConfig: { builtin: false, clone: true },
+}
+
 export const grokTTS: ModelConfig = {
 	id: 'grok-tts',
-	name: 'Grok TTS',
+	name: 'Grok',
 	type: 'audio',
 	supportedProviders: {
 		xai: { apiModelId: 'grok-tts' },

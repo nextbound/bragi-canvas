@@ -10,7 +10,19 @@ import { gpt55, gpt55Pro, gemini31Pro, gemini3Flash, claudeOpus47, claudeSonnet4
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
 import { lumaUni1 } from './luma'
-import { elevenLabsTTS, minimaxTTS, grokTTS, elevenLabsMusic, minimaxMusic, elevenLabsSFX } from './audio'
+import {
+	elevenLabsTTS,
+	minimaxTTS,
+	dashScopeCosyVoice35Plus,
+	dashScopeCosyVoice35Flash,
+	dashScopeQwen3TTSInstructFlash,
+	dashScopeQwen3TTSFlash,
+	dashScopeQwen3TTSVC,
+	grokTTS,
+	elevenLabsMusic,
+	minimaxMusic,
+	elevenLabsSFX,
+} from './audio'
 
 // All registered models (default order within each type)
 export const ALL_MODELS: ModelConfig[] = [
@@ -45,6 +57,11 @@ export const ALL_MODELS: ModelConfig[] = [
 	gpt55Pro,
 	gpt55,
 	// Audio
+	dashScopeCosyVoice35Plus,
+	dashScopeCosyVoice35Flash,
+	dashScopeQwen3TTSInstructFlash,
+	dashScopeQwen3TTSFlash,
+	dashScopeQwen3TTSVC,
 	elevenLabsTTS,
 	minimaxTTS,
 	grokTTS,

@@ -24,7 +24,7 @@ export class FalAudioProvider implements AudioProvider {
 		const apiModelId = options.modelId
 		if (!apiModelId) throw new Error('fal audio: modelId required')
 
-		const body = buildAudioInput(prompt, options, options.mode, options.upstreamPrompts)
+		const body = buildAudioInput(prompt, options, apiModelId, options.mode, options.upstreamPrompts)
 
 		const response = await requestUrl({
 			url: `https://fal.run/${apiModelId}`,
@@ -54,12 +54,29 @@ export class FalAudioProvider implements AudioProvider {
 	}
 }
 
-function buildAudioInput(prompt: string, params: Record<string, unknown>, mode: unknown, upstreamPrompts?: string[]): unknown {
-	const input: unknown = {}
+function buildAudioInput(prompt: string, params: Record<string, unknown>, apiModelId: string, mode: unknown, upstreamPrompts?: string[]): unknown {
+	const input: Record<string, unknown> = {}
 	if (mode === 'tts') {
-		input.text = prompt
-		if (params.voice) input.voice_id = params.voice
-		if (params.speed) input.speed = parseFloat(params.speed)
+		const voice = stringParam(params.voice)
+		if (apiModelId.includes('/elevenlabs/tts/')) {
+			input.text = prompt
+			if (voice) input.voice = voice
+			const speed = numericParam(params.speed)
+			if (speed !== null) input.speed = speed
+		} else if (apiModelId.includes('/minimax/')) {
+			input.prompt = prompt
+			input.output_format = 'url'
+			const voiceSetting: Record<string, unknown> = {}
+			if (voice) voiceSetting.voice_id = voice
+			const speed = numericParam(params.speed)
+			if (speed !== null) voiceSetting.speed = speed
+			if (Object.keys(voiceSetting).length > 0) input.voice_setting = voiceSetting
+		} else {
+			input.text = prompt
+			if (voice) input.voice_id = voice
+			const speed = numericParam(params.speed)
+			if (speed !== null) input.speed = speed
+		}
 	} else if (mode === 'music') {
 		input.prompt = prompt
 		const musicLengthMs = optionalStringParam(params.music_length_ms)
@@ -82,6 +99,19 @@ function buildAudioInput(prompt: string, params: Record<string, unknown>, mode: 
 		input.prompt = prompt
 	}
 	return input
+}
+
+function numericParam(value: unknown): number | null {
+	if (typeof value === 'number' && Number.isFinite(value)) return value
+	if (typeof value !== 'string' || !value.trim()) return null
+	const parsed = parseFloat(value)
+	return Number.isFinite(parsed) ? parsed : null
+}
+
+function stringParam(value: unknown): string {
+	if (typeof value === 'string') return value
+	if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+	return ''
 }
 
 /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */

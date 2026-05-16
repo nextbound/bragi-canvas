@@ -159,7 +159,7 @@ export async function ensureBytePlusAsset(
 		}
 	}
 
-	// 2. Upload to Bragi Relay so BytePlus can fetch
+	// 2. Upload to Bragi temporary storage so BytePlus can fetch
 	const adapter = plugin.app.vault.adapter
 	const binary = await adapter.readBinary(filePath)
 	const url = await uploadRef(undefined, binary, `ref.${ext}`, mime)

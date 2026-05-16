@@ -46,4 +46,8 @@ export interface ModelConfig {
 	supportedProviders: Record<string, ProviderConfig>  // provider name → config
 	modes: Mode[]
 	params: ModelParam[]
+	voiceConfig?: {
+		builtin: boolean
+		clone: boolean
+	}
 }

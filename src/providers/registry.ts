@@ -19,6 +19,7 @@ import { APIMartProvider } from './apimart'
 import { LumaProvider } from './luma'
 import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
+import { DashScopeAudioProvider } from './dashscope'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
 import { OpenAITextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider } from './text-gen'
@@ -90,6 +91,19 @@ async function testGenericGet(url: string, headers: Record<string, string>): Pro
 	} catch (err: unknown) {
 		return { ok: false, message: `Network error: ${err?.message || err}` }
 	}
+}
+
+function responseMessage(resp: { json?: unknown; text?: string }): string {
+	const body = resp.json || (() => { try { return JSON.parse(resp.text || '') } catch { return null } })()
+	const msg = body?.error?.message || body?.message || body?.output?.message || body?.code || resp.text || ''
+	return typeof msg === 'string' ? msg : JSON.stringify(msg).substring(0, 240)
+}
+
+function isCredentialFailure(resp: { status: number; json?: unknown; text?: string }): boolean {
+	if (resp.status === 401) return true
+	if (resp.status !== 403) return false
+	const msg = responseMessage(resp).toLowerCase()
+	return /invalid|incorrect|unauthorized|api-?key/.test(msg) && /key|token|credential|api/.test(msg)
 }
 
 export const PROVIDERS: ProviderSpec[] = [
@@ -327,6 +341,38 @@ export const PROVIDERS: ProviderSpec[] = [
 				})
 				if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid token.' }
 				// 200 / 400 / 404 all mean auth passed
+				if (resp.status < 500) return { ok: true, message: 'Connected.' }
+				return { ok: false, message: `Unexpected status ${resp.status}.` }
+			} catch (err: unknown) {
+				return { ok: false, message: `Network error: ${err?.message || err}` }
+			}
+		},
+	},
+	{
+		id: 'dashscope',
+		name: 'DashScope',
+		description: 'Alibaba Cloud official model provider.',
+		docUrl: 'https://dashscope.console.aliyun.com/',
+		fields: [{ key: 'dashscope', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
+		isConfigured: (s) => !!s.providers.dashscope,
+		makeAudio: ({ settings, app, outputDir }) =>
+			new DashScopeAudioProvider(settings.providers.dashscope, app, outputDir),
+		testConnection: async (d) => {
+			const key = d.dashscope || ''
+			if (!key) return { ok: false, message: 'API key is empty.' }
+			try {
+				const resp = await requestUrl({
+					url: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${key}`,
+					},
+					// Deliberately invalid body: 400 means auth passed, without spending tokens.
+					body: '{}',
+					throw: false,
+				})
+				if (isCredentialFailure(resp)) return { ok: false, message: responseMessage(resp) || 'Invalid API key.' }
 				if (resp.status < 500) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
