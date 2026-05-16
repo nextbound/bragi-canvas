@@ -286,7 +286,7 @@ g:hover > .canvas-display-path {
 	align-items: center;
 }
 
-.bragi-bar-voice-btn {
+.bragi-generate-bar button.bragi-bar-voice-btn {
 	-webkit-appearance: none;
 	appearance: none;
 	display: inline-flex;
@@ -307,15 +307,15 @@ g:hover > .canvas-display-path {
 	white-space: nowrap;
 }
 
-.bragi-bar-voice-btn:hover {
+.bragi-generate-bar button.bragi-bar-voice-btn:hover {
 	background-color: var(--background-modifier-hover);
 	border: 0;
 	box-shadow: none;
 }
 
-.bragi-bar-voice-btn:focus,
-.bragi-bar-voice-btn:focus-visible,
-.bragi-bar-voice-btn:active {
+.bragi-generate-bar button.bragi-bar-voice-btn:focus,
+.bragi-generate-bar button.bragi-bar-voice-btn:focus-visible,
+.bragi-generate-bar button.bragi-bar-voice-btn:active {
 	border: 0;
 	box-shadow: none;
 	outline: 0;
@@ -584,7 +584,7 @@ g:hover > .canvas-display-path {
 	background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-.theme-dark .bragi-bar-voice-btn {
+.theme-dark .bragi-generate-bar button.bragi-bar-voice-btn {
 	background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='rgba(255,255,255,0.4)' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -1300,22 +1300,22 @@ g:hover > .canvas-display-path {
 	flex-shrink: 0;
 }
 
-.bragi-voice-preview {
+.bragi-voice-picker-modal button.bragi-voice-preview {
 	width: 28px;
 	height: 28px;
 	padding: 4px;
 	border: 0;
 	border-radius: 4px;
-	background: transparent;
+	background: var(--background-primary);
 	box-shadow: none;
 	outline: 0;
 	color: var(--text-muted);
 }
 
-.bragi-voice-preview:hover,
-.bragi-voice-preview:focus,
-.bragi-voice-preview:focus-visible,
-.bragi-voice-preview:active {
+.bragi-voice-picker-modal button.bragi-voice-preview:hover,
+.bragi-voice-picker-modal button.bragi-voice-preview:focus,
+.bragi-voice-picker-modal button.bragi-voice-preview:focus-visible,
+.bragi-voice-picker-modal button.bragi-voice-preview:active {
 	border: 0;
 	background: var(--background-modifier-hover);
 	box-shadow: none;
@@ -1323,7 +1323,7 @@ g:hover > .canvas-display-path {
 	color: var(--text-normal);
 }
 
-.bragi-voice-preview:disabled {
+.bragi-voice-picker-modal button.bragi-voice-preview:disabled {
 	opacity: 0.35;
 	cursor: not-allowed;
 }
