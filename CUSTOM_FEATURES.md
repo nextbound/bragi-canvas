@@ -77,6 +77,8 @@ The intended workflow is:
 - Connect a prompt node to the preset slot.
 - Optionally connect the preset slot to downstream prompt nodes.
 - Generated outputs are placed inside the slot and connected to downstream prompts.
+- Slots appear in the reference thumbnail strip, including an empty placeholder while waiting for an output.
+- Slot references can be reordered alongside direct image references.
 - If a downstream prompt has saved image-generation settings, it can automatically run using the new upstream output.
 
 ### Provider Workflow Presets

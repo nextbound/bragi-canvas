@@ -12,42 +12,82 @@ const adjustedNodes = new Set<string>()
 // Block refresh during drag
 let isDragging = false
 
+type ReferenceItem = {
+	type: 'image' | 'slotImage' | 'slot'
+	id: string
+	path?: string
+	label?: string
+}
+
 /**
  * Get the ordered image list for a node.
  * Uses bragiImageOrder from node metadata if available, otherwise upstream order.
  * Falls back to legacy ovidImageOrder for vaults created before the rename.
  */
 export function getOrderedImages(canvas: Canvas, node: CanvasNode): string[] {
+	return getReferenceItems(canvas, node)
+		.map(item => item.path)
+		.filter((path): path is string => Boolean(path))
+}
+
+function getReferenceItems(canvas: Canvas, node: CanvasNode): ReferenceItem[] {
 	const upstream = getUpstreamInputs(canvas, node)
 	const slots = getIncomingAutoSlots(canvas, node)
 	const slotFiles = new Set(slots.flatMap(slot => slot.files))
-	const directImages = upstream.images.filter(path => !slotFiles.has(path))
-	const slotPreviewImages = slots
-		.map(slot => slot.files[0])
-		.filter((path): path is string => Boolean(path))
-	const uniqueImages = [...new Set([...directImages, ...slotPreviewImages])]
+	const directItems: ReferenceItem[] = [...new Set(upstream.images)]
+		.filter(path => !slotFiles.has(path))
+		.map(path => ({ type: 'image', id: path, path }))
+	const slotItems: ReferenceItem[] = slots.map(slot => slot.files.length > 0
+		? {
+			type: 'slotImage',
+			id: `slot:${slot.id}`,
+			path: slot.files[0],
+			label: slot.label,
+		}
+		: {
+			type: 'slot',
+			id: `slot:${slot.id}`,
+			label: slot.label,
+		})
+	const items = [...directItems, ...slotItems]
 
 	const nodeData = node.getData() as unknown
-	const savedOrder: string[] | undefined = nodeData.bragiImageOrder || nodeData.ovidImageOrder
-
-	if (savedOrder && savedOrder.length > 0) {
-		// Use saved order, but only for images that still exist in upstream
-		const ordered: string[] = []
-		for (const path of savedOrder) {
-			if (uniqueImages.includes(path)) {
-				ordered.push(path)
+	const savedRefOrder: string[] | undefined = nodeData.bragiRefOrder
+	if (savedRefOrder && savedRefOrder.length > 0) {
+		const ordered: ReferenceItem[] = []
+		const used = new Set<string>()
+		for (const id of savedRefOrder) {
+			const item = items.find(candidate => candidate.id === id || candidate.path === id)
+			if (item && !used.has(item.id)) {
+				ordered.push(item)
+				used.add(item.id)
 			}
 		}
-		// Append any new images not in saved order
-		for (const path of uniqueImages) {
-			if (!ordered.includes(path)) {
-				ordered.push(path)
-			}
+		for (const item of items) {
+			if (!used.has(item.id)) ordered.push(item)
 		}
 		return ordered
 	}
 
-	return uniqueImages
+	const savedOrder: string[] | undefined = nodeData.bragiImageOrder || nodeData.ovidImageOrder
+
+	if (savedOrder && savedOrder.length > 0) {
+		const ordered: ReferenceItem[] = []
+		const used = new Set<string>()
+		for (const id of savedOrder) {
+			const item = items.find(candidate => candidate.path === id)
+			if (item && !used.has(item.id)) {
+				ordered.push(item)
+				used.add(item.id)
+			}
+		}
+		for (const item of items) {
+			if (!used.has(item.id)) ordered.push(item)
+		}
+		return ordered
+	}
+
+	return items
 }
 
 export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App): void {
@@ -63,9 +103,9 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 	if (!contentEl) return
 
 	const existing = contentEl.querySelector(`.${STRIP_CLASS}`)
-	const orderedImages = getOrderedImages(canvas, node)
+	const refItems = getReferenceItems(canvas, node)
 
-	if (orderedImages.length === 0) {
+	if (refItems.length === 0) {
 		if (existing) {
 			existing.remove()
 			nodeEl?.classList.remove(NODE_HAS_REFS_CLASS)
@@ -74,7 +114,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 		return
 	}
 
-	const fingerprint = orderedImages.join('|')
+	const fingerprint = refItems.map(item => `${item.id}:${item.path || 'empty'}`).join('|')
 	if (existing?.getAttribute('data-fingerprint') === fingerprint) {
 		return
 	}
@@ -85,20 +125,31 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 	strip.className = STRIP_CLASS
 	strip.setAttribute('data-fingerprint', fingerprint)
 
-	for (let i = 0; i < orderedImages.length; i++) {
-		const imgPath = orderedImages[i]
+	for (let i = 0; i < refItems.length; i++) {
+		const item = refItems[i]
+		const imgPath = item.path
 
 		const wrapper = createDiv()
-		wrapper.className = 'bragi-ref-thumb-wrapper'
-		wrapper.setAttribute('data-img-path', imgPath)
+		wrapper.className = `bragi-ref-thumb-wrapper${item.type === 'slot' ? ' bragi-slot-placeholder' : ''}`
+		wrapper.setAttribute('data-ref-id', item.id)
+		if (imgPath) wrapper.setAttribute('data-img-path', imgPath)
 		wrapper.draggable = true
+		wrapper.title = imgPath
+			? `#${i + 1} — ${imgPath.split('/').pop() || imgPath}`
+			: `Waiting for ${item.label || 'preset slot'} output`
 
-		const img = createEl('img')
-		img.className = 'bragi-ref-thumb'
-		img.src = app.vault.adapter.getResourcePath(imgPath)
-		img.title = `#${i + 1} — ${imgPath.split('/').pop() || imgPath}`
-		img.draggable = false // prevent native img drag
-		wrapper.appendChild(img)
+		if (imgPath) {
+			const img = createEl('img')
+			img.className = 'bragi-ref-thumb'
+			img.src = app.vault.adapter.getResourcePath(imgPath)
+			img.draggable = false // prevent native img drag
+			wrapper.appendChild(img)
+		} else {
+			const placeholder = createDiv()
+			placeholder.className = 'bragi-ref-thumb bragi-slot-thumb'
+			placeholder.textContent = 'Slot'
+			wrapper.appendChild(placeholder)
+		}
 
 		const badge = createDiv()
 		badge.className = 'bragi-ref-badge'
@@ -106,7 +157,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 		wrapper.appendChild(badge)
 
 		// Asset ID indicator — read from the source image node
-		const sourceImageNode = findImageNode(canvas, imgPath)
+		const sourceImageNode = imgPath ? findImageNode(canvas, imgPath) : null
 		const assetId = sourceImageNode ? (sourceImageNode.getData() as unknown).bragiAssetId : null
 
 		if (assetId) {
@@ -119,7 +170,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 		// Drag events
 		wrapper.addEventListener('dragstart', (e) => {
 			isDragging = true
-			e.dataTransfer!.setData('text/plain', imgPath)
+			e.dataTransfer!.setData('text/plain', item.id)
 			wrapper.classList.add('is-dragging')
 		})
 
@@ -140,23 +191,27 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 		wrapper.addEventListener('drop', (e) => {
 			e.preventDefault()
 			wrapper.classList.remove('drag-over')
-			const draggedPath = e.dataTransfer!.getData('text/plain')
-			if (!draggedPath || draggedPath === imgPath) return
+			const draggedId = e.dataTransfer!.getData('text/plain')
+			if (!draggedId || draggedId === item.id) return
 
 			// Reorder
-			const newOrder = [...orderedImages]
-			const fromIdx = newOrder.indexOf(draggedPath)
-			const toIdx = newOrder.indexOf(imgPath)
+			const newOrder = refItems.map(ref => ref.id)
+			const fromIdx = newOrder.indexOf(draggedId)
+			const toIdx = newOrder.indexOf(item.id)
 			if (fromIdx === -1 || toIdx === -1) return
 
 			newOrder.splice(fromIdx, 1)
-			newOrder.splice(toIdx, 0, draggedPath)
+			newOrder.splice(toIdx, 0, draggedId)
 
 			// Save to node metadata (drop legacy key so it doesn't drift)
 			const data = node.getData() as unknown
 			const rest = { ...data }
 			delete rest.ovidImageOrder
-			node.setData({ ...rest, bragiImageOrder: newOrder })
+			node.setData({
+				...rest,
+				bragiRefOrder: newOrder,
+				bragiImageOrder: newOrder.filter(id => !id.startsWith('slot:')),
+			})
 
 			// Force rebuild
 			isDragging = false
