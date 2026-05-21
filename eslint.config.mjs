@@ -12,6 +12,7 @@ export default defineConfig([
 		ignores: [
 			'dist/**',
 			'node_modules/**',
+			'custom-plugin-snapshot/**',
 			'main.js',
 			'package-lock.json',
 			'src/mcp-server.ts',

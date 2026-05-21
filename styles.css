@@ -197,6 +197,54 @@ g:hover > .canvas-display-path {
 	white-space: nowrap;
 }
 
+/* ── Bragi image tools ──────────────────────────────────────────────── */
+.bragi-image-tool-modal .modal-content {
+	display: flex;
+	max-height: min(78vh, 900px);
+	flex-direction: column;
+	gap: 10px;
+}
+
+.bragi-image-tool-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.bragi-image-tool-toolbar button.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.bragi-image-tool-toolbar .setting-item {
+	padding: 0;
+	border: 0;
+}
+
+.bragi-image-tool-toolbar .setting-item-info {
+	margin-inline-end: 8px;
+}
+
+.bragi-image-tool-canvas-wrap {
+	overflow: auto;
+	max-height: min(62vh, 760px);
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+
+.bragi-image-tool-canvas {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin: 0 auto;
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	touch-action: none;
+}
+
 /* ── Bragi Canvas — Canvas Controls (right side) ─────────────────────── */
 
 /* Each control group: match the toolbar style */

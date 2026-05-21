@@ -22,6 +22,7 @@ import { checkMigration } from './migrate-assets'
 import { migrateProviderPrefs } from './migrate-providers'
 import { startAttachmentRedirect } from './attachment-redirect'
 import { startFileHoverPreview } from './file-hover-preview'
+import { openImageAnnotationEditor, openImageCutoutEditor, openReferenceComposeEditor } from './image-tools'
 import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flow'
 import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
@@ -77,6 +78,31 @@ export default class BragiCanvas extends Plugin {
 				if (!/\.(png|jpg|jpeg|webp|gif)$/i.test(filePath)) return
 
 				const currentId = (nodeData as unknown).bragiAssetId || ''
+				menu.addItem((item) => {
+					item.setTitle('Annotate with box')
+						.setIcon('box')
+						.onClick(() => openImageAnnotationEditor(this, node.canvas, node, 'box'))
+				})
+				menu.addItem((item) => {
+					item.setTitle('Add numbered marker')
+						.setIcon('badge')
+						.onClick(() => openImageAnnotationEditor(this, node.canvas, node, 'label'))
+				})
+				menu.addItem((item) => {
+					item.setTitle('Mosaic brush')
+						.setIcon('grid')
+						.onClick(() => openImageAnnotationEditor(this, node.canvas, node, 'mosaic'))
+				})
+				menu.addItem((item) => {
+					item.setTitle('Scene/material cutout')
+						.setIcon('scissors')
+						.onClick(() => openImageCutoutEditor(this, node.canvas, node))
+				})
+				menu.addItem((item) => {
+					item.setTitle('Compose reference image')
+						.setIcon('layers')
+						.onClick(() => openReferenceComposeEditor(this, node.canvas, node))
+				})
 				menu.addItem((item) => {
 					item.setTitle(currentId ? `Asset ID: ${currentId}` : 'Set Asset ID')
 						.setIcon('link')
