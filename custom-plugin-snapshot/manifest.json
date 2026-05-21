@@ -1,0 +1,9 @@
+{
+	"id": "bragi-canvas",
+	"name": "Bragi Canvas",
+	"version": "1.9.1",
+	"minAppVersion": "1.5.0",
+	"description": "Turn Obsidian Canvas into a node-based AI generation pipeline. Generate images and videos with connected nodes.",
+	"author": "Simon",
+	"isDesktopOnly": true
+}

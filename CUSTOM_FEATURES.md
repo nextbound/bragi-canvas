@@ -2,6 +2,8 @@
 
 This fork is used to document and prepare workflow improvements from a customized Bragi Canvas build for upstream review.
 
+The full current local plugin build is included in [`custom-plugin-snapshot/`](custom-plugin-snapshot/) for inspection. It contains only `manifest.json`, `main.js`, and `styles.css`; it does not include local settings, API keys, canvas files, generated assets, or vault content.
+
 Some features started as local prototypes in a compiled plugin build and are being organized into source-level changes before individual pull requests. The goal is to split them into focused, reviewable features instead of sending one large mixed change.
 
 ## Feature Overview
