@@ -165,6 +165,38 @@ g:hover > .canvas-display-path {
 	flex-shrink: 0;
 }
 
+/* ── Bragi file explorer image hover preview ───────────────────────── */
+.bragi-file-hover-preview {
+	position: fixed;
+	z-index: var(--layer-popover);
+	max-width: min(360px, 42vw);
+	max-height: min(360px, 48vh);
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+	box-shadow: var(--shadow-l);
+	pointer-events: none;
+}
+
+.bragi-file-hover-preview img {
+	display: block;
+	max-width: 100%;
+	max-height: calc(min(360px, 48vh) - 34px);
+	object-fit: contain;
+	border-radius: 6px;
+}
+
+.bragi-file-hover-preview-name {
+	max-width: 100%;
+	margin-top: 6px;
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* ── Bragi Canvas — Canvas Controls (right side) ─────────────────────── */
 
 /* Each control group: match the toolbar style */

@@ -11,7 +11,7 @@ Some features started as local prototypes in a compiled plugin build and are bei
 | Image annotation tools | Local prototype | Add bounding boxes, numbered markers, and mosaic masking directly from image nodes. |
 | Scene/material cutout | Local prototype | Extract an object or material from an image node and save the result back to the canvas as a new image node. |
 | Reference image composition | Local prototype | Combine one or more reference images into a single generated reference sheet for downstream image workflows. |
-| Image file hover preview | Local prototype | Preview image files from the left file explorer by hovering over them. |
+| Image file hover preview | Implemented in this PR | Preview image files from the left file explorer by hovering over them. |
 | Provider workflow presets | Local prototype | Add workflow-oriented provider/model presets used in a personal image-generation pipeline. |
 
 ## Details

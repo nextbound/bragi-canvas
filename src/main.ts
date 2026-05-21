@@ -21,6 +21,7 @@ import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
 import { migrateProviderPrefs } from './migrate-providers'
 import { startAttachmentRedirect } from './attachment-redirect'
+import { startFileHoverPreview } from './file-hover-preview'
 import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flow'
 import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
@@ -32,6 +33,7 @@ export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
 	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
 	private attachmentRedirectStop: (() => void) | null = null
+	private fileHoverPreviewStop: (() => void) | null = null
 	taskQueue = new TaskQueue()
 	private mcpServer: BragiMcpServer | null = null
 	private pendingTaskSnapshots: TaskSnapshot[] = []
@@ -63,6 +65,7 @@ export default class BragiCanvas extends Plugin {
 		// Force all file-opens into new tabs — protects in-flight generation placeholders
 		// from getting swapped out when the user clicks another file.
 		this.register(installAlwaysNewTab(this.app))
+		this.fileHoverPreviewStop = startFileHoverPreview(this.app)
 
 		// Right-click menu: Set Asset ID on image nodes
 		this.registerEvent(
@@ -144,6 +147,8 @@ export default class BragiCanvas extends Plugin {
 		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
 		this.attachmentRedirectStop?.()
 		this.attachmentRedirectStop = null
+		this.fileHoverPreviewStop?.()
+		this.fileHoverPreviewStop = null
 	}
 
 	// ── Canvas menu patching ────────────────────────────────────
