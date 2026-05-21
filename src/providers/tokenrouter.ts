@@ -204,6 +204,10 @@ function extractFailure(data: unknown, fallback: string): string {
 	return fallback
 }
 
+function isSeedanceModel(modelId: string): boolean {
+	return modelId.includes('seedance')
+}
+
 function imageSizeFromAspectRatio(aspectRatio: string): string {
 	const parts = aspectRatio.split(':').map(Number)
 	if (parts.length !== 2 || !parts[0] || !parts[1]) return '1024x1024'
@@ -437,6 +441,8 @@ export class TokenRouterVideoProvider implements VideoProvider {
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = stringParam(params?.modelId, 'dreamina-seedance-2-0-260128')
 		const genMode = stringParam(params?.genMode, 'text-to-video')
+		const isHappyHorse = modelId.startsWith('happyhorse-1.0-')
+		const isSeedance = isSeedanceModel(modelId)
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
 		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos : []
 		const refAudios: string[] = Array.isArray(params?.refAudios) ? params.refAudios : []
@@ -450,23 +456,27 @@ export class TokenRouterVideoProvider implements VideoProvider {
 		const body: JsonRecord = {
 			model: modelId,
 			prompt,
-			metadata: {
+		}
+		if (!isSeedance) {
+			body.metadata = {
 				source: 'bragi-canvas',
 				input_mode: genMode,
 				attachment_count: attachments.length,
-			},
+			}
 		}
 
-		if (modelId.startsWith('happyhorse-1.0-')) {
+		if (isHappyHorse) {
 			this.applyHappyHorseMedia(body, modelId, genMode, imageUrls)
+		} else if (isSeedance) {
+			this.applySeedanceMedia(body, imageUrls, refAudios, refVideos)
 		} else if (imageUrls.length > 0) {
 			body.image = imageUrls[0]
 			body.images = imageUrls
 			if (genMode === 'first-frame') body.first_frame_image = imageUrls[0]
 			else if (genMode === 'image-ref') body.image_urls = imageUrls
 		}
-		if (!modelId.startsWith('happyhorse-1.0-') && attachments.length > 0) body.attachments = attachments
-		this.applyVideoParams(body, params || {})
+		if (!isHappyHorse && !isSeedance && attachments.length > 0) body.attachments = attachments
+		this.applyVideoParams(body, params || {}, isSeedance)
 
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/video/generations`,
@@ -503,6 +513,16 @@ export class TokenRouterVideoProvider implements VideoProvider {
 		}
 	}
 
+	private applySeedanceMedia(body: JsonRecord, imageUrls: string[], audioUrls: string[], videoUrls: string[]): void {
+		if (imageUrls.length > 9) throw new Error('TokenRouter Seedance supports up to 9 reference images.')
+		if (audioUrls.length > 3) throw new Error('TokenRouter Seedance supports up to 3 reference audio files.')
+		if (videoUrls.length > 3) throw new Error('TokenRouter Seedance supports up to 3 reference videos.')
+
+		if (imageUrls.length > 0) body.images = imageUrls
+		if (audioUrls.length > 0) body.audios = audioUrls
+		if (videoUrls.length > 0) body.videos = videoUrls
+	}
+
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/video/generations/${encodeURIComponent(taskId)}`,
@@ -526,20 +546,30 @@ export class TokenRouterVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
-	private applyVideoParams(body: JsonRecord, params: Record<string, unknown>): void {
+	private applyVideoParams(body: JsonRecord, params: Record<string, unknown>, seedanceMetadata = false): void {
+		const metadata = seedanceMetadata ? this.ensureMetadata(body) : body
 		const duration = optionalString(params.duration || params.durationSeconds)
-		if (duration) body.duration = duration === '-1' ? -1 : parseInt(duration, 10)
+		if (duration) metadata.duration = duration === '-1' ? -1 : parseInt(duration, 10)
 
 		const ratio = optionalString(params.ratio || params.aspect_ratio || params.aspectRatio)
-		if (ratio) body.aspect_ratio = ratio
+		if (ratio) {
+			if (seedanceMetadata) metadata.ratio = ratio
+			else body.aspect_ratio = ratio
+		}
 
 		const resolution = optionalString(params.resolution)
-		if (resolution) body.resolution = resolution
+		if (resolution) metadata.resolution = resolution
 
 		const qualityMode = optionalString(params.mode)
 		if (qualityMode) body.mode = qualityMode
 
-		if (params.generate_audio !== undefined) body.generate_audio = params.generate_audio !== 'false'
+		if (params.generate_audio !== undefined) metadata.generate_audio = params.generate_audio !== 'false'
+	}
+
+	private ensureMetadata(body: JsonRecord): JsonRecord {
+		const metadata = asRecord(body.metadata) || {}
+		body.metadata = metadata
+		return metadata
 	}
 
 	private async downloadVideo(url: string): Promise<string> {

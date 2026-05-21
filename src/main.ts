@@ -400,7 +400,10 @@ export default class BragiCanvas extends Plugin {
 
 			// Upload reference audios for Seedance
 			const refAudios: string[] = []
-			if (isNativeSeedance && upstream.audios.length > 0) {
+			if (supportsSeedanceRefs && upstream.audios.length > 0) {
+				if (upstream.audios.length > 3) {
+					throw new Error('Seedance supports up to 3 reference audio files.')
+				}
 				for (const audioPath of upstream.audios) {
 					if (bytePlusCreds) {
 						// Route audio through asset library for content review
