@@ -1,5 +1,7 @@
 # Bragi Canvas
 
+> This fork includes a public overview of custom workflow additions being prepared for upstream review: [Custom Features](CUSTOM_FEATURES.md).
+
 Bragi Canvas turns Obsidian Canvas into a node-based AI generation workspace. It uses selected canvas nodes and incoming edges as prompts and references, runs the model you choose, then writes the generated output back to the canvas as connected nodes.
 
 ## Features

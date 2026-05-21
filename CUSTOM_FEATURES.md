@@ -1,0 +1,71 @@
+# Custom Features
+
+This fork is used to document and prepare workflow improvements from a customized Bragi Canvas build for upstream review.
+
+Some features started as local prototypes in a compiled plugin build and are being organized into source-level changes before individual pull requests. The goal is to split them into focused, reviewable features instead of sending one large mixed change.
+
+## Feature Overview
+
+| Feature | Status | Summary |
+| --- | --- | --- |
+| Image annotation tools | Local prototype | Add bounding boxes, numbered markers, and mosaic masking directly from image nodes. |
+| Scene/material cutout | Local prototype | Extract an object or material from an image node and save the result back to the canvas as a new image node. |
+| Reference image composition | Local prototype | Combine one or more reference images into a single generated reference sheet for downstream image workflows. |
+| Image file hover preview | Local prototype | Preview image files from the left file explorer by hovering over them. |
+| Provider workflow presets | Local prototype | Add workflow-oriented provider/model presets used in a personal image-generation pipeline. |
+
+## Details
+
+### Image Annotation Tools
+
+Adds right-click image actions for marking up reference images without leaving the canvas:
+
+- Draw rectangular callouts on image nodes.
+- Place numbered visual markers.
+- Paint mosaic masks over sensitive or irrelevant regions.
+- Save the annotated result as a new image node connected to the original.
+
+This is useful when a prompt needs to refer to exact regions in a reference image.
+
+### Scene/Material Cutout
+
+Adds a canvas-based cutout workflow for extracting a subject, product, material, or scene element from an existing image node.
+
+The intended workflow is:
+
+- Select an image node.
+- Open the cutout tool.
+- Brush/select the region to keep or remove.
+- Save the extracted result back into the canvas as a reusable image node.
+
+### Reference Image Composition
+
+Adds a way to compose selected reference images into one combined reference image. This is useful for providers or workflows that work better with a single visual reference rather than many separate inputs.
+
+Example use cases:
+
+- Put product, style, and scene references into one visual board.
+- Combine annotated references before sending them into an image model.
+- Create a compact reference sheet for repeatable generation workflows.
+
+### Image File Hover Preview
+
+Adds a lightweight preview for image files in the Obsidian file explorer. When the cursor hovers over an image file in the left sidebar, a preview appears so users can identify visual assets without opening each file.
+
+This is useful for vaults with many generated images, references, and intermediate assets.
+
+### Provider Workflow Presets
+
+The customized build also includes provider/model routing preferences used in a personal workflow. These are documented for context, but they are likely not the first features to upstream because they are more opinionated.
+
+## Suggested Upstream Split
+
+If maintainers are interested, the most reviewable order is:
+
+1. Image annotation tools
+2. Scene/material cutout
+3. Reference image composition
+4. Image file hover preview
+5. Provider workflow presets
+
+Each feature can be split into its own branch and pull request.
