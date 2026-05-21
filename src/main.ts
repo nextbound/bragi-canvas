@@ -5,7 +5,7 @@ import { uploadRef } from './providers/upload'
 import { getProvider } from './providers/registry'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
 import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, stopGeneratingTicker } from './canvas-ops'
-import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
+import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons, startHardBindToolbar } from './toolbar'
 import { openPanoramaViewer } from './panorama'
 import { registerBragiIcons } from './icons'
 import { showGenerateBar, showBatchGenerateBar, hideGenerateBar } from './panel'
@@ -27,6 +27,8 @@ import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flo
 import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
+import { getConfiguredProviderIds } from './providers/registry'
+import { getActiveProvider, getEnabledModels } from './models/index'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { VoiceSourceMode } from './models/types'
 
@@ -35,6 +37,7 @@ export default class BragiCanvas extends Plugin {
 	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
 	private attachmentRedirectStop: (() => void) | null = null
 	private fileHoverPreviewStop: (() => void) | null = null
+	private hardBindToolbarStop: (() => void) | null = null
 	taskQueue = new TaskQueue()
 	private mcpServer: BragiMcpServer | null = null
 	private pendingTaskSnapshots: TaskSnapshot[] = []
@@ -67,6 +70,15 @@ export default class BragiCanvas extends Plugin {
 		// from getting swapped out when the user clicks another file.
 		this.register(installAlwaysNewTab(this.app))
 		this.fileHoverPreviewStop = startFileHoverPreview(this.app)
+		this.hardBindToolbarStop = startHardBindToolbar({
+			getActiveCanvas: () => this.getActiveCanvas(),
+			openPanel: (type, node) => this.openPanel(type, node),
+			handleSTT: (node) => { void this.handleSTT(node) },
+			handleAudioIsolation: (node) => { void this.handleAudioIsolation(node) },
+			openAnnotation: (node, tool) => openImageAnnotationEditor(this, node.canvas, node, tool),
+			openCutout: (node) => openImageCutoutEditor(this, node.canvas, node),
+			openReferenceCompose: (node) => openReferenceComposeEditor(this, node.canvas, node),
+		})
 
 		// Right-click menu: Set Asset ID on image nodes
 		this.registerEvent(
@@ -175,6 +187,8 @@ export default class BragiCanvas extends Plugin {
 		this.attachmentRedirectStop = null
 		this.fileHoverPreviewStop?.()
 		this.fileHoverPreviewStop = null
+		this.hardBindToolbarStop?.()
+		this.hardBindToolbarStop = null
 	}
 
 	// ── Canvas menu patching ────────────────────────────────────
@@ -253,6 +267,9 @@ export default class BragiCanvas extends Plugin {
 				console.error('Bragi split grid error:', err)
 				new Notice(`Split failed: ${err.message || err}`)
 			}),
+			(node, tool) => openImageAnnotationEditor(this, canvas, node, tool),
+			(node) => openImageCutoutEditor(this, canvas, node),
+			(node) => openReferenceComposeEditor(this, canvas, node),
 		)
 
 		// Refresh thumbnails periodically to catch edge changes
@@ -497,7 +514,8 @@ export default class BragiCanvas extends Plugin {
 					: { ...params, modelId: apiModelId, refImages }
 				const genResult = await provider.generateImage(finalPrompt, imgParams)
 
-				replacePlaceholderWithFile(canvas, placeholder, genResult.filePath, node)
+				const outputNode = replacePlaceholderWithFile(canvas, placeholder, genResult.filePath, node)
+				void this.maybeAutoRunDownstream(canvas, outputNode)
 				new Notice('Image ready')
 
 			} else if (model.type === 'video') {
@@ -627,6 +645,86 @@ export default class BragiCanvas extends Plugin {
 			markNodeFailed(placeholder, err.message || 'Unknown error')
 			new Notice(`Generation failed: ${err.message}`)
 		}
+	}
+
+	private async maybeAutoRunDownstream(canvas: Canvas, outputNode: CanvasNode | null): Promise<void> {
+		try {
+			if (!outputNode) return
+			const outputData = outputNode.getData() as unknown
+			const outputPath = outputData.file || ''
+			if (!outputPath) return
+
+			const configuredProviders = getConfiguredProviderIds(this.settings.providers)
+			const imageModels = getEnabledModels('image', this.settings.modelOrder.image, this.settings.modelPrefs, configuredProviders)
+			if (imageModels.length === 0) return
+
+			const edges = canvas.getEdgesForNode(outputNode) || []
+			for (const edge of edges) {
+				if (edge.from.node.id !== outputNode.id) continue
+
+				const targetNode = edge.to.node
+				const targetData = targetNode.getData() as unknown
+				if (!isPromptNodeData(targetData)) continue
+				if (targetData.bragiAutoLastInput === outputPath || targetData.bragiAutoRunning) continue
+
+				const lastImageGen = (targetData.bragiLastGen || targetData.ovidLastGen)?.image
+				if (!lastImageGen?.modelId) continue
+
+				const model = imageModels.find(m => m.id === lastImageGen.modelId) || imageModels[0]
+				if (!model) continue
+
+				const pref = this.settings.modelPrefs[model.id]
+				const activeProvider = getActiveProvider(model, pref?.selectedProvider, configuredProviders)
+					|| Object.keys(model.supportedProviders)[0]
+				if (!activeProvider) continue
+
+				const apiModelId = model.supportedProviders[activeProvider]?.apiModelId || model.id
+				const prompt = await this.readPromptFromNode(targetNode, targetData)
+				if (!prompt) continue
+
+				targetNode.setData({
+					...targetData,
+					bragiAutoRunning: true,
+					bragiAutoLastInput: outputPath,
+				})
+				void canvas.requestSave?.()
+
+				window.setTimeout(() => {
+					void (async () => {
+						try {
+							await this.executeGeneration(targetNode, {
+								prompt,
+								model,
+								activeProvider,
+								apiModelId,
+								mode: model.modes[0] || null,
+								params: lastImageGen.params || {},
+								batchCount: lastImageGen.batchCount || 1,
+							})
+						} finally {
+							const latestData = targetNode.getData() as unknown
+							const rest = { ...latestData }
+							delete rest.bragiAutoRunning
+							targetNode.setData(rest)
+							void canvas.requestSave?.()
+						}
+					})()
+				}, 200)
+			}
+		} catch (err) {
+			console.error('Bragi downstream autorun failed', err)
+		}
+	}
+
+	private async readPromptFromNode(node: CanvasNode, nodeData: unknown): Promise<string> {
+		if (nodeData.type === 'text') {
+			return (node.text?.trim() || nodeData.text?.trim() || '')
+		}
+		if (nodeData.type === 'file' && /\.md$/i.test(nodeData.file || '')) {
+			const file = this.app.vault.getAbstractFileByPath(nodeData.file)
+			if (file) return (await this.app.vault.read(file as unknown)).trim()
+		}
+		return ''
 	}
 
 	/**
@@ -1163,6 +1261,10 @@ function readVoiceDesignTextIndex(value: unknown): number {
 			? parseInt(value, 10)
 			: 0
 	return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0
+}
+
+function isPromptNodeData(data: unknown): boolean {
+	return data?.type === 'text' || (data?.type === 'file' && /\.md$/i.test(data.file || ''))
 }
 
 function getFileExtension(filePath: string, fallback: string): string {

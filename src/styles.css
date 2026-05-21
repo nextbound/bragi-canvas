@@ -131,7 +131,12 @@ g:hover > .canvas-display-path {
 .bragi-canvas-menu .bragi-gen-text,
 .bragi-canvas-menu .bragi-gen-audio,
 .bragi-canvas-menu .bragi-stt,
-.bragi-canvas-menu .bragi-isolate { order: 1; }
+.bragi-canvas-menu .bragi-isolate,
+.bragi-canvas-menu .bragi-annotate-box,
+.bragi-canvas-menu .bragi-annotate-label,
+.bragi-canvas-menu .bragi-annotate-mosaic,
+.bragi-canvas-menu .bragi-cutout,
+.bragi-canvas-menu .bragi-compose-reference { order: 1; }
 
 .bragi-canvas-menu .bragi-more { order: 99; }
 
@@ -148,6 +153,12 @@ g:hover > .canvas-display-path {
 	order: 3;
 	color: var(--text-normal);
 	--icon-size: 20px;
+}
+
+.bragi-canvas-menu .bragi-annotate-label {
+	font-weight: 700;
+	font-size: 13px;
+	line-height: 1;
 }
 
 .theme-dark .bragi-canvas-menu .clickable-icon {

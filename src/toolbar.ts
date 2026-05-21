@@ -2,6 +2,7 @@
 import { setIcon, setTooltip, Notice, App, Modal } from 'obsidian'
 import { around } from 'monkey-around'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
+import { createPresetSlot } from './canvas-slots'
 
 /**
  * Download a media file from the vault to the user's local filesystem.
@@ -112,6 +113,18 @@ type CanvasDataLike = {
 	bragiAssetId?: string
 	bragiGenerating?: boolean
 	ovidGenerating?: boolean
+}
+
+type ImageAnnotationTool = 'box' | 'label' | 'mosaic'
+
+export type HardBindToolbarActions = {
+	getActiveCanvas: () => Canvas | null
+	openPanel: (type: 'image' | 'video' | 'text' | 'audio', node: CanvasNode) => void
+	handleSTT?: (node: CanvasNode) => void
+	handleAudioIsolation?: (node: CanvasNode) => void
+	openAnnotation?: (node: CanvasNode, tool: ImageAnnotationTool) => void
+	openCutout?: (node: CanvasNode) => void
+	openReferenceCompose?: (node: CanvasNode) => void
 }
 
 function getButtonLabel(el: HTMLElement): string {
@@ -246,7 +259,7 @@ function addMoreButton(menuEl: HTMLElement): void {
 function clearMenuInjection(menuEl: HTMLElement): void {
 	closeBragiDropdown()
 	menuEl
-		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-more, .bragi-actions-separator')
+		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-annotate-box, .bragi-annotate-label, .bragi-annotate-mosaic, .bragi-cutout, .bragi-compose-reference, .bragi-more, .bragi-actions-separator')
 		.forEach((el) => el.remove())
 
 	for (const btn of getNativeMenuButtons(menuEl)) {
@@ -420,6 +433,9 @@ export function patchCanvasMenu(
 	onBatchGenerate?: (type: 'image' | 'video' | 'text' | 'audio', nodes: CanvasNode[]) => void,
 	onPanorama?: (node: CanvasNode) => void,
 	onGridSplit?: (node: CanvasNode) => void,
+	onAnnotateImage?: (node: CanvasNode, tool: ImageAnnotationTool) => void,
+	onCutoutImage?: (node: CanvasNode) => void,
+	onComposeReference?: (node: CanvasNode) => void,
 ): void {
 	if (menuUninstaller) return
 
@@ -547,6 +563,35 @@ export function patchCanvasMenu(
 						onPanorama(selectedNode)
 					})
 					menuEl.appendChild(panoBtn)
+				}
+				if (onAnnotateImage) {
+					const boxBtn = createMenuButton('bragi-annotate-box', 'box', 'Annotate with box', () => {
+						onAnnotateImage(selectedNode, 'box')
+					})
+					menuEl.appendChild(boxBtn)
+
+					const labelBtn = createMenuButton('bragi-annotate-label', 'badge', 'Add numbered marker', () => {
+						onAnnotateImage(selectedNode, 'label')
+					})
+					labelBtn.textContent = '1'
+					menuEl.appendChild(labelBtn)
+
+					const mosaicBtn = createMenuButton('bragi-annotate-mosaic', 'grid', 'Mosaic brush', () => {
+						onAnnotateImage(selectedNode, 'mosaic')
+					})
+					menuEl.appendChild(mosaicBtn)
+				}
+				if (onCutoutImage) {
+					const cutoutBtn = createMenuButton('bragi-cutout', 'scissors', 'Scene/material cutout', () => {
+						onCutoutImage(selectedNode)
+					})
+					menuEl.appendChild(cutoutBtn)
+				}
+				if (onComposeReference) {
+					const composeBtn = createMenuButton('bragi-compose-reference', 'layers', 'Compose reference image', () => {
+						onComposeReference(selectedNode)
+					})
+					menuEl.appendChild(composeBtn)
 				}
 				createMarkButton(menuEl, canvas, selectedNodes)
 				const downloadBtn = createMenuButton('bragi-download', 'bragi-download', 'Download', () => {
@@ -754,6 +799,10 @@ export function replaceCanvasCardMenuIcons(containerEl: HTMLElement, app?: App, 
 	sep.className = 'bragi-card-separator'
 	menu.appendChild(sep)
 
+	menu.appendChild(makeBtn('box', 'Add preset slot', () => {
+		createPresetSlot(app)
+	}))
+
 	menu.appendChild(makeBtn('bragi-card-export', 'Export canvas as .bragi package', () => {
 		(app as unknown).commands.executeCommandById('bragi-canvas:bragi-export-canvas')
 	}))
@@ -803,6 +852,126 @@ class BragiImportChoiceModal extends Modal {
 	}
 }
 
+let hardBindTimer: ReturnType<typeof window.setInterval> | null = null
+let hardBindObserver: MutationObserver | null = null
+
+export function startHardBindToolbar(actions: HardBindToolbarActions): () => void {
+	stopHardBindToolbar()
+	const ensure = () => ensureHardBindToolbar(actions)
+	hardBindTimer = window.setInterval(ensure, 250)
+	if (typeof MutationObserver !== 'undefined' && activeDocument.body) {
+		hardBindObserver = new MutationObserver(ensure)
+		hardBindObserver.observe(activeDocument.body, { childList: true, subtree: true })
+	}
+	ensure()
+	return stopHardBindToolbar
+}
+
+export function stopHardBindToolbar(): void {
+	if (hardBindTimer) {
+		window.clearInterval(hardBindTimer)
+		hardBindTimer = null
+	}
+	if (hardBindObserver) {
+		hardBindObserver.disconnect()
+		hardBindObserver = null
+	}
+}
+
+function ensureHardBindToolbar(actions: HardBindToolbarActions): void {
+	try {
+		const canvas = actions.getActiveCanvas()
+		if (!canvas?.selection || canvas.selection.size !== 1) return
+		const menu = getVisibleCanvasMenu()
+		if (!menu) return
+
+		const selected = Array.from(canvas.selection)[0]
+		if (!hasCanvasData(selected)) return
+		const data = selected.getData() as CanvasDataLike
+		const filePath = data.file || ''
+		const isTextNode = data.type === 'text'
+		const isNoteNode = data.type === 'file' && /\.md$/i.test(filePath)
+		const isImageNode = data.type === 'file' && /\.(png|jpg|jpeg|webp|gif)$/i.test(filePath)
+		const isAudioNode = data.type === 'file' && /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(filePath)
+
+		if (!isTextNode && !isNoteNode && !isImageNode && !isAudioNode) return
+		menu.classList.add('bragi-canvas-menu', 'bragi-hard-bound')
+
+		if (isTextNode || isNoteNode || isImageNode) {
+			addHardBindButton(menu, 'bragi-gen-image', 'bragi-gen-image', 'Generate image', () => {
+				actions.openPanel('image', selected)
+			})
+			addHardBindButton(menu, 'bragi-gen-video', 'bragi-gen-video', 'Generate video', () => {
+				actions.openPanel('video', selected)
+			})
+			addHardBindButton(menu, 'bragi-gen-text', 'bragi-gen-text', 'Generate text', () => {
+				actions.openPanel('text', selected)
+			})
+			addHardBindButton(menu, 'bragi-gen-audio', 'bragi-gen-audio', 'Generate audio', () => {
+				actions.openPanel('audio', selected)
+			})
+		}
+
+		if (isImageNode) {
+			addHardBindButton(menu, 'bragi-annotate-box', 'box', 'Annotate with box', () => {
+				actions.openAnnotation?.(selected, 'box')
+			})
+			addHardBindButton(menu, 'bragi-annotate-label', '1', 'Add numbered marker', () => {
+				actions.openAnnotation?.(selected, 'label')
+			})
+			addHardBindButton(menu, 'bragi-annotate-mosaic', 'grid', 'Mosaic brush', () => {
+				actions.openAnnotation?.(selected, 'mosaic')
+			})
+			addHardBindButton(menu, 'bragi-cutout', 'scissors', 'Scene/material cutout', () => {
+				actions.openCutout?.(selected)
+			})
+			addHardBindButton(menu, 'bragi-compose-reference', 'layers', 'Compose reference image', () => {
+				actions.openReferenceCompose?.(selected)
+			})
+		}
+
+		if (isAudioNode) {
+			addHardBindButton(menu, 'bragi-stt', 'bragi-stt', 'Speech to text', () => {
+				actions.handleSTT?.(selected)
+			})
+			addHardBindButton(menu, 'bragi-isolate', 'bragi-isolate', 'Isolate audio', () => {
+				actions.handleAudioIsolation?.(selected)
+			})
+		}
+	} catch (err) {
+		console.error('Bragi: hard toolbar bind failed', err)
+	}
+}
+
+function getVisibleCanvasMenu(): HTMLElement | null {
+	const menus = activeDocument.querySelectorAll('.canvas-menu')
+	for (const menu of Array.from(menus)) {
+		const rect = menu.getBoundingClientRect()
+		if (rect.width > 40 && rect.height > 20) return menu as HTMLElement
+	}
+	return null
+}
+
+function addHardBindButton(
+	menu: HTMLElement,
+	className: string,
+	iconName: string,
+	tooltip: string,
+	onClick: () => void,
+): void {
+	if (menu.querySelector(`.${className}`)) return
+	const button = createDiv()
+	button.className = `clickable-icon ${className} bragi-menu-injected bragi-hard-bound-action`
+	if (iconName === '1') button.textContent = '1'
+	else setIcon(button, iconName)
+	setTooltip(button, tooltip, { placement: 'top' })
+	button.addEventListener('click', (event) => {
+		event.stopPropagation()
+		onClick()
+	})
+	menu.insertBefore(button, menu.firstChild)
+}
+
 export function unpatchCanvasMenu(): void {
 	if (menuUninstaller) {
 		menuUninstaller()
@@ -811,7 +980,8 @@ export function unpatchCanvasMenu(): void {
 }
 
 export function removeToolbarButtons(): void {
-	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-more').forEach(el => {
+	stopHardBindToolbar()
+	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-annotate-box, .bragi-annotate-label, .bragi-annotate-mosaic, .bragi-cutout, .bragi-compose-reference, .bragi-more').forEach(el => {
 		if (el.previousElementSibling?.classList.contains('canvas-menu-separator')) {
 			el.previousElementSibling.remove()
 		}

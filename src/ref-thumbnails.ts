@@ -2,6 +2,7 @@
 import type { App } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { getUpstreamInputs } from './edge-parser'
+import { getIncomingAutoSlots } from './canvas-slots'
 
 const STRIP_CLASS = 'bragi-ref-strip'
 const NODE_HAS_REFS_CLASS = 'bragi-has-refs'
@@ -18,7 +19,13 @@ let isDragging = false
  */
 export function getOrderedImages(canvas: Canvas, node: CanvasNode): string[] {
 	const upstream = getUpstreamInputs(canvas, node)
-	const uniqueImages = [...new Set(upstream.images)]
+	const slots = getIncomingAutoSlots(canvas, node)
+	const slotFiles = new Set(slots.flatMap(slot => slot.files))
+	const directImages = upstream.images.filter(path => !slotFiles.has(path))
+	const slotPreviewImages = slots
+		.map(slot => slot.files[0])
+		.filter((path): path is string => Boolean(path))
+	const uniqueImages = [...new Set([...directImages, ...slotPreviewImages])]
 
 	const nodeData = node.getData() as unknown
 	const savedOrder: string[] | undefined = nodeData.bragiImageOrder || nodeData.ovidImageOrder

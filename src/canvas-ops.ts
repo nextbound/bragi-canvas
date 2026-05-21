@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { Canvas, CanvasNode } from './types/canvas-internal'
+import { findAutoSlotForSource, getAutoSlotPlacement, getAutoSlotTargets } from './canvas-slots'
 
 /**
  * Get canvas from a known node
@@ -342,15 +343,20 @@ export function replacePlaceholderWithFile(
 	placeholder: CanvasNode,
 	filePath: string,
 	sourceNode: CanvasNode
-): void {
+): CanvasNode | null {
 	// Reuse the placeholder's exact position AND size — it was sized to match the
 	// output when we created it, so there's no reason to reflow now. This avoids
 	// a second collision-avoidance pass that used to shove the node around.
 	const pd = placeholder.getData() as unknown
-	const x = placeholder.x ?? pd.x
-	const y = placeholder.y ?? pd.y
-	const width = pd.width ?? 400
-	const height = pd.height ?? 300
+	const slot = findAutoSlotForSource(canvas, sourceNode)
+	const placement = slot
+		? getAutoSlotPlacement(canvas, slot, { width: pd.width ?? 400, height: pd.height ?? 300 })
+		: {
+			x: placeholder.x ?? pd.x,
+			y: placeholder.y ?? pd.y,
+			width: pd.width ?? 400,
+			height: pd.height ?? 300,
+		}
 
 	// Clean up overlay + ticker before the node disappears
 	detachGeneratingOverlay(placeholder.id, placeholder.nodeEl || placeholder.containerEl)
@@ -366,10 +372,10 @@ export function replacePlaceholderWithFile(
 		id: nodeId,
 		type: 'file' as const,
 		file: filePath,
-		x,
-		y,
-		width,
-		height,
+		x: placement.x,
+		y: placement.y,
+		width: placement.width,
+		height: placement.height,
 		color: '',
 	}
 
@@ -382,12 +388,24 @@ export function replacePlaceholderWithFile(
 		toEnd: 'none',
 	}
 
+	const slotEdges = slot
+		? getAutoSlotTargets(canvas, slot).map(target => ({
+			id: generateId(),
+			fromNode: nodeId,
+			fromSide: 'right',
+			toNode: target.id,
+			toSide: 'left',
+			toEnd: 'arrow',
+		}))
+		: []
+
 	canvas.importData({
 		nodes: [...currentData.nodes, newNode],
-		edges: [...currentData.edges, newEdge],
+		edges: [...currentData.edges, newEdge, ...slotEdges],
 	})
 
 	void canvas.requestSave()
+	return canvas.nodes instanceof Map ? canvas.nodes.get(nodeId) || null : null
 }
 
 /**
