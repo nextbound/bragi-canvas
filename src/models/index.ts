@@ -6,7 +6,7 @@ import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
-import { gpt55, gpt55Pro, gemini31Pro, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
+import { gpt55, gpt55Pro, gemini31Pro, gemini35Flash, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
 import { lumaUni1 } from './luma'
@@ -47,6 +47,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	// Text
 	claudeOpus47,
 	claudeSonnet46,
+	gemini35Flash,
 	gemini3Flash,
 	gemini31Pro,
 	grok43,

@@ -450,7 +450,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		{
 			category: 'Generation',
 			name: 'get_upstream',
-			description: 'Get upstream inputs (text prompts, reference images, reference videos) connected to a node via arrows',
+			description: 'Get upstream inputs (text prompts, reference images, reference videos, audio files, and PDFs) connected to a node via arrows',
 			inputSchema: { id: z.string().describe('Target node ID') },
 			handler: ({ id }) => {
 				const canvas = requireCanvas(getCanvas)
@@ -462,6 +462,8 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					prompts: upstream.prompts,
 					images: orderedImages,
 					videos: upstream.videos,
+					audios: upstream.audios,
+					pdfs: upstream.pdfs,
 					textRefs: textRefs.map(r => ({ nodeId: r.nodeId, preview: r.preview, kind: r.kind, mdPath: r.mdPath })),
 				})
 			},

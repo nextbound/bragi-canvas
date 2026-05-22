@@ -38,6 +38,18 @@ export const gemini31Pro: ModelConfig = {
 	params: [],
 }
 
+export const gemini35Flash: ModelConfig = {
+	id: 'gemini-3.5-flash',
+	name: 'Gemini 3.5 Flash',
+	type: 'text',
+	supportedProviders: {
+		gemini: { apiModelId: 'gemini-3.5-flash' },
+		tokenrouter: { apiModelId: 'google/gemini-3.5-flash' },
+	},
+	modes: ['text-to-text'],
+	params: [],
+}
+
 export const gemini3Flash: ModelConfig = {
 	id: 'gemini-3-flash',
 	name: 'Gemini 3 Flash',

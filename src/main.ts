@@ -336,8 +336,9 @@ export default class BragiCanvas extends Plugin {
 		const placeholder = createPlaceholderNode(canvas, model.name, node, targetSize)
 		// Register as in-flight so the ghost sweeper doesn't flag it on reloads.
 		this.syncGenerating.add(placeholder.id)
-		const inputInfo = upstream.images.length > 0
-			? ` with ${upstream.images.length} reference${upstream.images.length > 1 ? 's' : ''}`
+		const inputRefCount = upstream.images.length + upstream.videos.length + upstream.audios.length + upstream.pdfs.length
+		const inputInfo = inputRefCount > 0
+			? ` with ${inputRefCount} reference${inputRefCount > 1 ? 's' : ''}`
 			: ''
 		new Notice(`Generating ${model.name}${inputInfo}…`)
 
@@ -373,13 +374,15 @@ export default class BragiCanvas extends Plugin {
 			// Read reference images in user-defined order (from thumbnail drag)
 			const uniqueImages = getOrderedImages(canvas, node)
 			const uniqueVideos = [...new Set(upstream.videos)]
+			const uniqueAudios = [...new Set(upstream.audios)]
+			const uniquePdfs = [...new Set(upstream.pdfs)]
 			// Only native Volcengine / BytePlus Seedance can consume asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
 			const supportsSeedanceRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
 			const assetIdMap = isNativeSeedance ? getAssetIds(canvas, node) : {}
 			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
-			const bytePlusCreds = (activeProvider === 'byteplus' && isNativeSeedance && (uniqueImages.length > 0 || upstream.audios.length > 0 || uniqueVideos.length > 0))
+			const bytePlusCreds = (activeProvider === 'byteplus' && isNativeSeedance && (uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0))
 				? getBytePlusAssetCreds(this)
 				: null
 			const refImages: string[] = []
@@ -400,11 +403,15 @@ export default class BragiCanvas extends Plugin {
 
 			// Upload reference audios for Seedance
 			const refAudios: string[] = []
-			if (supportsSeedanceRefs && upstream.audios.length > 0) {
-				if (upstream.audios.length > 3) {
+			if (model.type === 'text' && uniqueAudios.length > 0) {
+				for (const audioPath of uniqueAudios) {
+					refAudios.push(await readVaultFileAsDataUri(this, audioPath, audioMimeType(audioPath)))
+				}
+			} else if (supportsSeedanceRefs && uniqueAudios.length > 0) {
+				if (uniqueAudios.length > 3) {
 					throw new Error('Seedance supports up to 3 reference audio files.')
 				}
-				for (const audioPath of upstream.audios) {
+				for (const audioPath of uniqueAudios) {
 					if (bytePlusCreds) {
 						// Route audio through asset library for content review
 						refAudios.push(await ensureBytePlusAsset(this, canvas, audioPath, bytePlusCreds))
@@ -422,14 +429,8 @@ export default class BragiCanvas extends Plugin {
 			// BytePlus Seedance videos must go through asset:// so face-containing clips are reviewed first.
 			const refVideos: string[] = []
 			if (model.type === 'text' && uniqueVideos.length > 0) {
-				if (!textProviderSupportsVideoRefs(activeProvider)) {
-					throw new Error('Video references for text generation are currently supported only with Google Gemini.')
-				}
 				for (const videoPath of uniqueVideos) {
-					const binary = await this.app.vault.adapter.readBinary(videoPath)
-					const ext = getFileExtension(videoPath, 'mp4')
-					const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, videoMimeType(videoPath))
-					refVideos.push(videoUrl)
+					refVideos.push(await readVaultFileAsDataUri(this, videoPath, videoMimeType(videoPath)))
 				}
 			} else if (model.type === 'video' && uniqueVideos.length > 0) {
 				if (mode === 'video-ref' && !supportsSeedanceRefs) {
@@ -454,6 +455,17 @@ export default class BragiCanvas extends Plugin {
 						}
 					}
 				}
+			}
+
+			const refPdfs: string[] = []
+			if (model.type === 'text' && uniquePdfs.length > 0) {
+				for (const pdfPath of uniquePdfs) {
+					refPdfs.push(await readVaultFileAsDataUri(this, pdfPath, 'application/pdf'))
+				}
+			}
+
+			if (model.type === 'text' && (refVideos.length > 0 || refAudios.length > 0 || refPdfs.length > 0) && !textProviderSupportsFileRefs(activeProvider)) {
+				throw new Error('Video, audio, and PDF references for text generation are currently supported only with Google Gemini or TokenRouter.')
 			}
 
 			if (model.type === 'image') {
@@ -515,7 +527,7 @@ export default class BragiCanvas extends Plugin {
 					markNodeFailed(placeholder, `${activeProvider} doesn't support text generation`)
 					return
 				}
-				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages, refVideos })
+				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages, refVideos, refAudios, refPdfs })
 
 				// Split result into multiple nodes if ---SPLIT--- is present
 				canvas.removeNode(placeholder)
@@ -1159,8 +1171,13 @@ function videoMimeType(filePath: string): string {
 	return 'video/mp4'
 }
 
-function textProviderSupportsVideoRefs(activeProvider: string): boolean {
-	return activeProvider === 'gemini'
+async function readVaultFileAsDataUri(plugin: BragiCanvas, filePath: string, mimeType: string): Promise<string> {
+	const binary = await plugin.app.vault.adapter.readBinary(filePath)
+	return `data:${mimeType};base64,${arrayBufferToBase64(binary)}`
+}
+
+function textProviderSupportsFileRefs(activeProvider: string): boolean {
+	return activeProvider === 'gemini' || activeProvider === 'tokenrouter'
 }
 
 /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */

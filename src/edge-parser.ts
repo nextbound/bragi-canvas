@@ -7,6 +7,7 @@ export interface UpstreamInputs {
 	images: string[]         // vault-relative file paths of upstream images
 	videos: string[]         // vault-relative file paths of upstream videos
 	audios: string[]         // vault-relative file paths of upstream audio files
+	pdfs: string[]           // vault-relative file paths of upstream PDF files
 }
 
 /**
@@ -19,6 +20,7 @@ export function getUpstreamInputs(canvas: Canvas, node: CanvasNode): UpstreamInp
 		images: [],
 		videos: [],
 		audios: [],
+		pdfs: [],
 	}
 
 	const edges = canvas.getEdgesForNode(node)
@@ -51,6 +53,8 @@ export function getUpstreamInputs(canvas: Canvas, node: CanvasNode): UpstreamInp
 				// Note node — will need to read file content later (async)
 				// For now, store the path; caller resolves it
 				result.prompts.push(`__md__:${filePath}`)
+			} else if (/\.pdf$/i.test(filePath)) {
+				result.pdfs.push(filePath)
 			} else if (/\.(png|jpg|jpeg|webp|gif)$/i.test(filePath)) {
 				result.images.push(filePath)
 			} else if (/\.(mp4|mov|webm)$/i.test(filePath)) {

@@ -51,6 +51,52 @@ function videoMimeTypeFromRef(ref: string): string {
 	return 'video/mp4'
 }
 
+function audioMimeTypeFromRef(ref: string): string {
+	const path = ref.split(/[?#]/)[0].toLowerCase()
+	if (path.endsWith('.wav')) return 'audio/wav'
+	if (path.endsWith('.m4a') || path.endsWith('.mp4')) return 'audio/mp4'
+	if (path.endsWith('.aac')) return 'audio/aac'
+	if (path.endsWith('.flac')) return 'audio/flac'
+	if (path.endsWith('.ogg')) return 'audio/ogg'
+	if (path.endsWith('.opus')) return 'audio/opus'
+	return 'audio/mpeg'
+}
+
+function extensionForMime(mimeType: string): string {
+	if (mimeType === 'application/pdf') return 'pdf'
+	if (mimeType.includes('quicktime')) return 'mov'
+	if (mimeType.includes('webm')) return 'webm'
+	if (mimeType.includes('wav')) return 'wav'
+	if (mimeType.includes('mp4')) return 'mp4'
+	if (mimeType.includes('aac')) return 'aac'
+	if (mimeType.includes('flac')) return 'flac'
+	if (mimeType.includes('ogg')) return 'ogg'
+	if (mimeType.includes('opus')) return 'opus'
+	if (mimeType.includes('mpeg')) return 'mp3'
+	return 'bin'
+}
+
+function parseDataUri(dataUri: string): { mimeType: string; data: string } | null {
+	const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
+	if (!match) return null
+	return { mimeType: match[1], data: match[2] }
+}
+
+function dataUriToBytes(dataUri: string): { mimeType: string; bytes: Uint8Array } | null {
+	const parsed = parseDataUri(dataUri)
+	if (!parsed) return null
+	return {
+		mimeType: parsed.mimeType,
+		bytes: Uint8Array.from(atob(parsed.data), c => c.charCodeAt(0)),
+	}
+}
+
+function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	const out = new Uint8Array(bytes.byteLength)
+	out.set(bytes)
+	return out.buffer
+}
+
 function extractOpenAIChatText(data: unknown): string {
 	const choices = asArray(asRecord(unwrapDataEnvelope(data))?.choices)
 	const message = asRecord(asRecord(choices[0])?.message)
@@ -297,29 +343,31 @@ export class GeminiTextProvider implements TextGenProvider {
 		const modelId = stringParam(params?.modelId, 'gemini-2.5-flash')
 		const refImages = Array.isArray(params?.refImages) ? params.refImages.filter((ref): ref is string => typeof ref === 'string') : []
 		const refVideos = Array.isArray(params?.refVideos) ? params.refVideos.filter((ref): ref is string => typeof ref === 'string') : []
+		const refAudios = Array.isArray(params?.refAudios) ? params.refAudios.filter((ref): ref is string => typeof ref === 'string') : []
+		const refPdfs = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((ref): ref is string => typeof ref === 'string') : []
 
 		// Build parts: media first, then text
 		const parts: unknown[] = []
 
 		for (const dataUri of refImages) {
-			const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
-			if (match) {
+			const parsed = parseDataUri(dataUri)
+			if (parsed) {
 				parts.push({
-					inlineData: { mimeType: match[1], data: match[2] },
+					inlineData: { mimeType: parsed.mimeType, data: parsed.data },
 				})
 			}
 		}
 		for (const ref of refVideos) {
-			const match = ref.match(/^data:([^;]+);base64,(.+)$/)
-			if (match) {
-				parts.push({
-					inlineData: { mimeType: match[1], data: match[2] },
-				})
-			} else {
-				parts.push({
-					fileData: { mimeType: videoMimeTypeFromRef(ref), fileUri: ref },
-				})
-			}
+			const file = await this.fileDataPart(ref, videoMimeTypeFromRef(ref), 'video')
+			parts.push({ fileData: file })
+		}
+		for (const ref of refAudios) {
+			const file = await this.fileDataPart(ref, audioMimeTypeFromRef(ref), 'audio')
+			parts.push({ fileData: file })
+		}
+		for (const ref of refPdfs) {
+			const file = await this.fileDataPart(ref, 'application/pdf', 'document')
+			parts.push({ fileData: file })
 		}
 
 		parts.push({ text: prompt })
@@ -333,22 +381,33 @@ export class GeminiTextProvider implements TextGenProvider {
 				'Content-Type': 'application/json',
 				'x-goog-api-key': this.apiKey,
 			},
+			throw: false,
 			body: JSON.stringify({
 				systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
 				contents: [{ parts }],
 			}),
 		})
 
+		if (response.status >= 400) throw new Error(parseProviderError('Gemini text', response))
 		const data = response.json
-		const text = data.candidates?.[0]?.content?.parts
-			?.filter((p: unknown) => p.text)
-			?.map((p: unknown) => p.text)
+		const text = asArray(asRecord(asRecord(asArray(asRecord(data)?.candidates)[0])?.content)?.parts)
+			.map(part => asRecord(part))
+			.filter(Boolean)
+			.filter(part => part?.text)
+			.map(part => stringParam(part?.text, ''))
 			?.join('\n')
 			?.trim()
 
 		if (!text) throw new Error('Gemini: No text in response')
 
 		return { text }
+	}
+
+	private async fileDataPart(ref: string, fallbackMimeType: string, label: string): Promise<{ mimeType: string; fileUri: string }> {
+		const decoded = dataUriToBytes(ref)
+		if (!decoded) return { mimeType: fallbackMimeType, fileUri: ref }
+		const fileUri = await uploadRef(undefined, copyToArrayBuffer(decoded.bytes), `${label}.${extensionForMime(decoded.mimeType)}`, decoded.mimeType)
+		return { mimeType: decoded.mimeType, fileUri }
 	}
 }
 

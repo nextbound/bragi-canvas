@@ -51,14 +51,31 @@ function isHttpUrl(value: string): boolean {
 	return /^https?:\/\//i.test(value)
 }
 
-function dataUriToBytes(dataUri: string): { bytes: Uint8Array; ext: string } | null {
+function extensionForMime(mimeType: string): string {
+	if (mimeType === 'application/pdf') return 'pdf'
+	if (mimeType.includes('webp')) return 'webp'
+	if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'jpg'
+	if (mimeType.includes('png')) return 'png'
+	if (mimeType.includes('quicktime')) return 'mov'
+	if (mimeType.includes('webm')) return 'webm'
+	if (mimeType.includes('wav')) return 'wav'
+	if (mimeType.includes('mp4')) return 'mp4'
+	if (mimeType.includes('aac')) return 'aac'
+	if (mimeType.includes('flac')) return 'flac'
+	if (mimeType.includes('ogg')) return 'ogg'
+	if (mimeType.includes('opus')) return 'opus'
+	if (mimeType.includes('mpeg')) return 'mp3'
+	return 'bin'
+}
+
+function dataUriToBytes(dataUri: string): { bytes: Uint8Array; ext: string; mimeType: string } | null {
 	const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 	if (!match) return null
 	const mime = match[1]
-	const ext = mime.includes('webp') ? 'webp' : mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png'
 	return {
 		bytes: Uint8Array.from(atob(match[2]), c => c.charCodeAt(0)),
-		ext,
+		ext: extensionForMime(mime),
+		mimeType: mime,
 	}
 }
 
@@ -265,10 +282,22 @@ export class TokenRouterTextProvider implements TextGenProvider {
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = stringParam(params?.modelId, 'openai/gpt-5.5')
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos : []
+		const refAudios: string[] = Array.isArray(params?.refAudios) ? params.refAudios : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs : []
 		const content: unknown[] = []
 
 		for (const ref of refImages) {
 			content.push({ type: 'image_url', image_url: { url: ref } })
+		}
+		for (let i = 0; i < refVideos.length; i++) {
+			content.push(this.fileContentPart(refVideos[i], `video-${i + 1}`))
+		}
+		for (let i = 0; i < refAudios.length; i++) {
+			content.push(this.fileContentPart(refAudios[i], `audio-${i + 1}`))
+		}
+		for (let i = 0; i < refPdfs.length; i++) {
+			content.push(this.fileContentPart(refPdfs[i], `document-${i + 1}`))
 		}
 		content.push({ type: 'text', text: prompt })
 
@@ -294,6 +323,23 @@ export class TokenRouterTextProvider implements TextGenProvider {
 		const text = extractText(resp.json)
 		if (!text) throw new Error('TokenRouter: No text in response')
 		return { text }
+	}
+
+	private fileContentPart(ref: string, basename: string): unknown {
+		const decoded = dataUriToBytes(ref)
+		if (!decoded) {
+			return {
+				type: 'file',
+				file: { file_id: ref, filename: basename },
+			}
+		}
+		return {
+			type: 'file',
+			file: {
+				filename: `${basename}.${decoded.ext}`,
+				file_data: ref,
+			},
+		}
 	}
 }
 

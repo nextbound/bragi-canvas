@@ -50,7 +50,7 @@ You can also manually copy `manifest.json`, `main.js`, and `styles.css` from the
 4. Select a model and parameters in the generation bar.
 5. Run the generation. Bragi Canvas creates the output node near the source node and connects it back to the source.
 
-Incoming directed edges are treated as upstream references. Text nodes contribute prompt text, image nodes become image references, video nodes can be used for supported video workflows and Gemini text understanding, and audio nodes can be used for supported audio workflows.
+Incoming directed edges are treated as upstream references. Text nodes contribute prompt text, image nodes become image references, video nodes can be used for supported video workflows and Gemini text understanding, and audio or PDF nodes can be used by multimodal text models such as Gemini 3.5 Flash.
 
 ## MCP server
 
@@ -68,7 +68,7 @@ No provider API keys are bundled with the plugin or included in release assets.
 
 ## Network and data disclosure
 
-Bragi Canvas sends prompts and selected upstream reference files to the AI providers configured by the user when a generation is run. Some providers require publicly fetchable reference URLs; for those workflows, Bragi Canvas may upload temporary copies of selected reference files to the built-in Bragi Relay service so the provider can fetch them. Relay-hosted files are intended as temporary transfer files and are not used for client-side telemetry.
+Bragi Canvas sends prompts and selected upstream reference files to the AI providers configured by the user when a generation is run. Some providers require publicly fetchable reference URLs; for those workflows, Bragi Canvas may upload temporary copies of selected reference files to the built-in Bragi Relay service so the provider can fetch them. Gemini multimodal text generation uses inline image data, and sends upstream video, audio, and PDF refs through Bragi Relay as `fileData.fileUri` inputs. Relay-hosted files are intended as temporary transfer files and are not used for client-side telemetry.
 
 Importing and exporting `.bragi` workflow packages uses the file selected by the user in the desktop file picker. Imported package assets are written only into the vault at `_bragi/assets`; Bragi Canvas does not write plugin update files or modify its installed plugin files at runtime.
 
