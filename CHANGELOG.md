@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.14.3
+
+- Added APIMart GPT-5.5 text provider support.
+- Added Gemini 3.5 Flash text generation via Google Gemini and TokenRouter.
+- Added Gemini multimodal text references for upstream video, audio, and PDF inputs.
+- Split MCP tool registration into a dedicated registry module.
+- Fixed Gemini text errors so Google quota and API-key details surface clearly.
+- Bumped the plugin version to `1.14.3`.
+
 ## 1.14.2
 
 - Added APIMart support for Nano Banana Pro and Nano Banana 2.
