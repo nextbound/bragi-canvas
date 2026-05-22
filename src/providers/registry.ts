@@ -22,7 +22,7 @@ import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProv
 import { DashScopeAudioProvider } from './dashscope'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
-import { OpenAITextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider } from './text-gen'
+import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider } from './text-gen'
 import { requestUrl } from 'obsidian'
 
 export type ProviderKey = keyof BragiSettings['providers']
@@ -413,12 +413,14 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'apimart',
 		name: 'APIMart',
-		description: 'Image model gateway.',
-		docUrl: 'https://apimart.ai',
+		description: 'GPT text and GPT Image 2 gateway.',
+		docUrl: 'https://docs.apimart.ai/en/api-reference/texts/general/chat-completions-nostream',
 		fields: [{ key: 'apimart', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.apimart,
 		makeImage: ({ settings, app, outputDir }) =>
 			new APIMartProvider(settings.providers.apimart, app, outputDir),
+		makeText: ({ settings }) =>
+			new APIMartTextProvider(settings.providers.apimart, 'https://api.apimart.ai/v1'),
 		testConnection: (d) => testListModels('https://api.apimart.ai/v1/models', d.apimart || ''),
 	},
 	{

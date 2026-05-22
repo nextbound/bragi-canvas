@@ -7,6 +7,7 @@ export const gpt55: ModelConfig = {
 	supportedProviders: {
 		openai: { apiModelId: 'gpt-5.5' },
 		tokenrouter: { apiModelId: 'openai/gpt-5.5' },
+		apimart: { apiModelId: 'gpt-5.5' },
 	},
 	modes: ['text-to-text'],
 	params: [],
@@ -19,6 +20,7 @@ export const gpt55Pro: ModelConfig = {
 	supportedProviders: {
 		openai: { apiModelId: 'gpt-5.5-pro' },
 		tokenrouter: { apiModelId: 'openai/gpt-5.5-pro' },
+		apimart: { apiModelId: 'gpt-5.5-pro' },
 	},
 	modes: ['text-to-text'],
 	params: [],

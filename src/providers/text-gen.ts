@@ -2,6 +2,7 @@
 import { requestUrl } from 'obsidian'
 import { signRequest } from './sigv4'
 import { stringParam } from './params'
+import { uploadRef } from './upload'
 
 export interface TextGenResult {
 	text: string
@@ -21,6 +22,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asArray(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : []
+}
+
+function unwrapDataEnvelope(data: unknown): unknown {
+	const record = asRecord(data)
+	const inner = asRecord(record?.data)
+	return inner || data
 }
 
 function parseProviderError(provider: string, resp: { status: number; text?: string; json?: unknown }): string {
@@ -45,7 +52,7 @@ function videoMimeTypeFromRef(ref: string): string {
 }
 
 function extractOpenAIChatText(data: unknown): string {
-	const choices = asArray(asRecord(data)?.choices)
+	const choices = asArray(asRecord(unwrapDataEnvelope(data))?.choices)
 	const message = asRecord(asRecord(choices[0])?.message)
 	const content = message?.content
 	if (typeof content === 'string') return content.trim()
@@ -62,7 +69,8 @@ function extractOpenAIChatText(data: unknown): string {
 }
 
 function extractOpenAIResponsesText(data: unknown): string {
-	const direct = stringParam(asRecord(data)?.output_text, '').trim()
+	const responseData = unwrapDataEnvelope(data)
+	const direct = stringParam(asRecord(responseData)?.output_text, '').trim()
 	if (direct) return direct
 
 	const chunks: string[] = []
@@ -82,12 +90,12 @@ function extractOpenAIResponsesText(data: unknown): string {
 		for (const key of ['output', 'content', 'message', 'data']) visit(record[key], depth + 1)
 	}
 
-	visit(data)
+	visit(responseData)
 	return chunks.join('\n').trim()
 }
 
 /**
- * OpenAI text generation (GPT-4o) with vision support.
+ * OpenAI-compatible text generation with vision support.
  */
 export class OpenAITextProvider implements TextGenProvider {
 	name = 'OpenAI'
@@ -169,6 +177,108 @@ export class OpenAITextProvider implements TextGenProvider {
 		const text = extractOpenAIResponsesText(response.json)
 		if (!text) throw new Error('GPT: No text in response')
 		return { text }
+	}
+}
+
+/**
+ * APIMart general chat API for GPT text models.
+ */
+export class APIMartTextProvider implements TextGenProvider {
+	name = 'APIMart'
+	private apiKey: string
+	private baseUrl: string
+
+	constructor(apiKey: string, baseUrl: string = 'https://api.apimart.ai/v1') {
+		this.apiKey = apiKey
+		this.baseUrl = baseUrl.replace(/\/$/, '')
+	}
+
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
+		const modelId = stringParam(params?.modelId, 'gpt-5.5')
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+
+		if (refImages.length > 0) return this.generateViaResponses(modelId, prompt, refImages)
+
+		return this.generateViaChat(modelId, prompt)
+	}
+
+	private responseFailed(response: { status: number; json?: unknown }): boolean {
+		if (response.status >= 400) return true
+		const code = asRecord(response.json)?.code
+		return typeof code === 'number' && code !== 0 && code !== 200
+	}
+
+	private async generateViaChat(modelId: string, prompt: string): Promise<TextGenResult> {
+		const content: unknown[] = []
+		content.push({ type: 'text', text: prompt })
+
+		const response = await requestUrl({
+			url: `${this.baseUrl}/chat/completions`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			throw: false,
+			body: JSON.stringify({
+				model: modelId,
+				messages: [
+					{ role: 'system', content: SYSTEM_PROMPT },
+					{ role: 'user', content },
+				],
+				max_tokens: 4096,
+				stream: false,
+			}),
+		})
+
+		if (this.responseFailed(response)) throw new Error(parseProviderError('APIMart text', response))
+
+		const text = extractOpenAIChatText(response.json)
+		if (!text) throw new Error('APIMart GPT: No text in response')
+		return { text }
+	}
+
+	private async generateViaResponses(modelId: string, prompt: string, refImages: string[]): Promise<TextGenResult> {
+		const content: unknown[] = []
+		content.push({ type: 'input_text', text: prompt })
+		for (const dataUri of refImages) {
+			content.push({ type: 'input_image', image_url: await this.ensureImageUrl(dataUri) })
+		}
+
+		const response = await requestUrl({
+			url: `${this.baseUrl}/responses`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			throw: false,
+			body: JSON.stringify({
+				model: modelId,
+				instructions: SYSTEM_PROMPT,
+				input: [{ role: 'user', content }],
+				max_tokens: 4096,
+			}),
+		})
+
+		if (this.responseFailed(response)) throw new Error(parseProviderError('APIMart responses', response))
+
+		const text = extractOpenAIResponsesText(response.json)
+		if (!text) throw new Error('APIMart GPT: No text in response')
+		return { text }
+	}
+
+	private async ensureImageUrl(ref: string): Promise<string> {
+		if (/^https?:\/\//i.test(ref)) return ref
+
+		const match = ref.match(/^data:([^;]+);base64,(.+)$/)
+		if (!match) return ref
+
+		const mime = match[1]
+		const b64 = match[2]
+		const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+		const ext = mime.includes('jpeg') ? 'jpg' : mime.includes('webp') ? 'webp' : mime.includes('gif') ? 'gif' : 'png'
+		return uploadRef(undefined, bytes.buffer, `ref.${ext}`, mime)
 	}
 }
 
