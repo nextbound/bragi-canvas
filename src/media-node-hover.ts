@@ -242,7 +242,11 @@ async function syncMediaNode(node: CanvasNode): Promise<void> {
 	}
 
 	nodeEl.classList.add(MEDIA_NODE_CLASS)
-	node.containerEl?.classList.add(MEDIA_CONTAINER_CLASS)
+	if (kind === 'image' || kind === 'video') {
+		node.containerEl?.classList.add(MEDIA_CONTAINER_CLASS)
+	} else {
+		node.containerEl?.classList.remove(MEDIA_CONTAINER_CLASS)
+	}
 
 	const extLabel = formatExtensionLabel(filePath)
 	const labelEl = getLabelEl(node as MediaNodeInternals)

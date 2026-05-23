@@ -2215,9 +2215,6 @@
 }
 
 .bragi-error-details-body {
-	display: block;
-	width: 100%;
-	min-height: 160px;
 	margin: 0;
 	padding: 12px;
 	border-radius: 8px;
@@ -2230,8 +2227,6 @@
 	word-break: break-word;
 	max-height: min(50vh, 360px);
 	overflow: auto;
-	resize: vertical;
-	user-select: text;
 }
 
 .bragi-modal input:focus,

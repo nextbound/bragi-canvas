@@ -17,17 +17,11 @@ export class ErrorDetailsModal extends Modal {
 		modalEl.classList.add('bragi-modal')
 		titleEl.setText('Error details')
 
-		const body = contentEl.createEl('textarea', { cls: 'bragi-error-details-body' })
-		body.value = this.errorMessage
-		body.readOnly = true
+		const body = contentEl.createEl('pre', { cls: 'bragi-error-details-body' })
+		body.textContent = this.errorMessage
 
 		const row = contentEl.createDiv({ cls: 'modal-button-container' })
-		const selectBtn = row.createEl('button', { text: 'Select all', cls: 'mod-cta' })
-		const closeBtn = row.createEl('button', { text: 'Close' })
-		selectBtn.addEventListener('click', () => {
-			body.focus()
-			body.select()
-		})
+		const closeBtn = row.createEl('button', { text: 'Close', cls: 'mod-cta' })
 		closeBtn.addEventListener('click', () => this.close())
 	}
 
