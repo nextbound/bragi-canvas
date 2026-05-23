@@ -35,6 +35,8 @@
 	--bragi-hover: rgba(0, 0, 0, 0.05);
 	--bragi-active: rgba(0, 0, 0, 0.08);
 	--bragi-edge-default: #d4d4d4; /* neutral-300 — one step above canvas bg */
+	--bragi-media-label-size: 11px;
+	--bragi-media-label-hover: #525252; /* neutral-600 — lighter than selected text */
 	--bragi-danger: #e5484d;
 	--bragi-danger-text: #ffffff;
 	--bragi-canvas-bg: #f5f5f5; /* neutral-100 */
@@ -59,6 +61,7 @@
 	--bragi-hover: rgba(255, 255, 255, 0.06);
 	--bragi-active: rgba(255, 255, 255, 0.1);
 	--bragi-edge-default: #525252; /* neutral-600 on ~neutral-900 canvas */
+	--bragi-media-label-hover: #e0e0e0; /* neutral-200 — softer on dark canvas */
 	--bragi-danger: #e5484d;
 	--bragi-danger-text: #ffffff;
 	--bragi-canvas-bg: rgb(25, 25, 25); /* ~neutral-900 #191919 */
@@ -70,13 +73,42 @@
 
 .canvas-node-container {
 	box-shadow: none;
-	border-width: 1px;
+	border-width: 2px;
+	border-color: transparent;
 	border-radius: 12px;
 	box-sizing: content-box;
 }
 
 .theme-light .canvas-node-container {
-	border-color: var(--bragi-node-border);
+	border-color: transparent;
+}
+
+.canvas-node.is-themed .canvas-node-container,
+.is-themed .canvas-node-container {
+	border-color: rgb(var(--canvas-color));
+	box-shadow: none;
+}
+
+/* Selected / focused without custom color — accent ring */
+.is-selected:not(.is-themed) .canvas-node-container,
+.canvas-node.is-selected:not(.is-themed) .canvas-node-container,
+.canvas-node.is-focused:not(.is-themed) .canvas-node-container {
+	border-color: var(--color-accent);
+	box-shadow: none;
+}
+
+/* Selected / focused with custom color — keep user color, not accent */
+.is-selected.is-themed .canvas-node-container,
+.canvas-node.is-selected.is-themed .canvas-node-container,
+.canvas-node.is-focused.is-themed .canvas-node-container {
+	border-color: rgb(var(--canvas-color));
+	box-shadow: none;
+}
+
+.is-selected.is-themed.is-dragging .canvas-node-container,
+.canvas-node.is-selected.is-themed.is-dragging .canvas-node-container,
+.canvas-node.is-focused.is-themed.is-dragging .canvas-node-container {
+	box-shadow: none;
 }
 
 /* ── Generating node shimmer animation ──────────────────────────────── */
@@ -142,23 +174,89 @@
 }
 
 
-/* Image embed nodes: remove gap between image and rounded border */
-.canvas-node-content.image-embed {
-	padding: 0;
-	overflow: hidden;
+/* Image / video embed nodes: Obsidian gives .canvas-node-container a white
+   (--background-primary) background. With our transparent 2px border, that
+   background still paints under the border band → visible white ring around media. */
+.canvas-node-container:has(.canvas-node-content.image-embed),
+.canvas-node-container:has(.canvas-node-content.media-embed:not(.audio-embed)) {
+	background-color: transparent;
+	background-clip: padding-box;
 }
 
-.canvas-node-content.image-embed img {
+.canvas-node-content.image-embed,
+.canvas-node-content.media-embed:not(.audio-embed) {
+	padding: 0;
+	overflow: hidden;
+	background: transparent;
+}
+
+.canvas-node-content.image-embed img,
+.canvas-node-content.media-embed:not(.audio-embed) img,
+.canvas-node-content.media-embed.video-embed video {
 	display: block;
 	width: 100%;
 	height: 100%;
+	max-width: none;
 	object-fit: cover;
+}
+
+/* Audio embed nodes: Obsidian draws a border on WebKit's native player chrome */
+.canvas-node-content.media-embed audio {
+	border: none;
+	outline: none;
+}
+
+.canvas-node-content.media-embed audio::-webkit-media-controls-enclosure {
+	border: none;
+	background-color: transparent;
+}
+
+/* ── Media node hover: extension + meta labels, accent border ─────── */
+.canvas-node.bragi-media-node .canvas-node-label {
+	color: var(--bragi-edge-default);
+	font-size: var(--bragi-media-label-size);
+	line-height: 1.2;
+	font-weight: 400;
+	font-synthesis: none;
+}
+
+.canvas-node.bragi-media-node .bragi-media-meta-label {
+	left: auto;
+	right: 0;
+	transform-origin: bottom right;
+}
+
+/* Hover: show both labels — same neutral as default edge stroke */
+@media (hover: hover) {
+	.canvas-node.bragi-media-node:hover .canvas-node-label.mod-hover-label {
+		opacity: 1;
+	}
+
+	.canvas-node.bragi-media-node:hover .canvas-node-label,
+	.canvas-node.bragi-media-node .canvas-node-label:hover {
+		color: var(--bragi-media-label-hover);
+	}
+
+	.canvas-node.bragi-media-node:not(.is-themed):hover .canvas-node-container {
+		border-color: var(--color-accent);
+	}
+
+	.canvas-node.bragi-media-node.is-themed:hover .canvas-node-container {
+		border-color: rgb(var(--canvas-color));
+	}
+}
+
+/* Selected / focused: keep both labels visible — primary text (black / light) */
+.canvas-node.bragi-media-node.is-selected .canvas-node-label,
+.canvas-node.bragi-media-node.is-focused .canvas-node-label {
+	opacity: 1;
+	color: var(--bragi-text);
 }
 
 /* ── Bragi Canvas — Canvas Edge (connection lines) ──────────────────── */
 /*
- * Obsidian defaults: display path calc(2px→5.5px) on hover/focus, and a visible
- * halo on the 24px-wide interaction path. Bragi overrides both — color only.
+ * Default edges: --bragi-edge-default. User-set colors (mod-canvas-color-*):
+ * rgb(var(--canvas-color)) — preserved on hover, select, and node-connected.
  */
 
 .workspace-leaf-content[data-type='canvas'] .canvas-edges path.canvas-display-path {
@@ -173,15 +271,25 @@
 	fill: var(--bragi-edge-default) !important;
 }
 
+/* User-set edge color */
+.workspace-leaf-content[data-type='canvas'] .canvas-edges g[class*='mod-canvas-color-'] path.canvas-display-path {
+	stroke: rgb(var(--canvas-color)) !important;
+}
+
+.workspace-leaf-content[data-type='canvas'] .canvas-edges g[class*='mod-canvas-color-'] .canvas-path-end {
+	stroke: rgb(var(--canvas-color)) !important;
+	fill: rgb(var(--canvas-color)) !important;
+}
+
 .workspace-leaf-content[data-type='canvas'] .canvas-edges path.canvas-interaction-path {
 	stroke: transparent !important;
 	stroke-opacity: 0 !important;
 	transition: none !important;
 }
 
-/* Hover: accent at 55% opacity — skip edges already selected or node-connected */
-.workspace-leaf-content[data-type='canvas'] .canvas:not(.is-connecting) .canvas-edges g:not(.is-focused):not(.bragi-edge-connected):hover path.canvas-display-path,
-.workspace-leaf-content[data-type='canvas'] .bragi-edge-hovered:not(.is-focused):not(.bragi-edge-connected) path.canvas-display-path {
+/* Hover — accent for default edges only */
+.workspace-leaf-content[data-type='canvas'] .canvas:not(.is-connecting) .canvas-edges g:not(.is-focused):not(.bragi-edge-connected):not([class*='mod-canvas-color-']):hover path.canvas-display-path,
+.workspace-leaf-content[data-type='canvas'] .bragi-edge-hovered:not(.is-focused):not(.bragi-edge-connected):not([class*='mod-canvas-color-']) path.canvas-display-path {
 	stroke: hsla(var(--color-accent-hsl), 0.55) !important;
 	stroke-width: 2px !important;
 }
@@ -192,32 +300,32 @@
 	stroke-opacity: 0 !important;
 }
 
-/* Selected / focused / node-connected — full Obsidian accent */
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused path.canvas-display-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:hover path.canvas-display-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected path.canvas-display-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:hover path.canvas-display-path {
+/* Selected / node-connected — accent for default edges only */
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']) path.canvas-display-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']):hover path.canvas-display-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']) path.canvas-display-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']):hover path.canvas-display-path {
 	stroke: var(--color-accent) !important;
 	stroke-width: 2px !important;
 }
 
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused path.canvas-interaction-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:hover path.canvas-interaction-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected path.canvas-interaction-path,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:hover path.canvas-interaction-path {
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']) path.canvas-interaction-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']):hover path.canvas-interaction-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']) path.canvas-interaction-path,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']):hover path.canvas-interaction-path {
 	stroke: transparent !important;
 	stroke-opacity: 0 !important;
 }
 
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused .canvas-path-end,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:hover .canvas-path-end,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected .canvas-path-end,
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:hover .canvas-path-end {
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']) .canvas-path-end,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.is-focused:not([class*='mod-canvas-color-']):hover .canvas-path-end,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']) .canvas-path-end,
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-connected:not([class*='mod-canvas-color-']):hover .canvas-path-end {
 	stroke: var(--color-accent) !important;
 	fill: var(--color-accent) !important;
 }
 
-.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-hovered:not(.is-focused):not(.bragi-edge-connected) .canvas-path-end {
+.workspace-leaf-content[data-type='canvas'] svg.canvas-edges > g.bragi-edge-hovered:not(.is-focused):not(.bragi-edge-connected):not([class*='mod-canvas-color-']) .canvas-path-end {
 	stroke: hsla(var(--color-accent-hsl), 0.55) !important;
 	fill: hsla(var(--color-accent-hsl), 0.55) !important;
 }

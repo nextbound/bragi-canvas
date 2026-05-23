@@ -14,6 +14,7 @@ import { refreshAllThumbnails, removeAllThumbnails, getOrderedImages, getAssetId
 import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text-refs'
 import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
 import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
+import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
 import type { AudioProvider, VideoProvider } from './providers/types'
@@ -149,6 +150,7 @@ export default class BragiCanvas extends Plugin {
 		removeAllTextRefs()
 		removeAllAudioRefs()
 		stopEdgeHighlight()
+		stopMediaNodeHover()
 		this.taskQueue.stop()
 		stopGeneratingTicker()
 		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
@@ -247,6 +249,7 @@ export default class BragiCanvas extends Plugin {
 
 		// Highlight connected edges on node selection
 		startEdgeHighlight(canvas)
+		startMediaNodeHover(canvas, this.app)
 
 		// Replace right-side canvas control icons + bottom card menu icons
 		const containerEl = (view).containerEl as HTMLElement
