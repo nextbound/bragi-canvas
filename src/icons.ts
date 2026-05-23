@@ -37,6 +37,13 @@ export function registerBragiIcons(): void {
 		'<path d="M11.25 5.625H9C7.13604 5.625 5.625 7.13604 5.625 9V11.25M24.75 5.625H27C28.8639 5.625 30.375 7.13604 30.375 9V11.25M30.375 24.75V27C30.375 28.8639 28.8639 30.375 27 30.375H24.75M11.25 30.375H9C7.13604 30.375 5.625 28.8639 5.625 27V24.75M22.5 18C22.5 20.4854 20.4854 22.5 18 22.5C15.5146 22.5 13.5 20.4854 13.5 18C13.5 15.5146 15.5146 13.5 18 13.5C20.4854 13.5 22.5 15.5146 22.5 18Z" stroke="#161616" stroke-width="2" stroke-linejoin="round"/>'
 	))
 
+	// Error details — from errordetailicon.svg
+	addIcon('bragi-error-details', figmaIcon(
+		'<path d="M18 30C24.6274 30 30 24.6274 30 18C30 11.3726 24.6274 6 18 6C11.3726 6 6 11.3726 6 18C6 24.6274 11.3726 30 18 30Z" stroke="black" stroke-width="2" stroke-linejoin="round"/>' +
+		'<path d="M18 22.8V18" stroke="black" stroke-width="2" stroke-linejoin="round"/>' +
+		'<path d="M18 13.2H18.012" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+	))
+
 	// 04 — Edit (pencil)
 	addIcon('bragi-edit', figmaIcon(
 		'<path d="M5.67272 24.4638L4.5 31.5L11.5363 30.3273C12.7582 30.1237 13.8859 29.5434 14.7618 28.6674L30.6297 12.7993C31.7901 11.6388 31.7901 9.75735 30.6296 8.59689L27.403 5.37036C26.2425 4.20987 24.3609 4.20988 23.2003 5.3704L7.33262 21.2385C6.45671 22.1143 5.87636 23.242 5.67272 24.4638Z" stroke="#161616" stroke-width="2" stroke-linejoin="round"/>' +

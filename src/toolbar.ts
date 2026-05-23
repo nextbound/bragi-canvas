@@ -12,6 +12,7 @@ import {
 	type CanvasInteractionTool,
 } from './canvas-interaction-tool'
 import { queueSelectionMenuGapSync, resetToolbarPosition } from './node-toolbar-position'
+import { ErrorDetailsModal, getNodeErrorDetails } from './ui/error-details-modal'
 
 const CARD_MENU_TOOLTIP_OPTS = { placement: 'top' } as const
 
@@ -138,6 +139,7 @@ type CanvasDataLike = {
 	color?: string
 	bragiAssetId?: string
 	bragiGenerating?: boolean
+	bragiGenerationFailed?: boolean
 	ovidGenerating?: boolean
 }
 
@@ -551,11 +553,12 @@ export function patchCanvasMenu(
 			const isMediaNode = isImageNode || isVideoNode || isAudioNode
 			const isPromptNodeSelection = Boolean(nodeData && isPromptNode(nodeData))
 			const isGenerating = nodeData?.bragiGenerating === true || nodeData?.ovidGenerating === true
+			const isFailedPlaceholder = nodeData?.bragiGenerationFailed === true
 			const isEdgeMenu = !isPromptNodeSelection && !isMediaNode && Boolean(
 				findBuiltinByLabel(menuEl, 'arrow') || findBuiltinByLabel(menuEl, 'line direction'),
 			)
 
-			// Generating node: hide all menu items except focus/zoom
+			// Generating placeholder: hide all menu items except focus/zoom
 			if (isGenerating) {
 				const items = menuEl.querySelectorAll('.clickable-icon')
 				items.forEach((el) => {
@@ -564,10 +567,38 @@ export function patchCanvasMenu(
 						(el as HTMLElement).classList.add('bragi-hidden')
 					}
 				})
-				// Also hide separators
 				menuEl.querySelectorAll('.canvas-menu-separator').forEach((el) => {
 					(el as HTMLElement).classList.add('bragi-hidden')
 				})
+				next.call(this)
+				syncMenuGap()
+				return result
+			}
+
+			// Failed placeholder: focus + error details
+			if (isFailedPlaceholder && selectedNode) {
+				const items = menuEl.querySelectorAll('.clickable-icon')
+				items.forEach((el) => {
+					const label = getButtonLabel(el as HTMLElement)
+					if (!label.includes('zoom') && !label.includes('focus') && !label.includes('fit')) {
+						(el as HTMLElement).classList.add('bragi-hidden')
+					}
+				})
+				menuEl.querySelectorAll('.canvas-menu-separator').forEach((el) => {
+					(el as HTMLElement).classList.add('bragi-hidden')
+				})
+
+				const focusBtn = findFocusButton(menuEl)
+				const detailsBtn = createMenuButton(
+					'bragi-error-details',
+					'bragi-error-details',
+					'Error details',
+					() => {
+						new ErrorDetailsModal(selectedNode.app, getNodeErrorDetails(selectedNode)).open()
+					},
+				)
+				insertMenuButton(menuEl, detailsBtn, focusBtn)
+				reorderMenuButtons(menuEl, [focusBtn, detailsBtn])
 				next.call(this)
 				syncMenuGap()
 				return result

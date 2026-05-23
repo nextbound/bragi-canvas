@@ -10,6 +10,11 @@ import {
 } from './generating-overlay'
 import { clearIncomingRefAttachments } from './generating-node'
 import { stopSquare19Loader } from './dotm-square-19'
+import {
+	createFailedOverlay,
+	findFailedOverlay,
+	updateFailedOverlay,
+} from './failed-overlay'
 
 /**
  * Get canvas from a known node
@@ -298,6 +303,63 @@ export function sweepInterruptedPlaceholders(
 	return count
 }
 
+function attachFailedOverlay(node: CanvasNode, title: string, modelName?: string): void {
+	const nodeEl = node.nodeEl || node.containerEl
+	if (!nodeEl) return
+	clearIncomingRefAttachments(node)
+	let overlay = findFailedOverlay(nodeEl)
+	if (!overlay) {
+		nodeEl.querySelectorAll('.bragi-failed-overlay').forEach(el => el.remove())
+		overlay = createFailedOverlay(title, modelName)
+		nodeEl.appendChild(overlay.overlayEl)
+	} else {
+		updateFailedOverlay(overlay, title, modelName)
+	}
+}
+
+/** Apply failed / interrupted visual overlay; stores error in node data, not on canvas text. */
+export function styleFailedPlaceholder(node: CanvasNode, title: string, errorMsg?: string): void {
+	const d = node.getData() as Record<string, unknown>
+	const modelName = typeof d.bragiGenModelName === 'string' ? d.bragiGenModelName : ''
+	const rest = { ...d }
+	delete rest.ovidGenerating
+	delete rest.bragiGenerating
+	delete rest.bragiGenStartedAt
+	node.setData({
+		...rest,
+		color: '',
+		bragiGenerationFailed: true,
+		bragiGenFailureTitle: title,
+		bragiGenError: errorMsg ?? (typeof d.bragiGenError === 'string' ? d.bragiGenError : ''),
+		...(modelName ? { bragiGenModelName: modelName } : {}),
+	})
+	void node.setText('')
+	const nodeEl = node.nodeEl || node.containerEl
+	nodeEl?.classList.remove('bragi-generating')
+	nodeEl?.classList.add('bragi-generation-failed')
+	detachGeneratingOverlay(node.id, nodeEl)
+	attachFailedOverlay(node, title, modelName || undefined)
+}
+
+/** Reattach failed overlays after canvas reload; migrate legacy text-only failed nodes. */
+export function rehydrateFailedPlaceholders(canvas: Canvas): void {
+	for (const node of canvas.nodes.values()) {
+		const d = node.getData() as Record<string, unknown>
+		if (d.bragiGenerationFailed === true) {
+			const title = typeof d.bragiGenFailureTitle === 'string' ? d.bragiGenFailureTitle : 'Generation Failed'
+			const errorMsg = typeof d.bragiGenError === 'string' ? d.bragiGenError : undefined
+			styleFailedPlaceholder(node, title, errorMsg)
+			continue
+		}
+		const text = String(node.text || d.text || '').trim()
+		if (text.startsWith('Generation failed:')) {
+			styleFailedPlaceholder(node, 'Generation Failed', text.slice('Generation failed:'.length).trim())
+		} else if (text.startsWith('Generation interrupted:')) {
+			styleFailedPlaceholder(node, 'Generation Interrupted', text)
+		}
+	}
+}
+
 /**
  * Create a placeholder text node with edge from source (shown during generation).
  * Placement uses collision avoidance: we never put the placeholder on top of
@@ -423,46 +485,27 @@ export function replacePlaceholderWithFile(
 }
 
 /**
- * Mark a node as failed (red). Clears generating flags and overlay, writes the
- * error into the node's text so the user can read it after reloads.
+ * Mark a node as failed. Clears generating flags and overlay; stores the error
+ * in node metadata (not visible on the node — for a future details UI).
  */
 export function markNodeFailed(node: CanvasNode, errorMsg: string): void {
-	const d = node.getData() as unknown
-	const rest = { ...d }
-	delete rest.ovidGenerating
-	delete rest.bragiGenerating
-	delete rest.bragiGenModelName
-	delete rest.bragiGenStartedAt
-	node.setData({ ...rest, color: '1' })
-	void node.setText(`Generation failed: ${errorMsg}`)
-	const nodeEl = node.nodeEl || node.containerEl
-	nodeEl?.classList.remove('bragi-generating')
-	nodeEl?.classList.add('bragi-generation-failed')
-	detachGeneratingOverlay(node.id, nodeEl)
+	styleFailedPlaceholder(node, 'Generation Failed', errorMsg)
 }
 
 /**
  * Mark a placeholder as interrupted (red) — called by the ghost sweeper when
- * a `bragiGenerating` node is found at startup but no in-memory task tracks
- * it. Cosmetically identical to markNodeFailed but with a distinct message,
- * and it includes the model name + original runtime if we stored them.
+ * a `bragiGenerating` node is found at startup but no in-memory task tracks it.
  */
 export function markNodeInterrupted(node: CanvasNode): void {
-	const d = node.getData() as unknown
-	const modelName = d.bragiGenModelName || 'unknown model'
+	const d = node.getData() as Record<string, unknown>
+	const modelName = typeof d.bragiGenModelName === 'string' ? d.bragiGenModelName : 'unknown model'
 	const startedAt = typeof d.bragiGenStartedAt === 'number' ? d.bragiGenStartedAt : null
 	const runtime = startedAt ? ` (ran ${Math.floor((Date.now() - startedAt) / 1000)}s before interruption)` : ''
-	const rest = { ...d }
-	delete rest.ovidGenerating
-	delete rest.bragiGenerating
-	delete rest.bragiGenModelName
-	delete rest.bragiGenStartedAt
-	node.setData({ ...rest, color: '1' })
-	void node.setText(`Generation interrupted: ${modelName}${runtime}. You can delete this node.`)
-	const nodeEl = node.nodeEl || node.containerEl
-	nodeEl?.classList.remove('bragi-generating')
-	nodeEl?.classList.add('bragi-generation-failed')
-	detachGeneratingOverlay(node.id, nodeEl)
+	styleFailedPlaceholder(
+		node,
+		'Generation Interrupted',
+		`Interrupted during ${modelName}${runtime}`,
+	)
 }
 
 /**

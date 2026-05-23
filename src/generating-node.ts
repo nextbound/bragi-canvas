@@ -13,8 +13,16 @@ const REF_NODE_CLASSES = [
 ] as const
 
 export function isGeneratingPlaceholderNode(node: CanvasNode): boolean {
-	const d = node.getData() as { bragiGenerating?: boolean; ovidGenerating?: boolean }
-	return d.bragiGenerating === true || d.ovidGenerating === true
+	const d = node.getData() as {
+		bragiGenerating?: boolean
+		ovidGenerating?: boolean
+		bragiGenerationFailed?: boolean
+	}
+	return (
+		d.bragiGenerating === true ||
+		d.ovidGenerating === true ||
+		d.bragiGenerationFailed === true
+	)
 }
 
 /** Strip upstream text/image/audio refs from a generating placeholder's content area. */

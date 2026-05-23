@@ -302,7 +302,7 @@
 
 .canvas-node.bragi-generating .bragi-generating-center {
 	position: absolute;
-	top: 50%;
+	top: calc(50% - var(--bragi-generating-center-lift));
 	left: 50%;
 	transform: translate(-50%, -50%);
 	display: flex;
@@ -358,7 +358,8 @@
 	opacity: 1;
 }
 
-.canvas-node.bragi-generating .bragi-generating-model-pill {
+.canvas-node.bragi-generating .bragi-generating-model-pill,
+.canvas-node.bragi-generation-failed .bragi-generating-model-pill {
 	position: absolute;
 	left: 50%;
 	bottom: 12px;
@@ -381,7 +382,8 @@
 	opacity: 1;
 }
 
-.canvas-node.bragi-generating .bragi-generating-model {
+.canvas-node.bragi-generating .bragi-generating-model,
+.canvas-node.bragi-generation-failed .bragi-generating-model {
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -391,20 +393,94 @@
 
 /* ── Failed / interrupted placeholder ─────────────────────────────── */
 
+.canvas-node.bragi-generation-failed {
+	--bragi-failed-icon-size: clamp(
+		28px,
+		min(var(--canvas-node-width, 320px), var(--canvas-node-height, 200px)) * 0.24,
+		48px
+	);
+	--bragi-failed-title-size: clamp(10px, var(--bragi-failed-icon-size) * 0.38, 13px);
+	--bragi-generating-center-lift: clamp(
+		8px,
+		min(var(--canvas-node-width, 320px), var(--canvas-node-height, 200px)) * 0.045,
+		16px
+	);
+}
+
 .canvas-node.bragi-generation-failed .canvas-node-container {
-	background: color-mix(in srgb, var(--bragi-danger) 10%, var(--bragi-surface-muted));
+	background: color-mix(in srgb, var(--bragi-danger) 12%, var(--bragi-surface-muted));
 }
 
 .canvas-node.bragi-generation-failed .canvas-node-container::before {
+	border-color: transparent;
+}
+
+.canvas-node.bragi-generation-failed.is-selected .canvas-node-container::before,
+.canvas-node.bragi-generation-failed.is-focused .canvas-node-container::before {
 	border-color: var(--bragi-danger);
 }
 
-.canvas-node.bragi-generation-failed .canvas-node-content,
-.canvas-node.bragi-generation-failed .canvas-node-content .cm-editor,
-.canvas-node.bragi-generation-failed .canvas-node-content .markdown-preview-view {
-	color: color-mix(in srgb, var(--bragi-danger) 85%, var(--bragi-text));
-	font-size: 12px;
-	line-height: 1.45;
+.canvas-node.bragi-generation-failed .canvas-node-content {
+	color: transparent;
+	pointer-events: none;
+	user-select: none;
+}
+
+.canvas-node.bragi-generation-failed .canvas-node-content * {
+	color: transparent;
+	pointer-events: none;
+	cursor: default;
+}
+
+.canvas-node.bragi-generation-failed .bragi-text-ref-strip,
+.canvas-node.bragi-generation-failed .bragi-ref-strip,
+.canvas-node.bragi-generation-failed .bragi-audio-ref-strip {
+	display: none !important;
+}
+
+.canvas-node.bragi-generation-failed .bragi-failed-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+	user-select: none;
+	background: transparent;
+}
+
+.canvas-node.bragi-generation-failed .bragi-failed-center {
+	position: absolute;
+	top: calc(50% - var(--bragi-generating-center-lift));
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: clamp(8px, var(--bragi-failed-icon-size) * 0.22, 14px);
+	text-align: center;
+	max-width: calc(100% - 24px);
+	padding: 0 12px;
+}
+
+.canvas-node.bragi-generation-failed .bragi-failed-icon {
+	width: var(--bragi-failed-icon-size);
+	height: var(--bragi-failed-icon-size);
+	flex-shrink: 0;
+	color: var(--bragi-danger);
+}
+
+.canvas-node.bragi-generation-failed .bragi-failed-icon svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.canvas-node.bragi-generation-failed .bragi-failed-title {
+	color: var(--bragi-danger);
+	font-size: var(--bragi-failed-title-size);
+	font-weight: 400;
+	line-height: 1.2;
+	white-space: nowrap;
+	opacity: 1;
 }
 
 
@@ -2127,6 +2203,21 @@
 
 .bragi-modal .mod-cta:hover {
 	background-color: var(--bragi-accent-hover);
+}
+
+.bragi-error-details-body {
+	margin: 0;
+	padding: 12px;
+	border-radius: 8px;
+	background: var(--bragi-surface-muted);
+	color: var(--bragi-text);
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: min(50vh, 360px);
+	overflow: auto;
 }
 
 .bragi-modal input:focus,

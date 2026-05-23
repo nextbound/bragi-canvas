@@ -4,8 +4,9 @@ import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, migrateDashScopeSetti
 import { uploadRef } from './providers/upload'
 import { getProvider } from './providers/registry'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
-import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, stopGeneratingTicker } from './canvas-ops'
+import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
+import { patchPlaceholderContextMenu, unpatchPlaceholderContextMenu } from './placeholder-context-menu'
 import { openPanoramaViewer } from './panorama'
 import { registerBragiIcons } from './icons'
 import { showGenerateBar, showBatchGenerateBar, hideGenerateBar } from './panel'
@@ -15,7 +16,6 @@ import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text
 import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
 import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
 import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
-import { maybeSpawnPlaceholderStylePreviews, spawnPlaceholderStylePreviews } from './placeholder-style-preview'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
 import type { AudioProvider, VideoProvider } from './providers/types'
@@ -48,7 +48,6 @@ export default class BragiCanvas extends Plugin {
 	// Canvases we've already swept this session — avoid repeat sweeps on every
 	// layout-change event.
 	private sweptCanvasPaths = new Set<string>()
-	private placeholderPreviewSpawned = new Set<string>()
 	private cssHotReloadStop: (() => void) | null = null
 
 	async onload() {
@@ -134,19 +133,6 @@ export default class BragiCanvas extends Plugin {
 			},
 		})
 
-		this.addCommand({
-			id: 'bragi-preview-placeholder-styles',
-			name: 'Preview placeholder node styles (generating + failed)',
-			checkCallback: (checking: boolean) => {
-				const canvas = this.getActiveCanvas()
-				if (!canvas) return false
-				if (!checking && spawnPlaceholderStylePreviews(canvas)) {
-					new Notice('Bragi preview: two demo nodes added near viewport center.')
-				}
-				return true
-			},
-		})
-
 		if (this.settings.mcpEnabled) this.startMcpServer()
 
 		if (existsSync(join(this.manifest.dir, '.css-hot-reload'))) {
@@ -159,6 +145,7 @@ export default class BragiCanvas extends Plugin {
 		this.cssHotReloadStop = null
 		this.stopMcpServer()
 		unpatchCanvasMenu()
+		unpatchPlaceholderContextMenu()
 		removeToolbarButtons()
 		hideGenerateBar()
 		removeAllThumbnails()
@@ -234,6 +221,8 @@ export default class BragiCanvas extends Plugin {
 			}
 		}
 
+		rehydrateFailedPlaceholders(canvas)
+
 		patchCanvasMenu(
 			canvas,
 			(node) => this.openPanel('image', node),
@@ -251,6 +240,8 @@ export default class BragiCanvas extends Plugin {
 			}),
 		)
 
+		patchPlaceholderContextMenu(canvas)
+
 		// Refresh thumbnails periodically to catch edge changes
 		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
 		refreshAllThumbnails(canvas, this.app)
@@ -265,7 +256,6 @@ export default class BragiCanvas extends Plugin {
 		// Highlight connected edges on node selection
 		startEdgeHighlight(canvas)
 		startMediaNodeHover(canvas, this.app)
-		maybeSpawnPlaceholderStylePreviews(canvas, this.manifest.dir, canvasPath, this.placeholderPreviewSpawned)
 
 		// Replace right-side canvas control icons + bottom card menu icons
 		const containerEl = (view).containerEl as HTMLElement
