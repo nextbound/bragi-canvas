@@ -7,6 +7,7 @@ import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
 import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './types/canvas-internal'
 import type { PanelResult } from './panel'
 import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
+import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputLabels } from './models/text-input-capabilities'
 import { getConfiguredProviderIds } from './providers/registry'
 import type { GenerationType, Mode } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
@@ -426,12 +427,20 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					for (const m of models) {
 						const pref = settings.modelPrefs[m.id]
 						const provider = getActiveProvider(m, pref?.selectedProvider, configured)
+						const apiModelId = m.supportedProviders[provider]?.apiModelId
+						const capability = m.type === 'text'
+							? getTextInputCapability(m.id, provider, apiModelId)
+							: null
 						result.push({
 							id: m.id,
 							name: m.name,
 							type: m.type,
 							provider,
 							modes: m.modes,
+							...(capability ? {
+								supportedInputs: listSupportedInputLabels(capability),
+								unsupportedInputs: listUnsupportedInputLabels(capability),
+							} : {}),
 							params: m.params.map(p => ({
 								id: p.id,
 								label: p.label,

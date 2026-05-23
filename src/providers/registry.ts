@@ -22,7 +22,8 @@ import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProv
 import { DashScopeAudioProvider } from './dashscope'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
-import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider } from './text-gen'
+import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider, XAITextProvider } from './text-gen'
+import { DashScopeTextProvider } from './dashscope-text'
 import { requestUrl } from 'obsidian'
 
 export type ProviderKey = keyof BragiSettings['providers']
@@ -357,6 +358,8 @@ export const PROVIDERS: ProviderSpec[] = [
 		isConfigured: (s) => !!s.providers.dashscope,
 		makeAudio: ({ settings, app, outputDir }) =>
 			new DashScopeAudioProvider(settings.providers.dashscope, app, outputDir),
+		makeText: ({ settings }) =>
+			new DashScopeTextProvider(settings.providers.dashscope),
 		testConnection: async (d) => {
 			const key = d.dashscope || ''
 			if (!key) return { ok: false, message: 'API key is empty.' }
@@ -435,7 +438,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		makeVideo: ({ settings, app, outputDir }) =>
 			new XAIVideoProvider(settings.providers.xai, app, outputDir),
 		makeText: ({ settings }) =>
-			new OpenAITextProvider(settings.providers.xai, 'https://api.x.ai/v1'),
+			new XAITextProvider(settings.providers.xai),
 		makeAudio: ({ settings, app, outputDir }) =>
 			new XAIAudioProvider(settings.providers.xai, app, outputDir),
 		testConnection: (d) => testListModels('https://api.x.ai/v1/models', d.xai || ''),

@@ -81,6 +81,7 @@ export const qwen36Plus: ModelConfig = {
 	type: 'text',
 	supportedProviders: {
 		tokenrouter: { apiModelId: 'qwen/qwen3.6-plus' },
+		dashscope: { apiModelId: 'qwen3.6-plus' },
 	},
 	modes: ['text-to-text'],
 	params: [],

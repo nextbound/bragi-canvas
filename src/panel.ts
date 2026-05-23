@@ -2,6 +2,7 @@
 import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, VoiceSourceMode } from './models/types'
 import { getEnabledModels, getActiveProvider } from './models/index'
+import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
 import { getConfiguredProviderIds } from './providers/registry'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedAudios } from './audio-refs'
@@ -278,6 +279,8 @@ export function showGenerateBar(
 
 	let upstreamImageCount = 0
 	let upstreamVideoCount = 0
+	let upstreamPdfCount = 0
+	let upstreamAudioCount = 0
 	let orderedAudios: string[] = []
 	let orderedTextRefCount = 0
 	const canvas = node.canvas
@@ -285,6 +288,8 @@ export function showGenerateBar(
 		const upstream = getUpstreamInputs(canvas, node)
 		upstreamImageCount = [...new Set(upstream.images)].length
 		upstreamVideoCount = upstream.videos.length
+		upstreamPdfCount = upstream.pdfs.length
+		upstreamAudioCount = upstream.audios.length
 		orderedAudios = getOrderedAudios(canvas, node)
 		orderedTextRefCount = getOrderedTextRefs(canvas, node).length
 	}
@@ -696,8 +701,28 @@ export function showGenerateBar(
 	/**
 	 * Check if a model can handle the current upstream inputs.
 	 */
+	function textUpstreamIssue(m: ModelConfig): string | null {
+		if (m.type !== 'text') return null
+		const { provider, apiModelId } = resolveProvider(m, settings, configuredProviders)
+		const capability = getTextInputCapability(m.id, provider, apiModelId)
+		const checks = [
+			{ kind: 'image' as const, count: upstreamImageCount },
+			{ kind: 'pdf' as const, count: upstreamPdfCount },
+			{ kind: 'video' as const, count: upstreamVideoCount },
+			{ kind: 'audio' as const, count: upstreamAudioCount },
+		]
+		for (const { kind, count } of checks) {
+			if (count > 0 && !textInputKindSupported(capability, kind)) {
+				const label = kind === 'pdf' ? 'PDF' : kind
+				return `Upstream ${label} not supported for ${m.name} via ${provider}`
+			}
+		}
+		return null
+	}
+
 	function modelSupportsInputs(m: ModelConfig): boolean {
-		// Text and image models — always compatible for now
+		if (m.type === 'text') return textUpstreamIssue(m) === null
+		// Image models — always compatible for now
 		if (m.type !== 'video') return true
 		// No special inputs — only text-to-video models can run without refs.
 		if (upstreamImageCount === 0 && upstreamVideoCount === 0) return m.modes.includes('text-to-video')
@@ -818,6 +843,14 @@ export function showGenerateBar(
 			} else if (!voiceConfig.builtin) {
 				disabled = true
 				title = 'Choose voice ref or design.'
+			}
+		}
+
+		if (selectedModel?.type === 'text') {
+			const issue = textUpstreamIssue(selectedModel)
+			if (issue) {
+				disabled = true
+				title = issue
 			}
 		}
 

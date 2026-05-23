@@ -41,8 +41,29 @@ function parseProviderError(provider: string, resp: { status: number; text?: str
 	return `${provider}: ${code ? code + ' — ' : ''}${msg}`
 }
 
-function isOpenAIResponsesModel(modelId: string): boolean {
-	return /^gpt-5\.[45]-pro(?:-|$)/.test(modelId)
+function buildResponsesInputContent(prompt: string, refImages: string[], refPdfs: string[]): unknown[] {
+	const content: unknown[] = []
+	for (const dataUri of refImages) {
+		content.push({ type: 'input_image', image_url: dataUri })
+	}
+	for (let i = 0; i < refPdfs.length; i++) {
+		const pdf = refPdfs[i]
+		if (/^https?:\/\//i.test(pdf)) {
+			content.push({ type: 'input_file', file_url: pdf })
+		} else {
+			content.push({
+				type: 'input_file',
+				filename: `document-${i + 1}.pdf`,
+				file_data: pdf,
+			})
+		}
+	}
+	content.push({ type: 'input_text', text: prompt })
+	return content
+}
+
+function shouldUseOpenAIResponses(modelId: string, refImages: string[], refPdfs: string[]): boolean {
+	return refImages.length > 0 || refPdfs.length > 0 || /^gpt-5/.test(modelId)
 }
 
 function videoMimeTypeFromRef(ref: string): string {
@@ -156,20 +177,20 @@ export class OpenAITextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = stringParam(params?.modelId, 'gpt-5.5')
-		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
 
-		if (isOpenAIResponsesModel(modelId)) return this.generateViaResponses(modelId, prompt, refImages)
+		if (shouldUseOpenAIResponses(modelId, refImages, refPdfs)) {
+			return this.generateViaResponses(modelId, prompt, refImages, refPdfs)
+		}
 
-		// Build messages with optional images
 		const content: unknown[] = []
-
 		for (const dataUri of refImages) {
 			content.push({
 				type: 'image_url',
 				image_url: { url: dataUri },
 			})
 		}
-
 		content.push({ type: 'text', text: prompt })
 
 		const response = await requestUrl({
@@ -197,12 +218,8 @@ export class OpenAITextProvider implements TextGenProvider {
 		return { text }
 	}
 
-	private async generateViaResponses(modelId: string, prompt: string, refImages: string[]): Promise<TextGenResult> {
-		const content: unknown[] = []
-		for (const dataUri of refImages) {
-			content.push({ type: 'input_image', image_url: dataUri })
-		}
-		content.push({ type: 'input_text', text: prompt })
+	private async generateViaResponses(modelId: string, prompt: string, refImages: string[], refPdfs: string[]): Promise<TextGenResult> {
+		const content = buildResponsesInputContent(prompt, refImages, refPdfs)
 
 		const response = await requestUrl({
 			url: `${this.baseUrl}/responses`,
@@ -242,9 +259,12 @@ export class APIMartTextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = stringParam(params?.modelId, 'gpt-5.5')
-		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
 
-		if (refImages.length > 0) return this.generateViaResponses(modelId, prompt, refImages)
+		if (refImages.length > 0 || refPdfs.length > 0) {
+			return this.generateViaResponses(modelId, prompt, refImages, refPdfs)
+		}
 
 		return this.generateViaChat(modelId, prompt)
 	}
@@ -285,11 +305,23 @@ export class APIMartTextProvider implements TextGenProvider {
 		return { text }
 	}
 
-	private async generateViaResponses(modelId: string, prompt: string, refImages: string[]): Promise<TextGenResult> {
+	private async generateViaResponses(modelId: string, prompt: string, refImages: string[], refPdfs: string[]): Promise<TextGenResult> {
 		const content: unknown[] = []
 		content.push({ type: 'input_text', text: prompt })
 		for (const dataUri of refImages) {
 			content.push({ type: 'input_image', image_url: await this.ensureImageUrl(dataUri) })
+		}
+		for (let i = 0; i < refPdfs.length; i++) {
+			const pdf = refPdfs[i]
+			if (/^https?:\/\//i.test(pdf)) {
+				content.push({ type: 'input_file', file_url: pdf })
+			} else {
+				content.push({
+					type: 'input_file',
+					filename: `document-${i + 1}.pdf`,
+					file_data: pdf,
+				})
+			}
 		}
 
 		const response = await requestUrl({
@@ -415,8 +447,17 @@ export class GeminiTextProvider implements TextGenProvider {
 /**
  * Build Anthropic Messages API content blocks from prompt + optional images.
  */
-function buildAnthropicContent(prompt: string, refImages: string[]): unknown[] {
+function buildAnthropicContent(prompt: string, refImages: string[], refPdfs: string[]): unknown[] {
 	const content: unknown[] = []
+	for (const dataUri of refPdfs) {
+		const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
+		if (match) {
+			content.push({
+				type: 'document',
+				source: { type: 'base64', media_type: match[1], data: match[2] },
+			})
+		}
+	}
 	for (const dataUri of refImages) {
 		const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 		if (match) {
@@ -449,7 +490,8 @@ export class AnthropicTextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const modelId = params?.modelId || 'claude-sonnet-4-6'
-		const refImages: string[] = params?.refImages || []
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
 
 		const response = await requestUrl({
 			url: 'https://api.anthropic.com/v1/messages',
@@ -463,7 +505,7 @@ export class AnthropicTextProvider implements TextGenProvider {
 				model: modelId,
 				max_tokens: 4096,
 				system: SYSTEM_PROMPT,
-				messages: [{ role: 'user', content: buildAnthropicContent(prompt, refImages) }],
+				messages: [{ role: 'user', content: buildAnthropicContent(prompt, refImages, refPdfs) }],
 			}),
 		})
 
@@ -492,14 +534,15 @@ export class BedrockClaudeTextProvider implements TextGenProvider {
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const bedrockModelId = params?.modelId
 		if (!bedrockModelId) throw new Error('Bedrock: missing modelId')
-		const refImages: string[] = params?.refImages || []
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
 
 		const url = `https://bedrock-runtime.${this.region}.amazonaws.com/model/${encodeURIComponent(bedrockModelId)}/invoke`
 		const body = JSON.stringify({
 			anthropic_version: 'bedrock-2023-05-31',
 			max_tokens: 4096,
 			system: SYSTEM_PROMPT,
-			messages: [{ role: 'user', content: buildAnthropicContent(prompt, refImages) }],
+			messages: [{ role: 'user', content: buildAnthropicContent(prompt, refImages, refPdfs) }],
 		})
 
 		const headers = await signRequest({
@@ -524,6 +567,48 @@ export class BedrockClaudeTextProvider implements TextGenProvider {
 		const text = parseAnthropicText(response.json)
 		if (!text) throw new Error('Bedrock Claude: No text in response')
 
+		return { text }
+	}
+}
+
+/**
+ * xAI Grok text generation via Responses API (images + PDFs).
+ */
+export class XAITextProvider implements TextGenProvider {
+	name = 'xAI'
+	private apiKey: string
+	private baseUrl: string
+
+	constructor(apiKey: string, baseUrl: string = 'https://api.x.ai/v1') {
+		this.apiKey = apiKey
+		this.baseUrl = baseUrl.replace(/\/$/, '')
+	}
+
+	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
+		const modelId = stringParam(params?.modelId, 'grok-4-3')
+		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
+		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
+		const content = buildResponsesInputContent(prompt, refImages, refPdfs)
+
+		const response = await requestUrl({
+			url: `${this.baseUrl}/responses`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			throw: false,
+			body: JSON.stringify({
+				model: modelId,
+				instructions: SYSTEM_PROMPT,
+				input: [{ role: 'user', content }],
+				max_output_tokens: 4096,
+			}),
+		})
+
+		if (response.status >= 400) throw new Error(parseProviderError('xAI responses', response))
+		const text = extractOpenAIResponsesText(response.json)
+		if (!text) throw new Error('Grok: No text in response')
 		return { text }
 	}
 }
