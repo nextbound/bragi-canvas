@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.16.0
+
+- Added image collage composition for multi-selected image nodes, creating a new composed PNG node and source edges.
+- Added TokenRouter ModelArk asset flow for Seedance reference media, including asset group creation, upload, review polling, and cached `asset://` references.
+- Added provider-scoped Seedance asset IDs for TokenRouter, BytePlus, and Volcengine, with MCP `set_asset_id` support for the provider namespace.
+- Added ElevenLabs voice cloning from upstream audio references, plus stability, similarity, style, and speed controls for ElevenLabs TTS.
+- Added MiniMax voice cloning from upstream audio references.
+- Improved range and number parameter controls in the generate bar.
+- Fixed GPT Image 2 sizing by mapping selected aspect ratio and image tier to explicit OpenAI-compatible sizes.
+- Bumped the plugin version to `1.16.0`.
+
 ## 1.15.1
 
 - Removed runtime filesystem-based CSS hot reload code from the plugin bundle.
