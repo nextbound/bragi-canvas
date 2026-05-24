@@ -13,6 +13,7 @@ import {
 } from './canvas-interaction-tool'
 import { queueSelectionMenuGapSync, resetToolbarPosition } from './node-toolbar-position'
 import { ErrorDetailsModal, getNodeErrorDetails } from './ui/error-details-modal'
+import { isComposableImagePath } from './canvas-image-compose'
 
 const CARD_MENU_TOOLTIP_OPTS = { placement: 'top' } as const
 
@@ -187,6 +188,20 @@ function createMenuButton(
 	return btn
 }
 
+function createLabeledMenuButton(
+	className: string,
+	iconName: string,
+	label: string,
+	tooltip: string,
+	onClick: (event: MouseEvent) => void,
+): HTMLElement {
+	const btn = createMenuButton(className, iconName, tooltip, onClick)
+	btn.classList.add('bragi-labeled-menu-button')
+	btn.setAttribute('aria-label', tooltip)
+	btn.createSpan({ cls: 'bragi-menu-button-label', text: label })
+	return btn
+}
+
 function getMoreItems(menuEl: HTMLElement): MoreDropdownItem[] {
 	return Array.from(menuEl.querySelectorAll('[data-bragi-more-label]'))
 		.filter((el): el is HTMLElement => el.instanceOf(HTMLElement))
@@ -275,7 +290,7 @@ function addMoreButton(menuEl: HTMLElement): void {
 function clearMenuInjection(menuEl: HTMLElement): void {
 	closeBragiDropdown()
 	menuEl
-		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-more, .bragi-actions-separator')
+		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more, .bragi-actions-separator')
 		.forEach((el) => el.remove())
 
 	for (const btn of getNativeMenuButtons(menuEl)) {
@@ -298,6 +313,10 @@ function getCanvasData(node: CanvasNode): CanvasDataLike {
 
 function isFileWithExtension(data: CanvasDataLike, pattern: RegExp): boolean {
 	return data.type === 'file' && pattern.test(data.file || '')
+}
+
+function isComposableImageNode(data: CanvasDataLike): boolean {
+	return data.type === 'file' && isComposableImagePath(data.file || '')
 }
 
 function isPromptNode(data: CanvasDataLike): boolean {
@@ -449,6 +468,7 @@ export function patchCanvasMenu(
 	onBatchGenerate?: (type: 'image' | 'video' | 'text' | 'audio', nodes: CanvasNode[]) => void,
 	onPanorama?: (node: CanvasNode) => void,
 	onGridSplit?: (node: CanvasNode) => void,
+	onComposeImages?: (nodes: CanvasNode[]) => void,
 ): void {
 	if (menuUninstaller) return
 
@@ -500,6 +520,7 @@ export function patchCanvasMenu(
 			if (selSize > 1) {
 				const markBtn = createMarkButton(menuEl, canvas, selectedNodes)
 				const isPurePromptSelection = selectedNodes.length === selSize && selectedNodes.every(node => isPromptNode(getCanvasData(node)))
+				const isPureImageSelection = selectedNodes.length === selSize && selectedNodes.length >= 2 && selectedNodes.every(node => isComposableImageNode(getCanvasData(node)))
 
 				let separator: HTMLElement | null = null
 				const generationButtons: HTMLElement[] = []
@@ -521,6 +542,12 @@ export function patchCanvasMenu(
 						generationButtons.push(btn)
 					}
 				}
+				const composeBtn = isPureImageSelection && onComposeImages
+					? createLabeledMenuButton('bragi-compose', 'bragi-compose', 'Collage', 'Create collage', () => {
+						onComposeImages(selectedNodes)
+					})
+					: null
+				if (composeBtn) menuEl.appendChild(composeBtn)
 
 				configureStandardMoreItems(menuEl, 0)
 				addMoreButton(menuEl)
@@ -528,6 +555,7 @@ export function patchCanvasMenu(
 				const alignBtn = findBuiltinByLabel(menuEl, 'align') || findBuiltinByLabel(menuEl, 'arrange')
 				const groupBtn = findBuiltinByLabel(menuEl, 'group')
 				reorderMenuButtons(menuEl, [
+					composeBtn,
 					...generationButtons,
 					separator,
 					alignBtn,
@@ -546,7 +574,7 @@ export function patchCanvasMenu(
 
 			const isTextNode = nodeData?.type === 'text'
 			const isNoteNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.md$/i))
-			const isImageNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.(png|jpg|jpeg|webp|gif)$/i))
+			const isImageNode = Boolean(nodeData && isComposableImageNode(nodeData))
 			const isPanoramaImageNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.(png|jpe?g|webp)$/i))
 			const isVideoNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.(mp4|mov|webm)$/i))
 			const isAudioNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.(mp3|wav|flac|m4a|ogg|aac)$/i))
@@ -1028,7 +1056,7 @@ export function unpatchCanvasMenu(): void {
 }
 
 export function removeToolbarButtons(): void {
-	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-more').forEach(el => {
+	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more').forEach(el => {
 		if (el.previousElementSibling?.classList.contains('canvas-menu-separator')) {
 			el.previousElementSibling.remove()
 		}

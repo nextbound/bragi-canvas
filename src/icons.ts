@@ -285,6 +285,13 @@ export function registerBragiIcons(): void {
 		'<path d="M21 22.5C21 22.1022 21.158 21.7206 21.4393 21.4393C21.7206 21.158 22.1022 21 22.5 21H28.5C28.8978 21 29.2794 21.158 29.5607 21.4393C29.842 21.7206 30 22.1022 30 22.5V28.5C30 28.8978 29.842 29.2794 29.5607 29.5607C29.2794 29.842 28.8978 30 28.5 30H22.5C22.1022 30 21.7206 29.842 21.4393 29.5607C21.158 29.2794 21 28.8978 21 28.5V22.5Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
 	))
 
+	// 14 — Collage selected images
+	addIcon('bragi-compose', figmaIcon(
+		'<path d="M6 9C6 8.20435 6.31607 7.44129 6.87868 6.87868C7.44129 6.31607 8.20435 6 9 6H27C27.7956 6 28.5587 6.31607 29.1213 6.87868C29.6839 7.44129 30 8.20435 30 9V27C30 27.7956 29.6839 28.5587 29.1213 29.1213C28.5587 29.6839 27.7956 30 27 30H9C8.20435 30 7.44129 29.6839 6.87868 29.1213C6.31607 28.5587 6 27.7956 6 27V9Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'<path d="M15 6L21 30" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'<path d="M18 18L6 21" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+	))
+
 	// 10 — Generate Text (document + sparkle)
 	addIcon('bragi-gen-text', figmaIcon(
 		'<path d="M16.5 31.5H15C9.34314 31.5 6.51473 31.5 4.75736 29.7426C3 27.9853 3 25.1568 3 19.5V15C3 9.34314 3 6.51473 4.75736 4.75736C6.51473 3 9.34314 3 15 3H18C23.6568 3 26.4853 3 28.2426 4.75736C30 6.51473 30 9.34314 30 15V15.75" stroke="#161616" stroke-width="2" stroke-linejoin="round"/>' +

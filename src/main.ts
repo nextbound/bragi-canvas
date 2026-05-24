@@ -8,6 +8,7 @@ import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, m
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
 import { patchPlaceholderContextMenu, unpatchPlaceholderContextMenu } from './placeholder-context-menu'
 import { openPanoramaViewer } from './panorama'
+import { composeSelectedImageNodes } from './canvas-image-compose'
 import { registerBragiIcons } from './icons'
 import { showGenerateBar, showBatchGenerateBar, hideGenerateBar } from './panel'
 import { getUpstreamInputs } from './edge-parser'
@@ -284,6 +285,10 @@ export default class BragiCanvas extends Plugin {
 			(node) => void splitImageNodeIntoTiles(this, canvas, node).catch(err => {
 				console.error('Bragi split grid error:', err)
 				new Notice(`Split failed: ${err.message || err}`)
+			}),
+			(nodes) => void composeSelectedImageNodes(this, canvas, nodes).catch(err => {
+				console.error('Bragi compose images error:', err)
+				new Notice(`Collage failed: ${err.message || err}`)
 			}),
 		)
 

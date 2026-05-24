@@ -28,7 +28,7 @@ const PLACEMENT_RADIUS = 20  // up to (2*R+1)² = 1681 candidate cells
 
 // Default canvas node dimensions by type. Image/video actual dimensions are
 // derived from the user-selected aspect ratio; these are the fallbacks.
-const DEFAULT_MEDIA_LONG_EDGE = 400   // image/video: long edge in canvas pixels
+export const DEFAULT_MEDIA_LONG_EDGE = 400   // image/video: long edge in canvas pixels
 const DEFAULT_TEXT_SIZE = { w: 400, h: 200 }
 const DEFAULT_AUDIO_SIZE = { w: 400, h: 100 }
 

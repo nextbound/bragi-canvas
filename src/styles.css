@@ -636,6 +636,26 @@
 	--icon-size: 20px;
 }
 
+.bragi-canvas-menu .bragi-labeled-menu-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	width: auto;
+	min-width: 0;
+	padding-inline: 8px;
+	white-space: nowrap;
+}
+
+.bragi-canvas-menu .bragi-labeled-menu-button .svg-icon {
+	flex: 0 0 auto;
+}
+
+.bragi-canvas-menu .bragi-menu-button-label {
+	font-size: 12px;
+	line-height: 1;
+	font-weight: 500;
+}
+
 
 /* Separator line between generation + native icons */
 .bragi-canvas-menu .bragi-separator {
