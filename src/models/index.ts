@@ -110,7 +110,7 @@ export function getEnabledModels(
 	type: GenerationType,
 	modelOrder: string[] | undefined,
 	modelPrefs: Record<string, { enabled: boolean; selectedProvider: string }>,
-	configuredProviders: string[]
+	availableProviders: string[] | ((model: ModelConfig) => string[])
 ): ModelConfig[] {
 	const allOfType = getModelsByType(type)
 
@@ -134,11 +134,12 @@ export function getEnabledModels(
 	// Filter to enabled models that have at least one configured provider
 	return ordered.filter(m => {
 		const pref = modelPrefs[m.id]
-		// Default: enabled if any provider has a key
-		const enabled = pref ? pref.enabled : getActiveProvider(m, undefined, configuredProviders) !== null
-		if (!enabled) return false
-		// Must have at least one working provider
-		return getActiveProvider(m, pref?.selectedProvider, configuredProviders) !== null
+		if (pref?.enabled !== true) return false
+		const providers = typeof availableProviders === 'function'
+			? availableProviders(m)
+			: availableProviders
+		// Must have at least one working provider connected to this model.
+		return getActiveProvider(m, pref.selectedProvider, providers) !== null
 	})
 }
 

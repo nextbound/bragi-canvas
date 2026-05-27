@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Notice } from 'obsidian'
 import type BragiCanvas from '../main'
-import { getProvider, getConfiguredProviderIds } from '../providers/registry'
-import { ALL_MODELS, type ModelConfig } from '../models'
+import { getProvider } from '../providers/registry'
+import { ALL_MODELS, getActiveProvider, type ModelConfig } from '../models'
+import { disableModel, getConnectedConfiguredProviderIds } from '../provider-model-prefs'
 
 type Impact = {
 	disappearing: ModelConfig[]
@@ -19,22 +20,19 @@ export function computeRemovalImpact(plugin: BragiCanvas, providerId: string): I
 	for (const f of spec.fields) {
 		fakeSettings.providers[f.key] = ''
 	}
-	const nextConfigured = new Set(getConfiguredProviderIds(fakeSettings))
 
 	const impact: Impact = { disappearing: [], switching: [] }
 	for (const model of ALL_MODELS) {
 		const pref = plugin.settings.modelPrefs[model.id]
 		if (!pref?.enabled) continue
 
-		const supported = Object.keys(model.supportedProviders)
-		const currentProvider = pref.selectedProvider && supported.includes(pref.selectedProvider)
-			? pref.selectedProvider
-			: supported.find(p => getConfiguredProviderIds(plugin.settings).includes(p))
+		const currentProvider = getActiveProvider(model, pref.selectedProvider, getConnectedConfiguredProviderIds(plugin.settings, model))
 
 		if (!currentProvider || currentProvider !== providerId) continue
 
 		// This model was using the provider we're removing — find a replacement
-		const replacement = supported.find(p => p !== providerId && nextConfigured.has(p))
+		const replacement = getConnectedConfiguredProviderIds(fakeSettings, model)
+			.find(p => p !== providerId)
 		if (replacement) {
 			impact.switching.push({ model, from: providerId, to: replacement })
 		} else {
@@ -48,18 +46,18 @@ export function computeRemovalImpact(plugin: BragiCanvas, providerId: string): I
 export async function applyRemoval(plugin: BragiCanvas, providerId: string, impact: Impact) {
 	const spec = getProvider(providerId)
 	if (!spec) return
+	const providers = plugin.settings.providers as Record<string, string>
 	for (const f of spec.fields) {
-		(plugin.settings.providers as unknown)[f.key] = ''
+		providers[f.key] = ''
 	}
+	delete plugin.settings.providerModelPrefs[providerId]
 	for (const { model, to } of impact.switching) {
 		const pref = plugin.settings.modelPrefs[model.id] || { enabled: true, selectedProvider: to }
 		pref.selectedProvider = to
 		plugin.settings.modelPrefs[model.id] = pref
 	}
 	for (const model of impact.disappearing) {
-		const pref = plugin.settings.modelPrefs[model.id] || { enabled: false, selectedProvider: '' }
-		pref.enabled = false
-		plugin.settings.modelPrefs[model.id] = pref
+		disableModel(plugin.settings, model.id)
 	}
 	await plugin.saveSettings()
 }

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Plugin, Notice, requestUrl, Menu, Modal, Setting } from 'obsidian'
-import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, migrateDashScopeSettings, type GeneratedAssetRecord } from './settings'
+import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, type GeneratedAssetRecord } from './settings'
+import { migrateSettings } from './settings-migrations'
 import { uploadRef } from './providers/upload'
 import { getProvider } from './providers/registry'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
@@ -22,7 +23,6 @@ import type { PanelResult } from './panel'
 import type { AudioProvider, VideoProvider } from './providers/types'
 import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
-import { migrateProviderPrefs } from './migrate-providers'
 import { startAttachmentRedirect } from './attachment-redirect'
 import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flow'
 import { ensureTokenRouterModelArkAsset, getTokenRouterModelArkCreds } from './tokenrouter-asset-flow'
@@ -111,7 +111,6 @@ export default class BragiCanvas extends Plugin {
 
 		this.app.workspace.onLayoutReady(() => {
 			this.tryPatchCanvas()
-			void migrateProviderPrefs(this).catch(err => console.error('Bragi: provider-prefs migration failed', err))
 			this.checkScopedMigration()
 			this.attachmentRedirectStop = startAttachmentRedirect(this.app)
 		})
@@ -936,21 +935,10 @@ export default class BragiCanvas extends Plugin {
 	async loadSettings() {
 		const raw = (await this.loadData()) || {}
 		const { _pendingTasks, ...settingsData } = raw
-		this.settings = migrateDashScopeSettings({
-			...DEFAULT_SETTINGS,
-			...settingsData,
-			providers: {
-				...DEFAULT_SETTINGS.providers,
-				...(settingsData.providers || {}),
-			},
-			modelOrder: {
-				...DEFAULT_SETTINGS.modelOrder,
-				...(settingsData.modelOrder || {}),
-			},
-			knownCanvases: Array.isArray(settingsData.knownCanvases) ? settingsData.knownCanvases : [],
-			generatedAssets: Array.isArray(settingsData.generatedAssets) ? settingsData.generatedAssets : [],
-		}, raw)
+		const result = migrateSettings(settingsData, DEFAULT_SETTINGS)
+		this.settings = result.settings
 		this.pendingTaskSnapshots = Array.isArray(_pendingTasks) ? _pendingTasks : []
+		if (result.changed) await this.saveSettings()
 	}
 
 	async saveSettings() {

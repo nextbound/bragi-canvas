@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
-import { App, Modal, Notice, PluginSettingTab, Setting, setIcon, setTooltip } from 'obsidian'
+import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian'
 import type BragiCanvas from './main'
-import { getModelsByType, getActiveProvider } from './models/index'
+import { getActiveProvider, getEnabledModels } from './models/index'
 import type { GenerationType } from './models/types'
-import { PROVIDERS, getConfiguredProviderIds } from './providers/registry'
+import { disableModel, getConnectedConfiguredProviderIds, type ProviderCredentialDraft } from './provider-model-prefs'
+import { PROVIDERS } from './providers/registry'
 import { AddProviderModal } from './ui/add-provider-modal'
 import { AddModelModal } from './ui/add-model-modal'
+import { ProviderModelsModal } from './ui/provider-models-modal'
 import { removeProvider } from './ui/remove-provider-modal'
-
-type UnknownRecord = Record<string, unknown>
+import { migrateSettings } from './settings-migrations'
 
 /** Legacy map kept because `renderModelGroup` looks up display names by id. */
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = (() => {
@@ -30,8 +31,23 @@ function autoSizeSelect(select: HTMLSelectElement): void {
 	window.requestAnimationFrame(update)
 }
 
-function addSettingHeading(containerEl: HTMLElement, name: string): void {
-	new Setting(containerEl).setName(name).setHeading()
+function addSettingHeading(
+	containerEl: HTMLElement,
+	name: string,
+	action?: { icon: string; tooltip: string; onClick: () => void },
+): void {
+	const setting = new Setting(containerEl).setName(name).setHeading()
+	if (action) {
+		setting.addExtraButton(btn => btn
+			.setIcon(action.icon)
+			.setTooltip(action.tooltip)
+			.onClick(action.onClick))
+	}
+}
+
+function addEmptySetting(containerEl: HTMLElement, text: string): void {
+	const setting = new Setting(containerEl).setName(text)
+	setting.settingEl.addClass('bragi-empty-setting')
 }
 
 export interface LastSelection {
@@ -52,6 +68,7 @@ export interface GeneratedAssetRecord {
 }
 
 export interface BragiSettings {
+	settingsSchemaVersion: number
 	outputDir: string
 	/** Set to true once the user has been prompted about the legacy ss/ → _bragi/assets/ migration. */
 	migrationPrompted: boolean
@@ -79,13 +96,14 @@ export interface BragiSettings {
 		legnext: string
 		tokenrouter: string
 		apimart: string
-			lumaToken: string
-			xai: string
-			dashscope: string
-		}
+		lumaToken: string
+		xai: string
+		dashscope: string
+	}
 
 	// Per-model preferences
 	modelPrefs: Record<string, ModelPref>
+	providerModelPrefs: Record<string, Record<string, boolean>>
 
 	// Model display order per type
 	modelOrder: {
@@ -114,6 +132,7 @@ export interface BragiSettings {
 }
 
 export const DEFAULT_SETTINGS: BragiSettings = {
+	settingsSchemaVersion: 0,
 	outputDir: 'assets',
 	migrationPrompted: false,
 	migrationProviders_1_9: false,
@@ -137,11 +156,12 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		legnext: '',
 		tokenrouter: '',
 		apimart: '',
-			lumaToken: '',
-			xai: '',
-			dashscope: '',
-		},
+		lumaToken: '',
+		xai: '',
+		dashscope: '',
+	},
 	modelPrefs: {},
+	providerModelPrefs: {},
 	modelOrder: {
 		image: [],
 		video: [],
@@ -153,289 +173,6 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 	mcpToken: '',
 	knownCanvases: [],
 	generatedAssets: [],
-}
-
-type ImportValidationResult =
-	| { ok: true; settings: BragiSettings }
-	| { ok: false }
-
-function isRecord(value: unknown): value is UnknownRecord {
-	return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function cloneDefaultSettings(): BragiSettings {
-	return {
-		...DEFAULT_SETTINGS,
-		providers: { ...DEFAULT_SETTINGS.providers },
-		modelPrefs: {},
-		modelOrder: {
-			image: [],
-			video: [],
-			text: [],
-			audio: [],
-		},
-		knownCanvases: [],
-		generatedAssets: [],
-	}
-}
-
-function readOptionalString(source: UnknownRecord, key: string, target: UnknownRecord, errors: string[]): void {
-	if (!(key in source)) return
-	const value = source[key]
-	if (typeof value !== 'string') {
-		errors.push(key)
-		return
-	}
-	target[key] = value
-}
-
-function readOptionalBoolean(source: UnknownRecord, key: string, target: UnknownRecord, errors: string[]): void {
-	if (!(key in source)) return
-	const value = source[key]
-	if (typeof value !== 'boolean') {
-		errors.push(key)
-		return
-	}
-	target[key] = value
-}
-
-function readOptionalPort(source: UnknownRecord, key: string, target: UnknownRecord, errors: string[]): void {
-	if (!(key in source)) return
-	const value = source[key]
-	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 65535) {
-		errors.push(key)
-		return
-	}
-	target[key] = value
-}
-
-function readOptionalStringArray(source: UnknownRecord, key: string, target: UnknownRecord, errors: string[]): void {
-	if (!(key in source)) return
-	const value = source[key]
-	if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
-		errors.push(key)
-		return
-	}
-	target[key] = [...new Set(value)]
-}
-
-function readGeneratedAssets(source: UnknownRecord, errors: string[]): GeneratedAssetRecord[] {
-	if (!('generatedAssets' in source)) return []
-	const value = source.generatedAssets
-	if (!Array.isArray(value)) {
-		errors.push('generatedAssets')
-		return []
-	}
-	const records: GeneratedAssetRecord[] = []
-	for (let i = 0; i < value.length; i++) {
-		const record = value[i]
-		if (!isRecord(record)) {
-			errors.push(`generatedAssets.${i}`)
-			continue
-		}
-		if (typeof record.path !== 'string') {
-			errors.push(`generatedAssets.${i}.path`)
-			continue
-		}
-		if (typeof record.canvasPath !== 'string') {
-			errors.push(`generatedAssets.${i}.canvasPath`)
-			continue
-		}
-		if (typeof record.createdAt !== 'number' || !Number.isFinite(record.createdAt)) {
-			errors.push(`generatedAssets.${i}.createdAt`)
-			continue
-		}
-		records.push({
-			path: record.path,
-			canvasPath: record.canvasPath,
-			createdAt: record.createdAt,
-		})
-	}
-	return records
-}
-
-function readLastSelection(source: UnknownRecord, key: string, errors: string[]): LastSelection | undefined {
-	if (!(key in source)) return undefined
-	const value = source[key]
-	if (!isRecord(value)) {
-		errors.push(key)
-		return undefined
-	}
-
-	const result: LastSelection = {}
-
-	if ('modelId' in value) {
-		if (typeof value.modelId !== 'string') errors.push(`${key}.modelId`)
-		else result.modelId = value.modelId
-	}
-
-	if ('batchCount' in value) {
-		if (typeof value.batchCount !== 'number' || !Number.isFinite(value.batchCount)) errors.push(`${key}.batchCount`)
-		else result.batchCount = value.batchCount
-	}
-
-	if ('params' in value) {
-		if (!isRecord(value.params)) {
-			errors.push(`${key}.params`)
-		} else {
-			const params: Record<string, string | number> = {}
-			for (const [paramKey, paramValue] of Object.entries(value.params)) {
-				if (typeof paramValue !== 'string' && (typeof paramValue !== 'number' || !Number.isFinite(paramValue))) {
-					errors.push(`${key}.params.${paramKey}`)
-					continue
-				}
-				params[paramKey] = paramValue
-			}
-			result.params = params
-		}
-	}
-
-	return result
-}
-
-const DASHSCOPE_PROVIDER_ID = 'dashscope'
-const LEGACY_DASHSCOPE_PROVIDER_ID = ['bai', 'lian'].join('')
-const LEGACY_DASHSCOPE_MODEL_PREFIX = `${LEGACY_DASHSCOPE_PROVIDER_ID}-`
-const DASHSCOPE_MODEL_PREFIX = 'dashscope-'
-
-function normalizeDashScopeProviderId(provider: string): string {
-	return provider === LEGACY_DASHSCOPE_PROVIDER_ID ? DASHSCOPE_PROVIDER_ID : provider
-}
-
-function normalizeDashScopeModelId(modelId: string | undefined): string | undefined {
-	if (!modelId) return modelId
-	return modelId.startsWith(LEGACY_DASHSCOPE_MODEL_PREFIX)
-		? `${DASHSCOPE_MODEL_PREFIX}${modelId.slice(LEGACY_DASHSCOPE_MODEL_PREFIX.length)}`
-		: modelId
-}
-
-export function migrateDashScopeSettings(settings: BragiSettings, raw?: unknown): BragiSettings {
-	const rawProviders = isRecord(raw) && isRecord(raw.providers) ? raw.providers : null
-	const legacyKey = rawProviders?.[LEGACY_DASHSCOPE_PROVIDER_ID]
-	if (!settings.providers.dashscope && typeof legacyKey === 'string') {
-		settings.providers.dashscope = legacyKey
-	}
-	delete (settings.providers as UnknownRecord)[LEGACY_DASHSCOPE_PROVIDER_ID]
-
-	const modelPrefs: Record<string, ModelPref> = {}
-	for (const [modelId, pref] of Object.entries(settings.modelPrefs)) {
-		modelPrefs[normalizeDashScopeModelId(modelId) || modelId] = {
-			...pref,
-			selectedProvider: normalizeDashScopeProviderId(pref.selectedProvider || ''),
-		}
-	}
-	settings.modelPrefs = modelPrefs
-
-	for (const type of ['image', 'video', 'text', 'audio'] as const) {
-		settings.modelOrder[type] = settings.modelOrder[type].map(id => normalizeDashScopeModelId(id) || id)
-	}
-
-	for (const selection of [settings.lastImage, settings.lastVideo, settings.lastAudio, settings.lastText]) {
-		if (selection?.modelId) selection.modelId = normalizeDashScopeModelId(selection.modelId)
-	}
-
-	return settings
-}
-
-function validateImportedSettings(raw: unknown): ImportValidationResult {
-	if (!isRecord(raw)) return { ok: false }
-
-	const recognizableKeys = [
-		'outputDir',
-		'providers',
-		'modelPrefs',
-		'modelOrder',
-		'mcpEnabled',
-		'mcpPort',
-		'mcpToken',
-		'knownCanvases',
-		'generatedAssets',
-	]
-	if (!recognizableKeys.some(key => key in raw)) return { ok: false }
-
-	const errors: string[] = []
-	const settings = cloneDefaultSettings()
-	const target = settings as unknown as UnknownRecord
-
-	readOptionalString(raw, 'outputDir', target, errors)
-	readOptionalBoolean(raw, 'migrationPrompted', target, errors)
-	readOptionalBoolean(raw, 'migrationProviders_1_9', target, errors)
-	readOptionalBoolean(raw, 'mcpEnabled', target, errors)
-	readOptionalPort(raw, 'mcpPort', target, errors)
-	readOptionalString(raw, 'mcpToken', target, errors)
-	readOptionalStringArray(raw, 'knownCanvases', target, errors)
-	settings.generatedAssets = readGeneratedAssets(raw, errors)
-
-	if ('providers' in raw) {
-		if (!isRecord(raw.providers)) {
-			errors.push('providers')
-		} else {
-			const providerKeys = Object.keys(DEFAULT_SETTINGS.providers) as Array<keyof BragiSettings['providers']>
-			for (const key of providerKeys) {
-				const value = raw.providers[key]
-				if (value === undefined) continue
-				if (typeof value !== 'string') {
-					errors.push(`providers.${key}`)
-					continue
-				}
-				settings.providers[key] = value
-			}
-		}
-	}
-
-	if ('modelPrefs' in raw) {
-		if (!isRecord(raw.modelPrefs)) {
-			errors.push('modelPrefs')
-		} else {
-			for (const [modelId, value] of Object.entries(raw.modelPrefs)) {
-				if (!isRecord(value)) {
-					errors.push(`modelPrefs.${modelId}`)
-					continue
-				}
-				if (typeof value.enabled !== 'boolean') {
-					errors.push(`modelPrefs.${modelId}.enabled`)
-					continue
-				}
-				if ('selectedProvider' in value && typeof value.selectedProvider !== 'string') {
-					errors.push(`modelPrefs.${modelId}.selectedProvider`)
-					continue
-				}
-				settings.modelPrefs[modelId] = {
-					enabled: value.enabled,
-					selectedProvider: typeof value.selectedProvider === 'string' ? value.selectedProvider : '',
-				}
-			}
-		}
-	}
-
-	if ('modelOrder' in raw) {
-		if (!isRecord(raw.modelOrder)) {
-			errors.push('modelOrder')
-		} else {
-			for (const type of ['image', 'video', 'text', 'audio'] as const) {
-				const value = raw.modelOrder[type]
-				if (value === undefined) continue
-				if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
-					errors.push(`modelOrder.${type}`)
-					continue
-				}
-				settings.modelOrder[type] = [...value]
-			}
-		}
-	}
-
-	const lastImage = readLastSelection(raw, 'lastImage', errors)
-	const lastVideo = readLastSelection(raw, 'lastVideo', errors)
-	const lastAudio = readLastSelection(raw, 'lastAudio', errors)
-	const lastText = readLastSelection(raw, 'lastText', errors)
-	if (lastImage) settings.lastImage = lastImage
-	if (lastVideo) settings.lastVideo = lastVideo
-	if (lastAudio) settings.lastAudio = lastAudio
-	if (lastText) settings.lastText = lastText
-
-	migrateDashScopeSettings(settings, raw)
-	if (errors.length > 0) return { ok: false }
-	return { ok: true, settings }
 }
 
 export class BragiSettingTab extends PluginSettingTab {
@@ -534,7 +271,6 @@ export class BragiSettingTab extends PluginSettingTab {
 		})
 
 		// ── Providers ──
-		addSettingHeading(containerEl, 'Providers')
 		this.renderProvidersSection(containerEl)
 
 		// ── Models ──
@@ -572,45 +308,76 @@ export class BragiSettingTab extends PluginSettingTab {
 	}
 
 	private renderProvidersSection(containerEl: HTMLElement): void {
-		const wrap = containerEl.createDiv({ cls: 'bragi-providers-list' })
+		const openProviderModelsForDraft = (providerId: string, draft: ProviderCredentialDraft) => {
+			new ProviderModelsModal(this.plugin, {
+				mode: 'connect',
+				providerId,
+				draft,
+				onBack: () => {
+					new AddProviderModal(this.plugin, {
+						initialProviderId: providerId,
+						initialDraftValues: draft,
+						onSubmitDraft: openProviderModelsForDraft,
+						submitLabel: 'Select models',
+					}).open()
+				},
+				onDone: () => this.display(),
+			}).open()
+		}
+
+		const openAddProvider = () => {
+			new AddProviderModal(this.plugin, {
+				onSubmitDraft: openProviderModelsForDraft,
+				submitLabel: 'Select models',
+			}).open()
+		}
+
+		const groupEl = containerEl.createDiv({ cls: 'setting-group bragi-settings-section bragi-providers-section' })
+		addSettingHeading(groupEl, 'Providers', {
+			icon: 'plus',
+			tooltip: 'Add provider',
+			onClick: openAddProvider,
+		})
+
+		const wrap = groupEl.createDiv({ cls: 'setting-items bragi-providers-list' })
 		const configured = PROVIDERS.filter(p => p.isConfigured(this.plugin.settings))
 
 		if (configured.length === 0) {
-			wrap.createEl('p', {
-				text: 'No providers yet. Add one to unlock models.',
-				cls: 'bragi-empty-hint',
-			})
+			addEmptySetting(wrap, 'No providers have been added. Click + to connect one.')
+			return
 		}
 
 		for (const spec of configured) {
-			const row = wrap.createDiv({ cls: 'bragi-provider-row' })
-			const info = row.createDiv({ cls: 'bragi-provider-info' })
-			info.createDiv({ cls: 'bragi-provider-name', text: spec.name })
-			if (spec.description) {
-				info.createDiv({ cls: 'bragi-provider-desc', text: spec.description })
-			}
-
-			const actions = row.createDiv({ cls: 'bragi-provider-actions' })
-
-			const editBtn = actions.createEl('button', { cls: 'bragi-icon-btn' })
-			setIcon(editBtn, 'pencil')
-			setTooltip(editBtn, 'Edit')
-			editBtn.addEventListener('click', () => {
-				new AddProviderModal(this.plugin, spec.id, () => this.display()).open()
-			})
-
-			const removeBtn = actions.createEl('button', { cls: 'bragi-icon-btn' })
-			setIcon(removeBtn, 'x')
-			setTooltip(removeBtn, 'Remove')
-			removeBtn.addEventListener('click', () => {
-				removeProvider(this.plugin, spec.id, () => this.display())
-			})
+			const row = new Setting(wrap)
+				.setName(spec.name)
+				.setDesc(spec.description || '')
+				.addExtraButton(btn => btn
+					.setIcon('list-checks')
+					.setTooltip('Manage models')
+					.onClick(() => {
+						new ProviderModelsModal(this.plugin, {
+							mode: 'manage',
+							providerId: spec.id,
+							onDone: () => this.display(),
+						}).open()
+					}))
+				.addExtraButton(btn => btn
+					.setIcon('pencil')
+					.setTooltip('Edit')
+					.onClick(() => {
+						new AddProviderModal(this.plugin, {
+							initialProviderId: spec.id,
+							onSaved: () => this.display(),
+						}).open()
+					}))
+				.addExtraButton(btn => btn
+					.setIcon('x')
+					.setTooltip('Remove')
+					.onClick(() => {
+						removeProvider(this.plugin, spec.id, () => this.display())
+					}))
+			row.settingEl.addClass('bragi-provider-row')
 		}
-
-		const addBtn = containerEl.createEl('button', { cls: 'bragi-add-btn', text: '+ add provider' })
-		addBtn.addEventListener('click', () => {
-			new AddProviderModal(this.plugin, undefined, () => this.display()).open()
-		})
 	}
 
 	private async handleSettingsImportFile(file: File): Promise<void> {
@@ -627,8 +394,8 @@ export class BragiSettingTab extends PluginSettingTab {
 			return
 		}
 
-		const result = validateImportedSettings(parsed)
-		if (!result.ok) {
+		const result = migrateSettings(parsed, DEFAULT_SETTINGS, { requireRecognizable: true, strict: true })
+		if (!result.valid) {
 			this.showImportFailedModal()
 			return
 		}
@@ -698,14 +465,22 @@ export class BragiSettingTab extends PluginSettingTab {
 	}
 
 	private renderModelGroup(containerEl: HTMLElement, title: string, type: GenerationType): void {
-		const groupEl = containerEl.createDiv({ cls: 'bragi-model-group' })
-		addSettingHeading(groupEl, title)
+		const groupEl = containerEl.createDiv({ cls: 'setting-group bragi-settings-section bragi-model-group' })
+		addSettingHeading(groupEl, title, {
+			icon: 'plus',
+			tooltip: `Add ${type} model`,
+			onClick: () => {
+				new AddModelModal(this.plugin, () => this.display(), type).open()
+			},
+		})
 
-		const configured = getConfiguredProviderIds(this.plugin.settings)
-		const allModels = getModelsByType(type)
-
-		// Only show enabled models (users explicitly added them via Add Model flow).
-		const enabledModels = allModels.filter(m => this.plugin.settings.modelPrefs[m.id]?.enabled)
+		// Only show models the user explicitly enabled and that still have a connected provider.
+		const enabledModels = getEnabledModels(
+			type,
+			this.plugin.settings.modelOrder[type],
+			this.plugin.settings.modelPrefs,
+			model => getConnectedConfiguredProviderIds(this.plugin.settings, model),
+		)
 
 		// Apply saved order
 		const orderKey = type
@@ -722,29 +497,33 @@ export class BragiSettingTab extends PluginSettingTab {
 			}
 		}
 
-		const listEl = groupEl.createDiv({ cls: 'bragi-model-list' })
+		const listEl = groupEl.createDiv({ cls: 'setting-items bragi-model-list' })
 
 		if (ordered.length === 0) {
-			listEl.createEl('p', { text: `No ${type} models added yet.`, cls: 'bragi-empty-hint' })
+			addEmptySetting(listEl, `No ${type} models have been added. Click + to add one.`)
+			return
 		}
 
 		for (const model of ordered) {
 			const pref = this.plugin.settings.modelPrefs[model.id]
-			const activeProvider = getActiveProvider(model, pref.selectedProvider, configured)
+			const usable = getConnectedConfiguredProviderIds(this.plugin.settings, model)
+			const activeProvider = getActiveProvider(model, pref.selectedProvider, usable)
 
-			const row = listEl.createDiv({ cls: 'bragi-model-row' })
+			const providerCountText = `${usable.length} provider${usable.length === 1 ? '' : 's'}`
+			const setting = new Setting(listEl)
+				.setName(model.name)
+				.setDesc(`Available in ${providerCountText}`)
+			const row = setting.settingEl
+			row.addClass('bragi-model-row')
 
 			// Drag handle
-			const handle = row.createSpan({ cls: 'bragi-drag-handle', text: '⠿' })
+			const handle = createSpan({ cls: 'bragi-drag-handle', text: '⠿' })
 			handle.setAttribute('draggable', 'true')
+			setting.infoEl.prepend(handle)
+			setting.nameEl.addClass('bragi-model-name')
 
-			// Model name
-			row.createSpan({ cls: 'bragi-model-name', text: model.name })
-
-			// Provider selector — only list supported+configured providers
-			const providerSelect = row.createEl('select', { cls: 'dropdown bragi-model-provider' })
-			const supportedProviders = Object.keys(model.supportedProviders)
-			const usable = supportedProviders.filter(p => configured.includes(p))
+			// Provider selector — only list providers explicitly connected to this model.
+			const providerSelect = setting.controlEl.createEl('select', { cls: 'dropdown bragi-model-provider' })
 
 			if (usable.length === 0) {
 				const opt = providerSelect.createEl('option', { value: '', text: 'No provider configured' })
@@ -769,16 +548,18 @@ export class BragiSettingTab extends PluginSettingTab {
 				})()
 			})
 
-			// Remove button (× — disables the model, doesn't touch providers)
-			const removeBtn = row.createEl('button', { cls: 'bragi-icon-btn bragi-model-remove' })
-			setIcon(removeBtn, 'x')
-			setTooltip(removeBtn, 'Remove from list')
-			removeBtn.addEventListener('click', () => {
-				void (async () => {
-					this.plugin.settings.modelPrefs[model.id] = { enabled: false, selectedProvider: pref.selectedProvider || '' }
-					await this.plugin.saveSettings()
-					this.display()
-				})()
+			// Remove button (× — disables the model and clears provider connections)
+			setting.addExtraButton(btn => {
+				btn.extraSettingsEl.addClass('bragi-model-remove')
+				btn.setIcon('x')
+					.setTooltip('Remove from list')
+					.onClick(() => {
+						void (async () => {
+							disableModel(this.plugin.settings, model.id)
+							await this.plugin.saveSettings()
+							this.display()
+						})()
+					})
 			})
 
 			// Drag and drop reordering
@@ -817,11 +598,6 @@ export class BragiSettingTab extends PluginSettingTab {
 				})()
 			})
 		}
-
-		const addBtn = groupEl.createEl('button', { cls: 'bragi-add-btn', text: `+ Add ${type} model` })
-		addBtn.addEventListener('click', () => {
-			new AddModelModal(this.plugin, () => this.display(), type).open()
-		})
 	}
 
 	/** Delete indexed files in _bragi/assets/ that are no longer referenced by the active canvas. */

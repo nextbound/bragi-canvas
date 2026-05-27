@@ -7,7 +7,7 @@ import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './typ
 import type { PanelResult } from './panel'
 import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
 import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputLabels } from './models/text-input-capabilities'
-import { getConfiguredProviderIds } from './providers/registry'
+import { getConnectedConfiguredProviderIds } from './provider-model-prefs'
 import type { GenerationType, Mode } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
@@ -422,20 +422,20 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		{
 			category: 'Generation',
 			name: 'list_models',
-			description: 'List available AI models, optionally filtered by type (image/video/text/audio). Only returns models with configured API keys.',
+			description: 'List enabled AI models, optionally filtered by type (image/video/text/audio). Only returns models with a connected, configured provider.',
 			inputSchema: { type: z.enum(['image', 'video', 'text', 'audio']).optional().describe('Filter by generation type') },
 			handler: ({ type }) => {
 				const settings = ctx.getSettings?.()
 				if (!settings) throw new Error('Settings not available')
-				const configured = getConfiguredProviderIds(settings)
 				const types: GenerationType[] = type ? [type] : ['image', 'video', 'text', 'audio']
 				const result: JsonMap[] = []
 				for (const t of types) {
-						const orderKey = t
-					const models = getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configured)
+					const orderKey = t
+					const models = getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, model => getConnectedConfiguredProviderIds(settings, model))
 					for (const m of models) {
 						const pref = settings.modelPrefs[m.id]
-						const provider = getActiveProvider(m, pref?.selectedProvider, configured)
+						const provider = getActiveProvider(m, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, m))
+						if (!provider) continue
 						const apiModelId = m.supportedProviders[provider]?.apiModelId
 						const capability = m.type === 'text'
 							? getTextInputCapability(m.id, provider, apiModelId)
@@ -509,9 +509,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				const model = getModelById(modelId)
 				if (!model) throw new Error(`Model not found: ${modelId}`)
 
-				const configured = getConfiguredProviderIds(settings)
 				const pref = settings.modelPrefs[modelId]
-				const provider = getActiveProvider(model, pref?.selectedProvider, configured)
+				if (pref?.enabled !== true) throw new Error(`Model not enabled: ${modelId}`)
+				const provider = getActiveProvider(model, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, model))
 				if (!provider) throw new Error(`No configured provider for model ${modelId}`)
 
 				const apiModelId = model.supportedProviders[provider]?.apiModelId || modelId

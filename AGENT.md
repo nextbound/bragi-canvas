@@ -41,6 +41,15 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - The repository uses `MPL-2.0` because it is recognized by GitHub and Obsidian's review backend.
 - Submit or preview reviews through the Obsidian Community backend at `community.obsidian.md` when possible. Do not rely only on the old `obsidian-releases` PR workflow.
 
+## Settings Migrations
+
+- Keep all `data.json` settings schema migrations in the centralized settings migration pipeline.
+- Every settings schema migration must have an explicit order and advance `settingsSchemaVersion`.
+- Settings migrations should be pure data transformations. Do not put UI, filesystem, network, or provider test side effects in them.
+- `loadSettings()` and settings import must use the same migration entry point.
+- Keep file, asset, canvas, and vault-content migrations in their own modules. Do not mix them into settings schema migration code.
+- When adding a settings field, update defaults, validator/import parsing, migration behavior, and the test plan in the same change.
+
 ## Reference Asset Upload Policy
 
 - When a provider needs a publicly fetchable reference asset URL, prefer the built-in Bragi temporary relay path first (`src/providers/upload.ts` + `src/providers/bragi-relay.ts`) and pass the returned public URL into the model request.

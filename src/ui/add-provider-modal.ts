@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Setting, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
+import { settingsWithProviderCredentialDraft, type ProviderCredentialDraft } from '../provider-model-prefs'
 import { PROVIDERS, type ProviderSpec } from '../providers/registry'
 
 export interface AddProviderModalOptions {
@@ -13,6 +14,10 @@ export interface AddProviderModalOptions {
 	providerChoices?: string[]
 	/** Called after a successful save with the saved provider's id. */
 	onSaved?: (providerId: string) => void
+	/** Called with validated draft credentials without mutating settings. */
+	onSubmitDraft?: (providerId: string, draft: ProviderCredentialDraft) => void
+	initialDraftValues?: ProviderCredentialDraft
+	submitLabel?: string
 	/** If provided, the form's cancel button reads "Back" and calls this instead of just closing. */
 	onBack?: () => void
 }
@@ -51,7 +56,10 @@ export class AddProviderModal extends Modal {
 		// From Add Model flow: always use the dropdown form, even for a single choice
 		const choices = this.opts.providerChoices
 		if (choices && choices.length > 0) {
-			const first = PROVIDERS.find(p => p.id === choices[0])
+			const initialId = this.opts.initialProviderId && choices.includes(this.opts.initialProviderId)
+				? this.opts.initialProviderId
+				: choices[0]
+			const first = PROVIDERS.find(p => p.id === initialId)
 			if (first) { this.renderForm(first); return }
 		}
 
@@ -124,15 +132,16 @@ export class AddProviderModal extends Modal {
 		if (showDropdown) {
 			titleEl.setText('Connect a provider')
 		} else {
-			titleEl.setText(`Add ${spec.name}`)
+			const verb = this.opts.onSubmitDraft || !spec.isConfigured(this.plugin.settings) ? 'Add' : 'Edit'
+			titleEl.setText(`${verb} ${spec.name}`)
 		}
 
 		let currentSpec = spec
-		const draft: Record<string, string> = {}
+		const draft: ProviderCredentialDraft = {}
 
 		const loadDraft = () => {
 			for (const f of currentSpec.fields) {
-				draft[f.key] = (this.plugin.settings.providers as unknown)[f.key] || ''
+				draft[f.key] = this.opts.initialDraftValues?.[f.key] ?? this.plugin.settings.providers[f.key] ?? ''
 			}
 		}
 		loadDraft()
@@ -195,7 +204,7 @@ export class AddProviderModal extends Modal {
 					})
 				} else {
 					setting.addText(t => {
-						t.setPlaceholder(f.placeholder).setValue(draft[f.key]).onChange(v => { draft[f.key] = v })
+						t.setPlaceholder(f.placeholder).setValue(draft[f.key] || '').onChange(v => { draft[f.key] = v })
 						if (f.type === 'password') {
 							t.inputEl.type = 'password'
 							// Toggle-visibility eye button
@@ -241,7 +250,7 @@ export class AddProviderModal extends Modal {
 			test.addEventListener('click', () => {
 				void (async () => {
 					// Use trimmed draft values
-					const trimmed: Record<string, string> = {}
+					const trimmed: ProviderCredentialDraft = {}
 					for (const f of currentSpec.fields) trimmed[f.key] = (draft[f.key] || '').trim()
 					test.disabled = true
 					test.setText('Testing…')
@@ -250,7 +259,8 @@ export class AddProviderModal extends Modal {
 						if (res.ok) new Notice(`${currentSpec.name}: ${res.message}`)
 						else new Notice(`${currentSpec.name}: ${res.message}`, 6000)
 					} catch (err: unknown) {
-						new Notice(`${currentSpec.name}: test failed — ${err?.message || err}`, 6000)
+						const message = err instanceof Error ? err.message : String(err)
+						new Notice(`${currentSpec.name}: test failed — ${message}`, 6000)
 					} finally {
 						test.disabled = false
 						test.setText('Test')
@@ -259,21 +269,30 @@ export class AddProviderModal extends Modal {
 			})
 		}
 
-		const save = btnRow.createEl('button', { text: 'Save', cls: 'mod-cta' })
+		const submitLabel = this.opts.submitLabel || (this.opts.onSubmitDraft ? 'Select models' : 'Save')
+		const save = btnRow.createEl('button', { text: submitLabel, cls: 'mod-cta' })
 		save.addEventListener('click', () => {
 			void (async () => {
-				const provs = this.plugin.settings.providers as unknown
+				const trimmed: ProviderCredentialDraft = {}
 				for (const f of currentSpec.fields) {
-					provs[f.key] = (draft[f.key] || '').trim()
+					trimmed[f.key] = (draft[f.key] || '').trim()
 				}
-				await this.plugin.saveSettings()
-				if (!currentSpec.isConfigured(this.plugin.settings)) {
+				const fakeSettings = settingsWithProviderCredentialDraft(this.plugin.settings, currentSpec.id, trimmed)
+				if (!currentSpec.isConfigured(fakeSettings)) {
 					new Notice('Fill in every field first')
 					return
 				}
-				new Notice(`${currentSpec.name} added`)
 				const savedId = currentSpec.id
 				this.close()
+				if (this.opts.onSubmitDraft) {
+					this.opts.onSubmitDraft(savedId, trimmed)
+					return
+				}
+				for (const f of currentSpec.fields) {
+					this.plugin.settings.providers[f.key] = trimmed[f.key] || ''
+				}
+				await this.plugin.saveSettings()
+				new Notice(`${currentSpec.name} saved`)
 				this.opts.onSaved?.(savedId)
 			})()
 		})

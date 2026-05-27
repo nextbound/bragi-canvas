@@ -3,7 +3,7 @@ import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, ModelParam, VoiceSourceMode } from './models/types'
 import { getEnabledModels, getActiveProvider } from './models/index'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
-import { getConfiguredProviderIds } from './providers/registry'
+import { getConnectedConfiguredProviderIds } from './provider-model-prefs'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedAudios } from './audio-refs'
 import { getOrderedTextRefs } from './text-refs'
@@ -132,10 +132,9 @@ function renderRangeParamDropdown(
 function resolveProvider(
 	model: ModelConfig,
 	settings: BragiSettings,
-	configuredProviders: string[],
 ): { provider: string; apiModelId: string } {
 	const pref = settings.modelPrefs[model.id]
-	const provider = getActiveProvider(model, pref?.selectedProvider, configuredProviders) || Object.keys(model.supportedProviders)[0]
+	const provider = getActiveProvider(model, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, model)) || Object.keys(model.supportedProviders)[0]
 	const apiModelId = model.supportedProviders[provider]?.apiModelId || model.id
 	return { provider, apiModelId }
 }
@@ -254,16 +253,14 @@ export function showGenerateBar(
 ): void {
 	hideGenerateBar()
 
-	const configuredProviders = getConfiguredProviderIds(settings)
-
 	function getModelsForType(t: GenerationType) {
 		const orderKey = t
-		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
+		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, model => getConnectedConfiguredProviderIds(settings, model))
 	}
 
 	const allEnabled = allConfiguredModels(getModelsForType)
 	if (allEnabled.length === 0) {
-		new Notice('Bragi canvas: no models available. Configure API keys in settings.')
+		new Notice('Bragi canvas: no models available. Add models in settings.')
 		return
 	}
 
@@ -694,7 +691,7 @@ export function showGenerateBar(
 					updateLabel()
 					button.addEventListener('click', () => {
 						if (!selectedModel) return
-						const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+						const { provider, apiModelId } = resolveProvider(selectedModel, settings)
 						const catalogProvider = catalogProviderFor(selectedModel, provider)
 						new VoicePickerModal(app, {
 							settings,
@@ -760,7 +757,7 @@ export function showGenerateBar(
 	 */
 	function textUpstreamIssue(m: ModelConfig): string | null {
 		if (m.type !== 'text') return null
-		const { provider, apiModelId } = resolveProvider(m, settings, configuredProviders)
+		const { provider, apiModelId } = resolveProvider(m, settings)
 		const capability = getTextInputCapability(m.id, provider, apiModelId)
 		const checks = [
 			{ kind: 'image' as const, count: upstreamImageCount },
@@ -1030,7 +1027,7 @@ export function showGenerateBar(
 			node.setData({ ...rest, bragiLastGen })
 
 			// Resolve active provider and API model ID
-			const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+			const { provider, apiModelId } = resolveProvider(selectedModel, settings)
 
 			onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: paramValues, batchCount })
 		})()
@@ -1117,16 +1114,14 @@ export function showBatchGenerateBar(
 ): void {
 	hideGenerateBar()
 
-	const configuredProviders = getConfiguredProviderIds(settings)
-
 	function getModelsForType(t: GenerationType) {
 		const orderKey = t
-		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, configuredProviders)
+		return getEnabledModels(t, settings.modelOrder[orderKey], settings.modelPrefs, model => getConnectedConfiguredProviderIds(settings, model))
 	}
 
 	const allEnabled = allConfiguredModels(getModelsForType)
 	if (allEnabled.length === 0) {
-		new Notice('Bragi canvas: no models available. Configure API keys in settings.')
+		new Notice('Bragi canvas: no models available. Add models in settings.')
 		return
 	}
 
@@ -1238,7 +1233,7 @@ export function showBatchGenerateBar(
 					button.addEventListener('click', () => {
 						if (button.disabled) return
 						if (!selectedModel) return
-						const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+						const { provider, apiModelId } = resolveProvider(selectedModel, settings)
 						const catalogProvider = catalogProviderFor(selectedModel, provider)
 						new VoicePickerModal(app, {
 							settings,
@@ -1364,7 +1359,7 @@ export function showBatchGenerateBar(
 		}
 		onSaveSettings?.()
 
-		const { provider, apiModelId } = resolveProvider(selectedModel, settings, configuredProviders)
+		const { provider, apiModelId } = resolveProvider(selectedModel, settings)
 
 		onSubmit(nodes, {
 			prompt: '',

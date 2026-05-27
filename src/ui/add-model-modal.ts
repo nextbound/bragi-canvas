@@ -1,6 +1,14 @@
 import { Modal, Notice, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
-import { ALL_MODELS, type ModelConfig, type GenerationType } from '../models'
+import { ALL_MODELS, getActiveProvider, type ModelConfig, type GenerationType } from '../models'
+import {
+	applyProviderCredentialDraft,
+	disableModel,
+	enableModelWithProvider,
+	getConnectedConfiguredProviderIds,
+	isProviderConnectedToModel,
+	type ProviderCredentialDraft,
+} from '../provider-model-prefs'
 import { getProvider, getConfiguredProviderIds } from '../providers/registry'
 import { AddProviderModal } from './add-provider-modal'
 
@@ -116,51 +124,78 @@ export class AddModelModal extends Modal {
 		const badges = body.createDiv({ cls: 'bragi-add-model-badges' })
 		const supportedIds = Object.keys(model.supportedProviders)
 		const currentPref = this.plugin.settings.modelPrefs[model.id]
+		const connectedConfigured = new Set(getConnectedConfiguredProviderIds(this.plugin.settings, model))
+		const activeProvider = currentPref?.enabled
+			? getActiveProvider(model, currentPref.selectedProvider, [...connectedConfigured])
+			: null
 
 		// Sort: configured first, unconfigured after
 		const sorted = [...supportedIds].sort((a, b) => {
-			const aC = configured.has(a) ? 1 : 0
-			const bC = configured.has(b) ? 1 : 0
-			return bC - aC
+			const score = (providerId: string) => {
+				if (providerId === activeProvider) return 3
+				if (connectedConfigured.has(providerId)) return 2
+				if (configured.has(providerId)) return 1
+				return 0
+			}
+			return score(b) - score(a)
 		})
 
 		for (const pid of sorted) {
 			const spec = getProvider(pid)
 			if (!spec) continue
 			const isConfiguredP = configured.has(pid)
-			const isActive = isAdded && currentPref?.selectedProvider === pid
+			const isConnected = isProviderConnectedToModel(this.plugin.settings, pid, model.id)
+			const isActive = isAdded && activeProvider === pid
 
 			const badge = badges.createSpan({
-				cls: `bragi-add-model-badge ${isConfiguredP ? 'is-configured' : 'is-unconfigured'} ${isActive ? 'is-active' : ''}`,
+				cls: `bragi-add-model-badge ${isConfiguredP ? 'is-configured' : 'is-unconfigured'} ${isConnected ? 'is-connected' : ''} ${isActive ? 'is-active' : ''}`,
 				text: spec.name,
 			})
 
 			if (isAdded) {
 				if (isConfiguredP) {
-					// Click already-configured inactive badge → switch active provider
-					if (!isActive) {
-							setTooltip(badge, `Switch to ${spec.name}`)
-							badge.addEventListener('click', () => {
-								this.plugin.settings.modelPrefs[model.id] = { enabled: true, selectedProvider: pid }
-								void this.plugin.saveSettings().then(() => {
-									new Notice(`${model.name} → ${spec.name}`)
-									this.onChanged()
-									this.render()
-								})
+					if (isActive) {
+						setTooltip(badge, 'Active provider')
+					} else if (isConnected) {
+						// Click connected inactive badge -> switch active provider.
+						setTooltip(badge, `Switch to ${spec.name}`)
+						badge.addEventListener('click', () => {
+							this.plugin.settings.modelPrefs[model.id] = { enabled: true, selectedProvider: pid }
+							void this.plugin.saveSettings().then(() => {
+								new Notice(`${model.name} → ${spec.name}`)
+								this.onChanged()
+								this.render()
 							})
+						})
+					} else {
+						// Click configured but unconnected badge -> connect provider, keep active provider.
+						setTooltip(badge, `Connect ${spec.name}`)
+						badge.addEventListener('click', () => {
+							enableModelWithProvider(this.plugin.settings, model.id, pid, { preserveActiveProvider: !!activeProvider })
+							void this.plugin.saveSettings().then(() => {
+								new Notice(`${spec.name} connected to ${model.name}`)
+								this.onChanged()
+								this.render()
+							})
+						})
 					}
 				} else {
-					// Click unconfigured badge → open Add Provider flow
+					// Click unconfigured badge -> collect credentials, then connect provider without changing active provider.
 					setTooltip(badge, `Add ${spec.name}`)
 					badge.addEventListener('click', () => {
-						this.close()
-						new AddProviderModal(this.plugin, {
-							initialProviderId: pid,
-							onBack: () => new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open(),
-							onSaved: () => new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open(),
-						}).open()
+						this.openProviderFormForModel(model, pid, true, !!activeProvider)
 					})
 				}
+			} else if (isConfiguredP) {
+				setTooltip(badge, `Add with ${spec.name}`)
+				badge.addEventListener('click', () => {
+					this.enableModel(model, pid, false)
+				})
+			} else {
+				setTooltip(badge, `Add ${spec.name}`)
+				badge.addEventListener('click', () => {
+					this.openProviderFormForModel(model, pid, false, false)
+				})
 			}
 		}
 
@@ -169,47 +204,85 @@ export class AddModelModal extends Modal {
 		if (isAdded) {
 			const removeBtn = actions.createEl('button', { cls: 'bragi-add-model-remove', text: 'Remove' })
 			setTooltip(removeBtn, 'Remove from list')
-				removeBtn.addEventListener('click', () => {
-					const pref = this.plugin.settings.modelPrefs[model.id]
-					this.plugin.settings.modelPrefs[model.id] = { enabled: false, selectedProvider: pref?.selectedProvider || '' }
-					void this.plugin.saveSettings().then(() => {
-						new Notice(`${model.name} removed`)
-						this.onChanged()
-						this.render()
-					})
+			removeBtn.addEventListener('click', () => {
+				disableModel(this.plugin.settings, model.id)
+				void this.plugin.saveSettings().then(() => {
+					new Notice(`${model.name} removed`)
+					this.onChanged()
+					this.render()
 				})
+			})
 		} else {
+			const connectedSupported = supportedIds.filter(pid => connectedConfigured.has(pid))
 			const configuredSupported = supportedIds.filter(pid => configured.has(pid))
 			const addBtn = actions.createEl('button', { cls: 'mod-cta', text: 'Add' })
 			addBtn.addEventListener('click', () => {
-					if (configuredSupported.length > 0) {
-						// Use first configured provider as the default
-						this.plugin.settings.modelPrefs[model.id] = { enabled: true, selectedProvider: configuredSupported[0] }
-						void this.plugin.saveSettings().then(() => {
-							new Notice(`${model.name} added`)
-							this.onChanged()
-							this.render()
-						})
+				const providerId = connectedSupported[0] || configuredSupported[0]
+				if (providerId) {
+					this.enableModel(model, providerId, false)
 				} else {
-					// Need to configure a provider first — open the provider form with a dropdown of compatible providers
-					this.close()
-					new AddProviderModal(this.plugin, {
-						providerChoices: supportedIds,
-						initialProviderId: supportedIds[0],
-						onBack: () => {
-							new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open()
-							},
-							onSaved: (savedId) => {
-								this.plugin.settings.modelPrefs[model.id] = { enabled: true, selectedProvider: savedId }
-								void this.plugin.saveSettings().then(() => {
-									new Notice(`${model.name} added`)
-									this.onChanged()
-									new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open()
-							})
-						},
-					}).open()
+					this.openProviderChoiceForModel(model, supportedIds)
 				}
 			})
 		}
+	}
+
+	private enableModel(model: ModelConfig, providerId: string, preserveActiveProvider: boolean): void {
+		enableModelWithProvider(this.plugin.settings, model.id, providerId, { preserveActiveProvider })
+		void this.plugin.saveSettings().then(() => {
+			new Notice(`${model.name} added`)
+			this.onChanged()
+			this.render()
+		})
+	}
+
+	private openProviderChoiceForModel(model: ModelConfig, providerIds: string[]): void {
+		this.close()
+		const submit = (providerId: string, draft: ProviderCredentialDraft) => {
+			this.commitProviderDraftForModel(model, providerId, draft, false)
+		}
+		new AddProviderModal(this.plugin, {
+			providerChoices: providerIds,
+			initialProviderId: providerIds[0],
+			submitLabel: 'Add model',
+			onBack: () => new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open(),
+			onSubmitDraft: submit,
+		}).open()
+	}
+
+	private openProviderFormForModel(
+		model: ModelConfig,
+		providerId: string,
+		preserveActiveProvider: boolean,
+		hasActiveProvider: boolean,
+	): void {
+		this.close()
+		const submit = (savedId: string, draft: ProviderCredentialDraft) => {
+			this.commitProviderDraftForModel(model, savedId, draft, preserveActiveProvider && hasActiveProvider)
+		}
+		new AddProviderModal(this.plugin, {
+			initialProviderId: providerId,
+			submitLabel: preserveActiveProvider ? 'Connect provider' : 'Add model',
+			onBack: () => new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open(),
+			onSubmitDraft: submit,
+		}).open()
+	}
+
+	private commitProviderDraftForModel(
+		model: ModelConfig,
+		providerId: string,
+		draft: ProviderCredentialDraft,
+		preserveActiveProvider: boolean,
+	): void {
+		applyProviderCredentialDraft(this.plugin.settings, providerId, draft)
+		enableModelWithProvider(this.plugin.settings, model.id, providerId, { preserveActiveProvider })
+		void this.plugin.saveSettings().then(() => {
+			const providerName = getProvider(providerId)?.name || providerId
+			new Notice(preserveActiveProvider
+				? `${providerName} connected to ${model.name}`
+				: `${model.name} added`)
+			this.onChanged()
+			new AddModelModal(this.plugin, this.onChanged, this.typeFilter).open()
+		})
 	}
 }

@@ -1294,30 +1294,72 @@
 
 /* ── Bragi Canvas — Settings Page ─────────────────────────────────── */
 
-.bragi-model-group h4 {
-	margin: 16px 0 8px;
-	font-size: 14px;
-	color: var(--bragi-text-muted);
+.bragi-settings-section {
+	margin-top: var(--size-4-4);
+}
+
+.bragi-settings-section > .setting-item-heading {
+	padding-top: var(--size-4-2);
+}
+
+.bragi-settings-section > .setting-item-heading .setting-item-control {
+	align-self: center;
+}
+
+.bragi-empty-setting.setting-item {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: var(--size-4-2) 0 var(--size-4-4);
+	padding: 0 var(--size-4-5);
+	border: none;
+	border-radius: var(--radius-l);
+}
+
+.bragi-empty-setting .setting-item-info {
+	margin-right: 0;
+	width: 100%;
+	padding: 0 !important;
+	border-radius: 0 !important;
+	background: none !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	text-align: center;
+}
+
+.bragi-empty-setting .setting-item-name {
+	color: var(--text-muted);
+	display: block;
+	width: 100%;
+	border-radius: 0 !important;
+	background: none !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-normal);
+	line-height: 1.45;
+	text-align: center;
+}
+
+.bragi-empty-setting .setting-item-info::before,
+.bragi-empty-setting .setting-item-info::after,
+.bragi-empty-setting .setting-item-name::before,
+.bragi-empty-setting .setting-item-name::after {
+	display: none !important;
+	content: none !important;
+}
+
+.bragi-empty-setting .setting-item-description,
+.bragi-empty-setting .setting-item-control {
+	display: none;
 }
 
 .bragi-model-list {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
+	display: block;
 }
 
-.bragi-model-row {
-	display: flex;
+.bragi-model-row.setting-item {
 	align-items: center;
-	gap: 8px;
-	padding: 6px 8px;
-	border-radius: 6px;
-	background: var(--bragi-surface-muted);
-	transition: background 0.1s;
-}
-
-.bragi-model-row:hover {
-	background: var(--bragi-hover);
 }
 
 .bragi-model-row.is-dragging {
@@ -1328,7 +1370,31 @@
 	border-top: 2px solid var(--bragi-accent);
 }
 
+.bragi-model-row .setting-item-info {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	align-items: center;
+	column-gap: 8px;
+	min-width: 0;
+}
+
+.bragi-model-row .setting-item-description {
+	grid-column: 2;
+	grid-row: 2;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.3;
+}
+
+.bragi-model-row .setting-item-control {
+	align-items: center;
+	min-height: 32px;
+}
+
 .bragi-drag-handle {
+	grid-column: 1;
+	grid-row: 1 / span 2;
 	cursor: grab;
 	color: var(--bragi-text-faint);
 	font-size: 14px;
@@ -1341,8 +1407,13 @@
 }
 
 .bragi-model-name {
-	flex: 1;
-	font-size: 13px;
+	grid-column: 2;
+	grid-row: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--font-ui-small);
 }
 
 .bragi-model-provider {
@@ -1665,40 +1736,21 @@
 }
 
 .bragi-providers-list {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	margin-bottom: 8px;
+	display: block;
+	margin-bottom: var(--size-4-4);
 }
 
-.bragi-provider-row {
-	display: flex;
+.bragi-provider-row.setting-item {
 	align-items: center;
-	gap: 12px;
-	padding: 10px 12px;
-	border-radius: 8px;
-	background: var(--bragi-surface-muted);
 }
 
-.bragi-provider-info {
-	flex: 1;
-	min-width: 0;
-}
-
-.bragi-provider-name {
+.bragi-provider-row .setting-item-name {
 	color: var(--bragi-text);
+	font-weight: var(--font-medium);
 }
 
-.bragi-provider-desc {
-	font-size: 12px;
+.bragi-provider-row .setting-item-description {
 	color: var(--bragi-text-muted);
-	margin-top: 2px;
-}
-
-.bragi-provider-actions {
-	display: flex;
-	gap: 4px;
-	flex-shrink: 0;
 }
 
 .bragi-icon-btn {
@@ -1714,24 +1766,6 @@
 }
 
 .bragi-icon-btn:hover {
-	background: var(--bragi-hover);
-	color: var(--bragi-text);
-}
-
-.bragi-add-btn {
-	background: transparent;
-	border: none;
-	border-radius: 8px;
-	padding: 8px 14px;
-	color: var(--bragi-text-muted);
-	cursor: pointer;
-	width: 100%;
-	transition: all 0.12s ease;
-	margin-top: 4px;
-	margin-bottom: 8px;
-}
-
-.bragi-add-btn:hover {
 	background: var(--bragi-hover);
 	color: var(--bragi-text);
 }
@@ -1855,6 +1889,7 @@
 
 .bragi-add-model-modal,
 .bragi-add-provider-modal,
+.bragi-provider-models-modal,
 .bragi-voice-picker-modal {
 	width: 560px;
 	max-width: 90vw;
@@ -2173,6 +2208,10 @@
 	border-color: var(--bragi-accent);
 }
 
+.bragi-add-model-card.is-added .bragi-add-model-badge.is-configured.is-connected:not(.is-active) {
+	border-color: color-mix(in srgb, var(--bragi-accent) 40%, transparent);
+}
+
 .bragi-add-model-card.is-added .bragi-add-model-badge.is-configured:not(.is-active) {
 	background: color-mix(in srgb, var(--bragi-accent) 18%, transparent);
 	color: var(--bragi-accent);
@@ -2186,6 +2225,84 @@
 .bragi-add-model-card.is-added .bragi-add-model-badge.is-unconfigured:hover {
 	opacity: 1;
 	background: var(--bragi-hover);
+}
+
+/* ── Provider Models Modal ──────────────────────────────────────────── */
+
+.bragi-provider-models-modal .modal-content {
+	max-height: 70vh;
+	overflow-y: auto;
+}
+
+.bragi-provider-models-desc {
+	margin: 0;
+	padding: 0 0 var(--size-4-4) 0;
+}
+
+.bragi-provider-models-toolbar {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+.bragi-provider-models-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.bragi-provider-models-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.bragi-provider-models-group-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--bragi-text-muted);
+	padding-left: 2px;
+}
+
+.bragi-provider-models-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 10px;
+	border: 1px solid var(--bragi-border);
+	border-radius: 8px;
+	background: var(--bragi-surface-muted);
+	cursor: pointer;
+}
+
+.bragi-provider-models-row:hover {
+	background: var(--bragi-hover);
+}
+
+.bragi-provider-models-row input[type="checkbox"] {
+	flex-shrink: 0;
+}
+
+.bragi-provider-models-info {
+	min-width: 0;
+}
+
+.bragi-provider-models-name {
+	color: var(--bragi-text);
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.bragi-provider-models-id {
+	margin-top: 2px;
+	color: var(--bragi-text-muted);
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* ── Hide vault-level _bragi folder from file tree ──────────────────── */
