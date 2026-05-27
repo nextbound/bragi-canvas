@@ -5,6 +5,13 @@ import type { GenerateImageResult, GenerateVideoResult, ImageProvider, VideoProv
 import type { TextGenProvider, TextGenResult } from './text-gen'
 import { uploadRef } from './upload'
 import { resolveOpenAIImageSize } from './openai-image-size'
+import {
+	TOKENROUTER_IMAGE_EDIT_MODERATION_FALLBACK_MODELS,
+	buildImageEditModerationError,
+	buildImageEditSafetyRetryPrompt,
+	isTokenRouterModerationError,
+	shouldUseImageEditSafetyRetry,
+} from './tokenrouter-safety'
 
 const DEFAULT_BASE_URL = 'https://api.tokenrouter.com/v1'
 const IMAGE_GENERATION_MODELS = new Set([
@@ -397,7 +404,7 @@ export class TokenRouterImageProvider implements ImageProvider {
 		return extractImageSources(resp.json)
 	}
 
-	private async editWithRefs(modelId: string, prompt: string, params: Record<string, unknown>, refImages: string[]): Promise<string[]> {
+	private async submitImageEdit(modelId: string, prompt: string, params: Record<string, unknown>, refImages: string[]) {
 		const boundary = '----BragiTokenRouterFormBoundary' + Math.random().toString(36).slice(2)
 		const parts: Uint8Array[] = []
 		appendMultipartField(parts, boundary, 'model', modelId)
@@ -416,7 +423,7 @@ export class TokenRouterImageProvider implements ImageProvider {
 		}
 		parts.push(new TextEncoder().encode(`--${boundary}--\r\n`))
 
-		const resp = await requestUrl({
+		return requestUrl({
 			url: `${this.baseUrl}/images/edits`,
 			method: 'POST',
 			headers: {
@@ -426,8 +433,31 @@ export class TokenRouterImageProvider implements ImageProvider {
 			throw: false,
 			body: concatBytes(parts),
 		})
+	}
 
-		if (resp.status >= 400) throw new Error(parseProviderError('TokenRouter image edit', resp))
+	private async editWithRefs(modelId: string, prompt: string, params: Record<string, unknown>, refImages: string[]): Promise<string[]> {
+		const resp = await this.submitImageEdit(modelId, prompt, params, refImages)
+		if (resp.status >= 400) {
+			const primaryError = parseProviderError('TokenRouter image edit', resp)
+			if (!isTokenRouterModerationError(primaryError) || !shouldUseImageEditSafetyRetry(prompt)) {
+				throw new Error(primaryError)
+			}
+
+			const safePrompt = buildImageEditSafetyRetryPrompt(prompt)
+			const retryResp = await this.submitImageEdit(modelId, safePrompt, params, refImages)
+			if (retryResp.status < 400) return extractImageSources(retryResp.json)
+
+			const fallbackErrors = [parseProviderError('TokenRouter image edit', retryResp)]
+			for (const fallbackModelId of TOKENROUTER_IMAGE_EDIT_MODERATION_FALLBACK_MODELS) {
+				try {
+					return await this.generateViaChat(fallbackModelId, safePrompt, refImages)
+				} catch (err) {
+					fallbackErrors.push(err instanceof Error ? err.message : String(err))
+				}
+			}
+
+			throw new Error(buildImageEditModerationError(primaryError, fallbackErrors))
+		}
 		return extractImageSources(resp.json)
 	}
 

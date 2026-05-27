@@ -12,7 +12,8 @@
     "audit:theme": "node scripts/audit-theme-vars.mjs",
     "lint:obsidian": "eslint .",
     "test:gemini-video-text": "node scripts/verify-gemini-video-text.mjs",
-    "test:text-multimodal": "node scripts/verify-text-multimodal.mjs"
+    "test:text-multimodal": "node scripts/verify-text-multimodal.mjs",
+    "test:tokenrouter-image-safety": "node scripts/verify-tokenrouter-image-safety.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
