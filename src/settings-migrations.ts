@@ -6,7 +6,7 @@ import {
 	pruneProviderModelPrefs,
 } from './provider-model-prefs'
 import { getConfiguredProviderIds } from './providers/registry'
-import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type LastSelection, type ModelPref } from './settings'
+import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type LastSelection, type ModelPref, type UpdatePromptState } from './settings'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -42,6 +42,7 @@ function cloneDefaultSettings(defaults: BragiSettings): BragiSettings {
 		},
 		knownCanvases: [],
 		generatedAssets: [],
+		updatePrompt: {},
 	}
 }
 
@@ -128,6 +129,37 @@ function readGeneratedAssets(source: UnknownRecord, errors: string[]): Generated
 		})
 	}
 	return records
+}
+
+function readUpdatePrompt(source: UnknownRecord, errors: string[]): UpdatePromptState {
+	if (!('updatePrompt' in source)) return {}
+	const value = source.updatePrompt
+	if (!isRecord(value)) {
+		errors.push('updatePrompt')
+		return {}
+	}
+
+	const result: UpdatePromptState = {}
+	for (const key of ['lastCheckedAt', 'lastPromptedAt'] as const) {
+		const n = value[key]
+		if (n === undefined) continue
+		if (typeof n !== 'number' || !Number.isFinite(n)) {
+			errors.push(`updatePrompt.${key}`)
+			continue
+		}
+		result[key] = n
+	}
+	for (const key of ['latestVersion', 'latestReleaseUrl', 'latestReleaseName', 'lastPromptedVersion'] as const) {
+		const s = value[key]
+		if (s === undefined) continue
+		if (typeof s !== 'string') {
+			errors.push(`updatePrompt.${key}`)
+			continue
+		}
+		result[key] = s
+	}
+
+	return result
 }
 
 function readLastSelection(source: UnknownRecord, key: string, errors: string[]): LastSelection | undefined {
@@ -249,6 +281,7 @@ function readSettings(raw: UnknownRecord, defaults: BragiSettings): { settings: 
 	readOptionalString(raw, 'mcpToken', target, errors)
 	readOptionalStringArray(raw, 'knownCanvases', target, errors)
 	settings.generatedAssets = readGeneratedAssets(raw, errors)
+	settings.updatePrompt = readUpdatePrompt(raw, errors)
 
 	if ('providers' in raw) {
 		if (!isRecord(raw.providers)) {
@@ -441,6 +474,7 @@ const RECOGNIZABLE_KEYS = [
 	'mcpToken',
 	'knownCanvases',
 	'generatedAssets',
+	'updatePrompt',
 ]
 
 export function isSettingsLike(raw: unknown): boolean {

@@ -67,6 +67,15 @@ export interface GeneratedAssetRecord {
 	createdAt: number
 }
 
+export interface UpdatePromptState {
+	lastCheckedAt?: number
+	latestVersion?: string
+	latestReleaseUrl?: string
+	latestReleaseName?: string
+	lastPromptedVersion?: string
+	lastPromptedAt?: number
+}
+
 export interface BragiSettings {
 	settingsSchemaVersion: number
 	outputDir: string
@@ -123,6 +132,7 @@ export interface BragiSettings {
 	// MCP canvas listing and generated asset cleanup.
 	knownCanvases: string[]
 	generatedAssets: GeneratedAssetRecord[]
+	updatePrompt: UpdatePromptState
 
 	// MCP server
 	mcpEnabled: boolean
@@ -173,6 +183,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 	mcpToken: '',
 	knownCanvases: [],
 	generatedAssets: [],
+	updatePrompt: {},
 }
 
 export class BragiSettingTab extends PluginSettingTab {

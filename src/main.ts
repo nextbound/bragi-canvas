@@ -33,6 +33,8 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { VoiceSourceMode } from './models/types'
 import { validateTextInputs } from './models/text-input-capabilities'
 import { prepareTextInputs } from './text-input-prep'
+import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
+import { UpdateReminderModal } from './ui/update-modal'
 
 type SeedanceAssetProviderId = 'tokenrouter' | 'byteplus' | 'bytedance'
 
@@ -59,6 +61,8 @@ export default class BragiCanvas extends Plugin {
 	private sweptCanvasPaths = new Set<string>()
 	private migrationCheckedCanvasPaths = new Set<string>()
 	private migrationCheckInFlight = false
+	private updateCheckInFlight = false
+	private updateModalOpen = false
 
 	async onload() {
 		// Bragi relies on Obsidian running in English (our UI hooks match the
@@ -106,11 +110,23 @@ export default class BragiCanvas extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('layout-change', () => {
 				this.tryPatchCanvas()
+				this.maybeCheckForUpdatesFromActiveCanvas()
+			})
+		)
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', () => {
+				this.maybeCheckForUpdatesFromActiveCanvas()
+			})
+		)
+		this.registerEvent(
+			this.app.workspace.on('file-open', (file) => {
+				if (file?.path.endsWith('.canvas')) this.maybeCheckForUpdatesFromActiveCanvas()
 			})
 		)
 
 		this.app.workspace.onLayoutReady(() => {
 			this.tryPatchCanvas()
+			this.maybeCheckForUpdatesFromActiveCanvas()
 			this.checkScopedMigration()
 			this.attachmentRedirectStop = startAttachmentRedirect(this.app)
 		})
@@ -143,6 +159,14 @@ export default class BragiCanvas extends Plugin {
 			name: 'Import .bragi package (as new canvas)',
 			callback: () => {
 				void importCanvas(this.app, this.settings, null, 'new')
+			},
+		})
+
+		this.addCommand({
+			id: 'bragi-check-for-updates',
+			name: 'Check for updates',
+			callback: () => {
+				void this.checkForUpdatesManually()
 			},
 		})
 
@@ -208,6 +232,62 @@ export default class BragiCanvas extends Plugin {
 		return typeof path === 'string' && path.endsWith('.canvas') ? path : null
 	}
 
+	private maybeCheckForUpdatesFromActiveCanvas(): void {
+		if (!this.getActiveCanvasPath()) return
+		void this.checkForUpdates({ manual: false }).catch(err => {
+			console.error('Bragi Canvas: update check failed', err)
+		})
+	}
+
+	private async checkForUpdatesManually(): Promise<void> {
+		await this.checkForUpdates({ manual: true })
+	}
+
+	private async checkForUpdates(opts: { manual: boolean }): Promise<void> {
+		if (this.updateCheckInFlight) {
+			if (opts.manual) new Notice('Update check already running')
+			return
+		}
+		this.updateCheckInFlight = true
+		try {
+			const result = await checkForPluginUpdate(this.manifest.version, this.settings.updatePrompt, {
+				forceFetch: opts.manual,
+			})
+			if (result.fetched) await this.saveSettings()
+
+			if (!result.update) {
+				if (opts.manual) new Notice('Bragi canvas is up to date')
+				return
+			}
+
+			if (!opts.manual && !shouldShowAutomaticUpdatePrompt(this.settings.updatePrompt, result.update.latestVersion)) {
+				return
+			}
+
+			this.openUpdateModal(result.update)
+		} catch (err) {
+			console.error('Bragi Canvas: update check failed', err)
+			if (opts.manual) new Notice(`Update check failed: ${err instanceof Error ? err.message : String(err)}`)
+		} finally {
+			this.updateCheckInFlight = false
+		}
+	}
+
+	private openUpdateModal(update: AvailablePluginUpdate): void {
+		if (this.updateModalOpen) return
+		this.updateModalOpen = true
+		new UpdateReminderModal(this.app, {
+			update,
+			onSuppress: async () => {
+				markUpdatePrompted(this.settings.updatePrompt, update.latestVersion)
+				await this.saveSettings()
+			},
+			onClosed: () => {
+				this.updateModalOpen = false
+			},
+		}).open()
+	}
+
 	rememberCanvasPath(path: string): void {
 		if (!path.endsWith('.canvas')) return
 		if (this.settings.knownCanvases.includes(path)) return
@@ -246,6 +326,7 @@ export default class BragiCanvas extends Plugin {
 			this.rememberCanvasPath(canvasPath)
 			this.checkScopedMigration()
 			this.resumePendingTasksForCanvas(canvas, canvasPath)
+			this.maybeCheckForUpdatesFromActiveCanvas()
 		}
 
 		// Sweep runs every canvas activation:

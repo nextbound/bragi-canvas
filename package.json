@@ -11,6 +11,7 @@
     "build": "node esbuild.config.mjs production",
     "audit:theme": "node scripts/audit-theme-vars.mjs",
     "lint:obsidian": "eslint .",
+    "test:update-check": "node scripts/verify-update-check.mjs",
     "test:gemini-video-text": "node scripts/verify-gemini-video-text.mjs",
     "test:text-multimodal": "node scripts/verify-text-multimodal.mjs"
   },

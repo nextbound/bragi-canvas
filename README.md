@@ -70,6 +70,8 @@ No provider API keys are bundled with the plugin or included in release assets.
 
 Bragi Canvas sends prompts and selected upstream reference files to the AI providers configured by the user when a generation is run. Some providers require publicly fetchable reference URLs; for those workflows, Bragi Canvas may upload temporary copies of selected reference files to the built-in Bragi Relay service so the provider can fetch them. Gemini multimodal text generation uses inline image data, and sends upstream video, audio, and PDF refs through Bragi Relay as `fileData.fileUri` inputs. Relay-hosted files are intended as temporary transfer files and are not used for client-side telemetry.
 
+When a canvas is opened or activated, Bragi Canvas may check the latest public GitHub release for this plugin to show an update reminder. This request does not include vault contents, prompts, provider credentials, or user analytics data.
+
 Importing and exporting `.bragi` workflow packages uses the file selected by the user in the desktop file picker. Imported package assets are written only into the vault at `_bragi/assets`; Bragi Canvas does not write plugin update files or modify its installed plugin files at runtime.
 
 The plugin can also run an optional local MCP server on `127.0.0.1` when enabled in settings. If an MCP access token is configured, clients must send the matching bearer token.
