@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.17.1
+
+- Added MuleRouter as a video provider.
+- Added Wan 2.7 Spicy I2V as an explicit opt-in video model.
+- Routed MuleRouter image and audio references through Bragi temporary relay URLs before provider calls.
+- Preserved explicit provider-model connection semantics so the new model is addable but not auto-enabled for existing users.
+- Bumped the plugin version to `1.17.1`.
+
 ## 1.17.0
 
 - Refined the provider and model settings flow so provider credentials are only saved after selected models are connected.
