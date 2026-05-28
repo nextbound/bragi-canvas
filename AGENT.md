@@ -50,6 +50,15 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - Keep file, asset, canvas, and vault-content migrations in their own modules. Do not mix them into settings schema migration code.
 - When adding a settings field, update defaults, validator/import parsing, migration behavior, and the test plan in the same change.
 
+## Model / Provider Catalog Changes
+
+- Adding a model to the local catalogue or adding provider support for a model must not automatically enable that model for existing users.
+- Treat newly supported models as addable candidates only. They may appear in Add Model and provider Manage models flows, but they must not appear in settings model lists, panels, or MCP `list_models` until the user explicitly enables them.
+- A model is available only when `modelPrefs[modelId].enabled === true`, its active provider is configured, the provider supports the model, and `providerModelPrefs[providerId][modelId] === true`.
+- When connecting an already enabled model to an additional provider, preserve the existing active provider unless the user explicitly switches providers or removes the active provider connection.
+- When renaming or replacing a model ID, migrate `modelPrefs`, active provider selection, and `providerModelPrefs` in the centralized settings migration pipeline.
+- MCP model exposure must match the settings UI: only explicitly enabled models with a configured active provider connection should be returned.
+
 ## Reference Asset Upload Policy
 
 - When a provider needs a publicly fetchable reference asset URL, prefer the built-in Bragi temporary relay path first (`src/providers/upload.ts` + `src/providers/bragi-relay.ts`) and pass the returned public URL into the model request.
