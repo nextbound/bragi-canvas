@@ -26,6 +26,7 @@ import { checkMigration } from './migrate-assets'
 import { startAttachmentRedirect } from './attachment-redirect'
 import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flow'
 import { ensureTokenRouterModelArkAsset, getTokenRouterModelArkCreds } from './tokenrouter-asset-flow'
+import { ensureToken360Asset, getToken360AssetCreds } from './token360-asset-flow'
 import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
@@ -550,15 +551,19 @@ export default class BragiCanvas extends Plugin {
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7-i2v-spicy'
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
-			const supportsSeedanceRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
+			const supportsSeedanceAssetRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
+			const supportsSeedanceUrlRefs = supportsSeedanceAssetRefs || (activeProvider === 'token360' && isSeedanceModel)
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
-			const assetIdMap = supportsSeedanceRefs ? getAssetIds(canvas, node, activeProvider) : {}
+			const assetIdMap = supportsSeedanceAssetRefs ? getAssetIds(canvas, node, activeProvider) : {}
 			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
 			const bytePlusCreds = (activeProvider === 'byteplus' && isNativeSeedance && hasSeedanceMediaRefs)
 				? getBytePlusAssetCreds(this)
 				: null
 			const tokenRouterModelArkCreds = (activeProvider === 'tokenrouter' && isSeedanceModel && hasSeedanceMediaRefs)
 				? getTokenRouterModelArkCreds(this)
+				: null
+			const token360AssetCreds = (activeProvider === 'token360' && isSeedanceModel && uniqueImages.length > 0)
+				? getToken360AssetCreds(this)
 				: null
 			for (const imgPath of uniqueImages) {
 				if (assetIdMap[imgPath]) {
@@ -568,6 +573,8 @@ export default class BragiCanvas extends Plugin {
 					refImages.push(await ensureBytePlusAsset(this, canvas, imgPath, bytePlusCreds))
 				} else if (tokenRouterModelArkCreds) {
 					refImages.push(await ensureTokenRouterModelArkAsset(this, canvas, imgPath, tokenRouterModelArkCreds))
+				} else if (token360AssetCreds) {
+					refImages.push(await ensureToken360Asset(this, canvas, imgPath, token360AssetCreds))
 				} else if (isMuleRouterWan) {
 					const binary = await this.app.vault.adapter.readBinary(imgPath)
 					const ext = getFileExtension(imgPath, 'png')
@@ -582,8 +589,8 @@ export default class BragiCanvas extends Plugin {
 			}
 
 			// Upload reference audios for Seedance and MuleRouter Wan I2V.
-			if ((supportsSeedanceRefs || isMuleRouterWan) && uniqueAudios.length > 0) {
-				if (supportsSeedanceRefs && uniqueAudios.length > 3) {
+			if ((supportsSeedanceUrlRefs || isMuleRouterWan) && uniqueAudios.length > 0) {
+				if (supportsSeedanceUrlRefs && uniqueAudios.length > 3) {
 					throw new Error('Seedance supports up to 3 reference audio files.')
 				}
 				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
@@ -605,16 +612,16 @@ export default class BragiCanvas extends Plugin {
 			// Prepare reference videos for models/providers that can consume upstream video inputs.
 			// BytePlus Seedance videos must go through asset:// so face-containing clips are reviewed first.
 			if (model.type === 'video' && uniqueVideos.length > 0) {
-				if (mode === 'video-ref' && !supportsSeedanceRefs) {
-					throw new Error('Reference video is only available with Volcengine, BytePlus, or TokenRouter Seedance.')
+				if (mode === 'video-ref' && !supportsSeedanceUrlRefs) {
+					throw new Error('Reference video is only available with Volcengine, BytePlus, TokenRouter, or Token360 Seedance.')
 				}
-				if (supportsSeedanceRefs && uniqueVideos.length > 3) {
+				if (supportsSeedanceUrlRefs && uniqueVideos.length > 3) {
 					throw new Error('Seedance supports up to 3 reference videos.')
 				}
 				if (isNativeSeedance && activeProvider === 'byteplus' && !bytePlusCreds) {
 					throw new Error('Add BytePlus access key and secret key in settings to use reference videos.')
 				}
-				const shouldUseVideos = supportsSeedanceRefs || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref'
+				const shouldUseVideos = supportsSeedanceUrlRefs || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref'
 				if (shouldUseVideos) {
 					for (const videoPath of uniqueVideos) {
 						if (isNativeSeedance && bytePlusCreds) {

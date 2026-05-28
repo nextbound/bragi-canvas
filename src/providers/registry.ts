@@ -20,6 +20,7 @@ import { LumaProvider } from './luma'
 import { MuleRouterVideoProvider, testMuleRouterConnection } from './mulerouter'
 import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
+import { Token360VideoProvider } from './token360'
 import { DashScopeAudioProvider } from './dashscope'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
@@ -413,6 +414,24 @@ export const PROVIDERS: ProviderSpec[] = [
 		makeText: ({ settings }) =>
 			new TokenRouterTextProvider(settings.providers.tokenrouter, 'https://api.tokenrouter.com/v1'),
 		testConnection: (d) => testListModels('https://api.tokenrouter.com/v1/models', d.tokenrouter || ''),
+	},
+	{
+		id: 'token360',
+		name: 'Token360',
+		description: 'Unified AI gateway for Seedance video.',
+		docUrl: 'https://www.token360.ai/en-US/docs/api-reference/video-generation/submit-video-generation-request',
+		fields: [
+			{ key: 'token360', label: 'API Key', placeholder: 'sk-token360-...', type: 'password' },
+			{ key: 'token360AssetGroupId', label: 'Asset group ID (optional)', placeholder: 'legacy_rf_9032', type: 'text' },
+		],
+		isConfigured: (s) => !!s.providers.token360,
+		makeVideo: ({ settings, app, outputDir }) =>
+			new Token360VideoProvider(settings.providers.token360, app, outputDir),
+		testConnection: async (d) => {
+			const key = d.token360 || ''
+			if (!key) return { ok: false, message: 'API key is empty.' }
+			return testGenericGet('https://api.token360.ai/v1/videos?limit=1', { 'Authorization': `Bearer ${key}` })
+		},
 	},
 	{
 		id: 'mulerouter',
