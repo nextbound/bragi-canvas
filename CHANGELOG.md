@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.17.2
+
+- Added Token360 as a Seedance video provider for `seedance-2.0` and `seedance-2.0-fast`.
+- Added Token360 video task creation, polling, and download support.
+- Added optional Token360 asset group uploads for RealFace / Virtual Portrait image references.
+- Routed Token360 local reference media through temporary HTTPS URLs when asset upload is not configured.
+- Bumped the plugin version to `1.17.2`.
+
 ## 1.17.1
 
 - Added MuleRouter as a video provider.
