@@ -405,7 +405,10 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'TokenRouter',
 		description: 'All-in-one model gateway.',
 		docUrl: 'https://www.tokenrouter.com',
-		fields: [{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
+		fields: [
+			{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' },
+			{ key: 'tokenrouterModelArkAssetGroupId', label: 'ModelArk asset group ID (optional)', placeholder: 'asset_group_id', type: 'text' },
+		],
 		isConfigured: (s) => !!s.providers.tokenrouter,
 		makeImage: ({ settings, app, outputDir }) =>
 			new TokenRouterImageProvider(settings.providers.tokenrouter, app, outputDir, 'https://api.tokenrouter.com/v1'),
