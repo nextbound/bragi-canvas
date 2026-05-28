@@ -104,6 +104,7 @@ export interface BragiSettings {
 		elevenlabs: string
 		legnext: string
 		tokenrouter: string
+		mulerouter: string
 		apimart: string
 		lumaToken: string
 		xai: string
@@ -165,6 +166,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		elevenlabs: '',
 		legnext: '',
 		tokenrouter: '',
+		mulerouter: '',
 		apimart: '',
 		lumaToken: '',
 		xai: '',

@@ -10,7 +10,8 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 2
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 3
+const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {
 	settings: BragiSettings
@@ -429,7 +430,7 @@ function migrateProviderPrefs19(settings: BragiSettings): void {
 }
 
 function migrateProviderModelPrefs(settings: BragiSettings, previousVersion: number): void {
-	if (previousVersion >= CURRENT_SETTINGS_SCHEMA_VERSION) {
+	if (previousVersion >= PROVIDER_MODEL_PREFS_SCHEMA_VERSION) {
 		pruneProviderModelPrefs(settings)
 		return
 	}

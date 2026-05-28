@@ -548,6 +548,7 @@ export default class BragiCanvas extends Plugin {
 			} else {
 			// Seedance can consume provider-specific asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
+			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7-i2v-spicy'
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
 			const supportsSeedanceRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
@@ -567,6 +568,10 @@ export default class BragiCanvas extends Plugin {
 					refImages.push(await ensureBytePlusAsset(this, canvas, imgPath, bytePlusCreds))
 				} else if (tokenRouterModelArkCreds) {
 					refImages.push(await ensureTokenRouterModelArkAsset(this, canvas, imgPath, tokenRouterModelArkCreds))
+				} else if (isMuleRouterWan) {
+					const binary = await this.app.vault.adapter.readBinary(imgPath)
+					const ext = getFileExtension(imgPath, 'png')
+					refImages.push(await uploadRef(undefined, binary, `ref.${ext}`, imageMimeType(imgPath)))
 				} else {
 					const binary = await this.app.vault.adapter.readBinary(imgPath)
 					const base64 = arrayBufferToBase64(binary)
@@ -576,12 +581,13 @@ export default class BragiCanvas extends Plugin {
 				}
 			}
 
-			// Upload reference audios for Seedance
-			if (supportsSeedanceRefs && uniqueAudios.length > 0) {
-				if (uniqueAudios.length > 3) {
+			// Upload reference audios for Seedance and MuleRouter Wan I2V.
+			if ((supportsSeedanceRefs || isMuleRouterWan) && uniqueAudios.length > 0) {
+				if (supportsSeedanceRefs && uniqueAudios.length > 3) {
 					throw new Error('Seedance supports up to 3 reference audio files.')
 				}
-				for (const audioPath of uniqueAudios) {
+				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
+				for (const audioPath of audioRefs) {
 					if (bytePlusCreds) {
 						// Route audio through asset library for content review
 						refAudios.push(await ensureBytePlusAsset(this, canvas, audioPath, bytePlusCreds))
@@ -590,8 +596,7 @@ export default class BragiCanvas extends Plugin {
 					} else {
 						const binary = await this.app.vault.adapter.readBinary(audioPath)
 						const ext = audioPath.split('.').pop()?.toLowerCase() || 'mp3'
-						const mime = ext === 'wav' ? 'audio/wav' : 'audio/mpeg'
-						const audioUrl = await uploadRef(undefined, binary, `ref.${ext}`, mime)
+						const audioUrl = await uploadRef(undefined, binary, `ref.${ext}`, audioMimeType(audioPath))
 						refAudios.push(audioUrl)
 					}
 				}
@@ -1397,6 +1402,14 @@ function audioMimeType(filePath: string): string {
 	if (ext === 'ogg') return 'audio/ogg'
 	if (ext === 'opus') return 'audio/opus'
 	return 'audio/mpeg'
+}
+
+function imageMimeType(filePath: string): string {
+	const ext = getFileExtension(filePath, 'png')
+	if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+	if (ext === 'webp') return 'image/webp'
+	if (ext === 'bmp') return 'image/bmp'
+	return 'image/png'
 }
 
 function videoMimeType(filePath: string): string {
