@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.0
+
+- Added inline image annotation tools on canvas image nodes, including box, number, and mosaic markup with save/undo/redo controls.
+- Fixed Token360 Seedance asset uploads for WebP references by validating image bytes, converting WebP uploads to PNG, and honoring API-level error payloads.
+- Changed TokenRouter ModelArk asset handling to use only an explicitly configured asset group ID, with clearer errors when the group is missing or inaccessible.
+- Validated cached Seedance asset references before reusing them so stale TokenRouter, Token360, BytePlus, or Volcengine asset IDs are refreshed instead of sent blindly.
+- Fixed the MCP HTTP worker listener and Node runtime resolution used by the local StreamableHTTP server.
+- Bumped the plugin version to `1.18.0`.
+
 ## 1.17.2
 
 - Added Token360 as a Seedance video provider for `seedance-2.0` and `seedance-2.0-fast`.
