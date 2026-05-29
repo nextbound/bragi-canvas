@@ -232,7 +232,7 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'byteplus', label: 'ARK API Key', placeholder: '...', type: 'password' },
 			{ key: 'byteplusAccessKey', label: 'Access Key (optional)', placeholder: 'AK...', type: 'password' },
 			{ key: 'byteplusSecretKey', label: 'Secret Key (optional)', placeholder: 'SK...', type: 'password' },
-			{ key: 'byteplusProjectName', label: 'Project Name (optional)', placeholder: 'default', type: 'text' },
+			{ key: 'byteplusProjectName', label: 'Asset group ID (optional)', placeholder: 'default', type: 'text' },
 		],
 		isConfigured: (s) => !!s.providers.byteplus,
 		makeVideo: ({ settings, app, outputDir }) =>
@@ -407,7 +407,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		docUrl: 'https://www.tokenrouter.com',
 		fields: [
 			{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' },
-			{ key: 'tokenrouterModelArkAssetGroupId', label: 'ModelArk asset group ID (optional)', placeholder: 'asset_group_id', type: 'text' },
+			{ key: 'tokenrouterModelArkAssetGroupId', label: 'Asset group ID (optional)', placeholder: 'asset_group_id', type: 'text' },
 		],
 		isConfigured: (s) => !!s.providers.tokenrouter,
 		makeImage: ({ settings, app, outputDir }) =>

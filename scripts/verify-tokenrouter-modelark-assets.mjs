@@ -15,6 +15,10 @@ function assertOrder(source, first, second, message) {
 	assert.ok(firstIndex < secondIndex, message)
 }
 
+function assertContains(source, needle, message) {
+	assert.ok(source.includes(needle), `${message}: missing "${needle}"`)
+}
+
 assert.match(
 	settingsSource,
 	/tokenrouterModelArkAssetGroupId: string/,
@@ -29,8 +33,20 @@ assert.match(
 
 assert.match(
 	registrySource,
-	/key: 'tokenrouterModelArkAssetGroupId', label: 'ModelArk asset group ID \(optional\)'/,
-	'TokenRouter provider settings must expose the shared ModelArk asset group field',
+	/key: 'tokenrouterModelArkAssetGroupId', label: 'Asset group ID \(optional\)'/,
+	'TokenRouter provider settings must expose the shared ModelArk asset group field with the unified label',
+)
+
+assert.match(
+	registrySource,
+	/key: 'byteplusProjectName', label: 'Asset group ID \(optional\)'/,
+	'BytePlus provider settings must use the unified asset group label',
+)
+
+assert.match(
+	registrySource,
+	/key: 'token360AssetGroupId', label: 'Asset group ID \(optional\)'/,
+	'Token360 provider settings must use the unified asset group label',
 )
 
 assert.match(
@@ -39,41 +55,66 @@ assert.match(
 	'TokenRouter ModelArk credentials must read the optional shared group id',
 )
 
-assert.match(
+assertContains(
 	assetFlowSource,
-	/new WeakMap<Canvas, Promise<string>>\(\)/,
-	'TokenRouter ModelArk group creation must use an in-memory singleflight lock per canvas',
+	'if (!apiKey || !groupId) return null',
+	'TokenRouter ModelArk asset credentials must require both API key and configured group id',
 )
 
-assertOrder(
+assert.doesNotMatch(
 	assetFlowSource,
-	'if (sharedGroupId) return sharedGroupId',
-	'const existing = getCachedGroupId(canvas)',
-	'configured shared group must win before canvas-scoped auto-create cache',
+	/createModelArkAssetGroup|getOrCreateGroupId|tokenrouterModelArkGroupId|WeakMap<Canvas/,
+	'TokenRouter must not auto-create or cache ModelArk asset groups when no group id is configured',
 )
 
-assert.match(
+assertContains(
 	assetFlowSource,
-	/shared group is only the ModelArk upload container[\s\S]*explicit asset ids collected from the current canvas edges/,
-	'asset flow must document that shared groups are containers, not implicit generation context',
-)
-
-assert.match(
-	assetFlowSource,
-	/isSharedGroupConfigured\(creds\)[\s\S]*shared asset group not found or inaccessible/,
-	'configured shared group not-found errors must be actionable and must not silently recreate a different group',
+	'createModelArkAsset(creds, creds.groupId, url, assetType)',
+	'TokenRouter ModelArk asset upload must use only the configured group id',
 )
 
 assert.match(
+	assetFlowSource,
+	/asset group not found or inaccessible[\s\S]*creds\.groupId/,
+	'configured ModelArk group not-found errors must be actionable and must not silently recreate a different group',
+)
+
+assert.doesNotMatch(
 	modelArkAssetSource,
-	/TokenRouter ModelArk asset group quota reached/,
-	'TokenRouter ModelArk group quota errors must be translated into an actionable message',
+	/createModelArkAssetGroup|POST',\s*'\/asset-groups'|TokenRouter ModelArk asset group quota reached/,
+	'Bragi must not create TokenRouter ModelArk asset groups',
 )
 
 assert.doesNotMatch(
 	modelArkAssetSource,
 	/GET',\s*'\/asset-groups|\/asset-groups\?/,
 	'Bragi must not list/search ModelArk groups and accidentally select unrelated historical state',
+)
+
+assertOrder(
+	mainSource,
+	'const tokenRouterModelArkCreds = (activeProvider === \'tokenrouter\' && isSeedanceModel && hasSeedanceMediaRefs)',
+	'const supportsSeedanceAssetRefs = isNativeSeedance || !!tokenRouterModelArkCreds',
+	'TokenRouter asset:// refs must only be enabled after configured ModelArk credentials are known',
+)
+
+assertOrder(
+	mainSource,
+	'const supportsSeedanceAssetRefs = isNativeSeedance || !!tokenRouterModelArkCreds',
+	'const assetIdMap = supportsSeedanceAssetRefs ? getAssetIds(canvas, node, activeProvider) : {}',
+	'TokenRouter no-groupId path must not read existing tokenrouter asset id cache',
+)
+
+assert.match(
+	mainSource,
+	/else if \(activeProvider === 'tokenrouter' && isSeedanceModel\) \{[\s\S]*uploadRef\(undefined, binary, `ref\.\$\{ext\}`, imageMimeType\(imgPath\)\)/,
+	'TokenRouter Seedance no-groupId image refs must be uploaded as relay URLs, not data URIs or asset:// refs',
+)
+
+assert.match(
+	mainSource,
+	/else if \(tokenRouterModelArkCreds\) \{[\s\S]*ensureTokenRouterModelArkAsset\(this, canvas, imgPath, tokenRouterModelArkCreds\)/,
+	'TokenRouter Seedance configured group path must upload image refs through ModelArk assets',
 )
 
 assert.match(

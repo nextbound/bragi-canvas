@@ -9,7 +9,7 @@ type JsonRecord = Record<string, unknown>
 
 export interface TokenRouterModelArkCreds {
 	apiKey: string
-	groupId?: string
+	groupId: string
 }
 
 export interface ModelArkAssetGetResult {
@@ -39,10 +39,6 @@ function makeError(message: string, status?: number): Error & { status?: number;
 	return err
 }
 
-function isAssetGroupQuotaMessage(message: string): boolean {
-	return /maximum\s+limit.*groups|number\s+of\s+groups.*create|asset\s+group.*quota/i.test(message)
-}
-
 async function callModelArk(
 	creds: TokenRouterModelArkCreds,
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -66,26 +62,9 @@ async function callModelArk(
 	const success = parsed?.success
 	if (resp.status < 200 || resp.status >= 300 || success === false) {
 		const msg = stringValue(parsed?.message || parsed?.error || resp.text, `HTTP ${resp.status}`)
-		if (method === 'POST' && path === '/asset-groups' && isAssetGroupQuotaMessage(msg)) {
-			throw makeError(
-				`TokenRouter ModelArk asset group quota reached. Configure a shared ModelArk asset group ID, switch Seedance provider, or ask TokenRouter to delete or raise asset groups. Original: ${msg}`,
-				resp.status,
-			)
-		}
 		throw makeError(`TokenRouter ModelArk ${method} ${path}: ${msg}`, resp.status)
 	}
 	return asRecord(parsed?.data) || parsed || {}
-}
-
-export async function createModelArkAssetGroup(creds: TokenRouterModelArkCreds): Promise<string> {
-	const result = await callModelArk(creds, 'POST', '/asset-groups', {
-		Name: `bragi_${randomHex(8)}`,
-		Description: 'Bragi Canvas',
-		GroupType: 'AIGC',
-	})
-	const groupId = stringValue(result.Id || result.id, '')
-	if (!groupId) throw new Error('TokenRouter ModelArk CreateAssetGroup: no Id in response')
-	return groupId
 }
 
 export async function createModelArkAsset(

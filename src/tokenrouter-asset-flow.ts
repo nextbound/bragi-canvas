@@ -4,7 +4,6 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { uploadRef } from './providers/upload'
 import {
 	createModelArkAsset,
-	createModelArkAssetGroup,
 	getModelArkAsset,
 	isModelArkAssetNotFound,
 	isModelArkGroupNotFound,
@@ -13,8 +12,6 @@ import {
 import type { TokenRouterModelArkCreds } from './providers/tokenrouter-modelark-assets'
 
 const PROVIDER_KEY = 'tokenrouter'
-const GROUP_ID_KEY = 'tokenrouterModelArkGroupId'
-const groupCreateInFlightByCanvas = new WeakMap<Canvas, Promise<string>>()
 
 type TokenRouterModelArkAssetType = 'Image' | 'Audio' | 'Video'
 
@@ -68,62 +65,8 @@ function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 export function getTokenRouterModelArkCreds(plugin: BragiCanvas): TokenRouterModelArkCreds | null {
 	const apiKey = (plugin.settings.providers.tokenrouter || '').trim()
 	const groupId = (plugin.settings.providers.tokenrouterModelArkAssetGroupId || '').trim()
-	return apiKey ? { apiKey, ...(groupId ? { groupId } : {}) } : null
-}
-
-function isSharedGroupConfigured(creds: TokenRouterModelArkCreds): boolean {
-	return !!creds.groupId?.trim()
-}
-
-function configuredGroupId(creds: TokenRouterModelArkCreds): string | null {
-	const groupId = creds.groupId?.trim()
-	return groupId || null
-}
-
-function getCachedGroupId(canvas: Canvas): string | null {
-	const data = canvas.getData() as { bragi?: Record<string, unknown> }
-	const existing = data.bragi?.[GROUP_ID_KEY]
-	return typeof existing === 'string' && existing ? existing : null
-}
-
-async function createAndCacheGroupId(canvas: Canvas, creds: TokenRouterModelArkCreds): Promise<string> {
-	const groupId = await createModelArkAssetGroup(creds)
-	const current = canvas.getData() as { bragi?: Record<string, unknown> }
-	canvas.importData({
-		...current,
-		bragi: { ...(current.bragi || {}), [GROUP_ID_KEY]: groupId },
-	} as unknown as Parameters<Canvas['importData']>[0])
-	void canvas.requestSave()
-	return groupId
-}
-
-async function getOrCreateGroupId(canvas: Canvas, creds: TokenRouterModelArkCreds): Promise<string> {
-	// A shared group is only the ModelArk upload container. The generation payload
-	// still uses only the explicit asset ids collected from the current canvas edges.
-	const sharedGroupId = configuredGroupId(creds)
-	if (sharedGroupId) return sharedGroupId
-
-	const existing = getCachedGroupId(canvas)
-	if (existing) return existing
-
-	const inFlight = groupCreateInFlightByCanvas.get(canvas)
-	if (inFlight) return inFlight
-
-	let createPromise: Promise<string>
-	createPromise = createAndCacheGroupId(canvas, creds).finally(() => {
-		if (groupCreateInFlightByCanvas.get(canvas) === createPromise) groupCreateInFlightByCanvas.delete(canvas)
-	})
-	groupCreateInFlightByCanvas.set(canvas, createPromise)
-	return createPromise
-}
-
-function clearGroupId(canvas: Canvas): void {
-	const current = canvas.getData() as { bragi?: Record<string, unknown> }
-	if (!current.bragi?.[GROUP_ID_KEY]) return
-	const rest = { ...current.bragi }
-	delete rest[GROUP_ID_KEY]
-	canvas.importData({ ...current, bragi: rest } as unknown as Parameters<Canvas['importData']>[0])
-	void canvas.requestSave()
+	if (!apiKey || !groupId) return null
+	return { apiKey, groupId }
 }
 
 function getCachedAssetId(node: CanvasNode): string | null {
@@ -185,20 +128,14 @@ export async function ensureTokenRouterModelArkAsset(
 	const binary = await adapter.readBinary(filePath)
 	const url = await uploadRef(undefined, binary, `ref.${ext}`, mime)
 
-	let groupId = await getOrCreateGroupId(canvas, creds)
 	let assetId: string
 	try {
-		assetId = await createModelArkAsset(creds, groupId, url, assetType)
+		assetId = await createModelArkAsset(creds, creds.groupId, url, assetType)
 	} catch (err: unknown) {
 		if (isModelArkGroupNotFound(err)) {
-			if (isSharedGroupConfigured(creds)) {
-				throw new Error(
-					`TokenRouter ModelArk shared asset group not found or inaccessible: ${creds.groupId}. Check the TokenRouter provider settings, switch Seedance provider, or ask TokenRouter to restore or create the group.`,
-				)
-			}
-			clearGroupId(canvas)
-			groupId = await getOrCreateGroupId(canvas, creds)
-			assetId = await createModelArkAsset(creds, groupId, url, assetType)
+			throw new Error(
+				`TokenRouter ModelArk asset group not found or inaccessible: ${creds.groupId}. Check the TokenRouter provider settings, switch Seedance provider, or ask TokenRouter to restore or create the group.`,
+			)
 		} else {
 			throw err
 		}

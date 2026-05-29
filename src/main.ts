@@ -551,10 +551,7 @@ export default class BragiCanvas extends Plugin {
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7-i2v-spicy'
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
-			const supportsSeedanceAssetRefs = isNativeSeedance || (activeProvider === 'tokenrouter' && isSeedanceModel)
-			const supportsSeedanceUrlRefs = supportsSeedanceAssetRefs || (activeProvider === 'token360' && isSeedanceModel)
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
-			const assetIdMap = supportsSeedanceAssetRefs ? getAssetIds(canvas, node, activeProvider) : {}
 			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
 			const bytePlusCreds = (activeProvider === 'byteplus' && isNativeSeedance && hasSeedanceMediaRefs)
 				? getBytePlusAssetCreds(this)
@@ -562,6 +559,11 @@ export default class BragiCanvas extends Plugin {
 			const tokenRouterModelArkCreds = (activeProvider === 'tokenrouter' && isSeedanceModel && hasSeedanceMediaRefs)
 				? getTokenRouterModelArkCreds(this)
 				: null
+			const supportsSeedanceAssetRefs = isNativeSeedance || !!tokenRouterModelArkCreds
+			const supportsSeedanceUrlRefs = supportsSeedanceAssetRefs
+				|| (activeProvider === 'tokenrouter' && isSeedanceModel)
+				|| (activeProvider === 'token360' && isSeedanceModel)
+			const assetIdMap = supportsSeedanceAssetRefs ? getAssetIds(canvas, node, activeProvider) : {}
 			const token360AssetCreds = (activeProvider === 'token360' && isSeedanceModel && uniqueImages.length > 0)
 				? getToken360AssetCreds(this)
 				: null
@@ -575,6 +577,10 @@ export default class BragiCanvas extends Plugin {
 					refImages.push(await ensureTokenRouterModelArkAsset(this, canvas, imgPath, tokenRouterModelArkCreds))
 				} else if (token360AssetCreds) {
 					refImages.push(await ensureToken360Asset(this, canvas, imgPath, token360AssetCreds))
+				} else if (activeProvider === 'tokenrouter' && isSeedanceModel) {
+					const binary = await this.app.vault.adapter.readBinary(imgPath)
+					const ext = getFileExtension(imgPath, 'png')
+					refImages.push(await uploadRef(undefined, binary, `ref.${ext}`, imageMimeType(imgPath)))
 				} else if (isMuleRouterWan) {
 					const binary = await this.app.vault.adapter.readBinary(imgPath)
 					const ext = getFileExtension(imgPath, 'png')
