@@ -656,6 +656,274 @@
 	font-weight: 500;
 }
 
+/* ── Bragi Canvas — In-place Image Annotation Mode ─────────────────── */
+
+.bragi-annotation-tool {
+	border-radius: var(--clickable-icon-radius);
+}
+
+.bragi-canvas-menu .bragi-annotation-tool.is-active {
+	background: transparent;
+	color: var(--interactive-accent);
+}
+
+.bragi-canvas-menu .bragi-annotation-tool.is-active:hover,
+.bragi-canvas-menu .bragi-annotation-tool.is-active:active {
+	background: transparent;
+	color: var(--interactive-accent);
+}
+
+.bragi-canvas-menu .bragi-annotation-control {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: var(--size-2-3) var(--size-4-2);
+	color: var(--bragi-text-muted);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.bragi-canvas-menu .bragi-annotation-color-button {
+	border-radius: var(--clickable-icon-radius);
+}
+
+.bragi-annotation-color-dot {
+	width: 16px;
+	height: 16px;
+	border-radius: 999px;
+	background: var(--bragi-annotation-active-color);
+}
+
+.bragi-canvas-menu .bragi-annotation-size-control {
+	padding-inline: var(--size-4-2);
+}
+
+.bragi-canvas-menu .bragi-annotation-size-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	color: var(--bragi-text-muted);
+	--icon-size: 20px;
+}
+
+.bragi-canvas-menu .bragi-annotation-size-control input[type='range'] {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 118px;
+	height: 4px;
+	border-radius: 999px;
+	background: var(--bragi-border);
+	cursor: pointer;
+	outline: 0;
+}
+
+.bragi-canvas-menu .bragi-annotation-size-control input[type='range']::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--bragi-surface);
+	border-radius: 50%;
+	background: var(--bragi-accent);
+	box-shadow: var(--bragi-shadow-md);
+	cursor: pointer;
+}
+
+.bragi-canvas-menu .bragi-annotation-size-control input[type='range']::-moz-range-thumb {
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--bragi-surface);
+	border-radius: 50%;
+	background: var(--bragi-accent);
+	box-shadow: var(--bragi-shadow-md);
+	cursor: pointer;
+}
+
+.bragi-canvas-menu.bragi-inline-tool-menu-inline,
+.bragi-canvas-menu.bragi-annotation-menu-inline {
+	gap: 1px;
+	padding: var(--size-2-1);
+}
+
+.bragi-canvas-menu .bragi-annotation-separator {
+	width: 1px;
+	height: 20px;
+	margin: 0 var(--size-2-1);
+	align-self: center;
+	background: var(--bragi-border);
+	flex: 0 0 auto;
+}
+
+.bragi-canvas-menu .bragi-annotation-exit {
+	border-radius: var(--clickable-icon-radius);
+}
+
+.bragi-canvas-menu .bragi-annotation-history-action.is-disabled {
+	opacity: 0.35;
+	pointer-events: none;
+	cursor: default;
+}
+
+.bragi-canvas-menu .bragi-annotation-save {
+	padding: 8px 12px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--bragi-accent);
+	color: var(--bragi-accent-text);
+	font-size: 12px;
+	line-height: 1;
+	box-shadow: none;
+	outline: 0;
+	height: auto;
+	align-self: center;
+	transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.bragi-canvas-menu .bragi-annotation-save:hover,
+.bragi-canvas-menu .bragi-annotation-save:focus-visible,
+.bragi-canvas-menu .bragi-annotation-save:active {
+	background: var(--bragi-accent-hover);
+	color: var(--bragi-accent-text);
+	border: 0;
+	box-shadow: none;
+	outline: 0;
+}
+
+.bragi-canvas-menu.bragi-native-toolbar-fade {
+	transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 0s;
+}
+
+.bragi-canvas-menu.bragi-native-toolbar-hidden {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(-4px);
+	pointer-events: none;
+	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
+}
+
+.bragi-inline-tool-mode .canvas-node:not(.bragi-inline-tool-target),
+.bragi-annotation-mode .canvas-node:not(.bragi-annotation-target),
+.bragi-inline-tool-mode .canvas-edges,
+.bragi-annotation-mode .canvas-edges {
+	opacity: 0.24;
+	pointer-events: none;
+	transition: opacity 0.12s ease;
+}
+
+.bragi-inline-tool-mode .canvas-controls,
+.bragi-inline-tool-mode .canvas-card-menu,
+.bragi-annotation-mode .canvas-controls,
+.bragi-annotation-mode .canvas-card-menu {
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+.bragi-inline-tool-mode .bragi-canvas-menu,
+.bragi-annotation-mode .bragi-canvas-menu {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY(0);
+	pointer-events: auto;
+	transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 0s;
+}
+
+.bragi-inline-tool-mode .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
+.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(-4px);
+	pointer-events: none;
+	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
+}
+
+.bragi-inline-tool-mode .bragi-inline-tool-target,
+.bragi-annotation-mode .bragi-annotation-target {
+	opacity: 1;
+	pointer-events: auto;
+	z-index: 20;
+}
+
+.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container,
+.bragi-inline-tool-mode .bragi-inline-tool-target.is-selected .canvas-node-container,
+.bragi-inline-tool-mode .bragi-inline-tool-target.is-focused .canvas-node-container,
+.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container,
+.bragi-annotation-mode .bragi-annotation-target .canvas-node-container,
+.bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container,
+.bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container,
+.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container {
+	border-color: transparent !important;
+	box-shadow: none !important;
+	outline: 0 !important;
+}
+
+.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container::before,
+.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container::after,
+.bragi-inline-tool-mode .bragi-inline-tool-target:hover .canvas-node-container::before,
+.bragi-inline-tool-mode .bragi-inline-tool-target.is-selected .canvas-node-container::before,
+.bragi-inline-tool-mode .bragi-inline-tool-target.is-focused .canvas-node-container::before,
+.bragi-annotation-mode .bragi-annotation-target .canvas-node-container::before,
+.bragi-annotation-mode .bragi-annotation-target .canvas-node-container::after,
+.bragi-annotation-mode .bragi-annotation-target:hover .canvas-node-container::before,
+.bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container::before,
+.bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container::before {
+	border-color: transparent !important;
+	box-shadow: none !important;
+	outline: 0 !important;
+}
+
+.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-label,
+.bragi-inline-tool-mode .bragi-inline-tool-target .mod-hover-label,
+.bragi-inline-tool-mode .bragi-inline-tool-target .bragi-media-meta-label,
+.bragi-annotation-mode .bragi-annotation-target .canvas-node-label,
+.bragi-annotation-mode .bragi-annotation-target .mod-hover-label,
+.bragi-annotation-mode .bragi-annotation-target .bragi-media-meta-label {
+	display: none !important;
+	opacity: 0 !important;
+}
+
+.bragi-inline-tool-mode .canvas-node-connection-point,
+.bragi-inline-tool-mode .canvas-node-connection-point::after,
+.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point,
+.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point::after,
+.bragi-annotation-mode .canvas-node-connection-point,
+.bragi-annotation-mode .canvas-node-connection-point::after,
+.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point,
+.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after,
+body.bragi-inline-tool-active .canvas-node-connection-point,
+body.bragi-inline-tool-active .canvas-node-connection-point::after,
+body.bragi-inline-tool-active .canvas-node-resizer:hover .canvas-node-connection-point,
+body.bragi-inline-tool-active .canvas-node-resizer:hover .canvas-node-connection-point::after,
+body.bragi-annotation-mode-active .canvas-node-connection-point,
+body.bragi-annotation-mode-active .canvas-node-connection-point::after,
+body.bragi-annotation-mode-active .canvas-node-resizer:hover .canvas-node-connection-point,
+body.bragi-annotation-mode-active .canvas-node-resizer:hover .canvas-node-connection-point::after {
+	display: none !important;
+	visibility: hidden !important;
+	opacity: 0 !important;
+	width: 0 !important;
+	height: 0 !important;
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
+	pointer-events: none !important;
+	transform: none !important;
+}
+
+.bragi-annotation-target .bragi-annotation-content {
+	position: relative;
+}
+
+.bragi-annotation-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	display: block;
+	width: 100%;
+	height: 100%;
+	cursor: none;
+	touch-action: none;
+}
 
 /* Separator line between generation + native icons */
 .bragi-canvas-menu .bragi-separator {
@@ -1619,6 +1887,22 @@
 .bragi-more-dropdown-label {
 	font-size: 14px;
 	line-height: 1.2;
+}
+
+.bragi-annotation-color-dropdown {
+	min-width: 148px;
+}
+
+.bragi-annotation-color-option.is-active {
+	background: var(--bragi-hover);
+}
+
+.bragi-annotation-dropdown-color-dot {
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: var(--bragi-annotation-option-color);
+	flex: 0 0 auto;
 }
 
 /* ── Obsidian native menu (align/arrange dropdown etc.) restyle ─────── */

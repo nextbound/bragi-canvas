@@ -24,6 +24,7 @@ import type { AudioProvider, VideoProvider } from './providers/types'
 import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
 import { startAttachmentRedirect } from './attachment-redirect'
+import { openImageAnnotationTool } from './image-annotations'
 import { ensureBytePlusAsset, getBytePlusAssetCreds } from './byteplus-asset-flow'
 import { ensureTokenRouterModelArkAsset, getTokenRouterModelArkCreds } from './tokenrouter-asset-flow'
 import { ensureToken360Asset, getToken360AssetCreds } from './token360-asset-flow'
@@ -371,6 +372,7 @@ export default class BragiCanvas extends Plugin {
 				console.error('Bragi compose images error:', err)
 				new Notice(`Collage failed: ${err.message || err}`)
 			}),
+			(node) => openImageAnnotationTool(this, canvas, node, 'box'),
 		)
 
 		patchPlaceholderContextMenu(canvas)

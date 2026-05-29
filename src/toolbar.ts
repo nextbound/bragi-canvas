@@ -14,8 +14,10 @@ import {
 import { queueSelectionMenuGapSync, resetToolbarPosition } from './node-toolbar-position'
 import { ErrorDetailsModal, getNodeErrorDetails } from './ui/error-details-modal'
 import { isComposableImagePath } from './canvas-image-compose'
+import { getActiveInlineToolSession } from './canvas-inline-tool'
 
 const CARD_MENU_TOOLTIP_OPTS = { placement: 'top' } as const
+const NATIVE_TOOLBAR_FADE_MS = 140
 
 function setCardMenuTooltip(el: HTMLElement, text: string): void {
 	setTooltip(el, text, CARD_MENU_TOOLTIP_OPTS)
@@ -29,6 +31,44 @@ function syncCardMenuTooltips(menu: HTMLElement): void {
 		const label = btn.getAttribute('aria-label')
 		if (!label) return
 		setCardMenuTooltip(btn, label)
+	})
+}
+
+function fadeOutNativeToolbar(menuEl: HTMLElement, onComplete: () => void): void {
+	if (menuEl.classList.contains('bragi-native-toolbar-hidden')) {
+		onComplete()
+		return
+	}
+	closeBragiDropdown()
+	menuEl.classList.add('bragi-native-toolbar-fade')
+	window.requestAnimationFrame(() => {
+		menuEl.classList.add('bragi-native-toolbar-hidden')
+		window.setTimeout(() => {
+			if (menuEl.isConnected) menuEl.classList.remove('bragi-native-toolbar-fade')
+			onComplete()
+		}, NATIVE_TOOLBAR_FADE_MS)
+	})
+}
+
+function clearNativeToolbarFade(menuEl: HTMLElement): void {
+	menuEl.classList.remove('bragi-native-toolbar-fade', 'bragi-native-toolbar-hidden')
+}
+
+function revealNativeToolbarIfRequested(menuEl: HTMLElement): void {
+	const shouldReveal = activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar === 'true'
+		|| activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar === 'true'
+	if (!shouldReveal) return
+	delete activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar
+	delete activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar
+	menuEl.classList.add('bragi-native-toolbar-fade', 'bragi-native-toolbar-hidden')
+	window.requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
+			if (!menuEl.isConnected) return
+			menuEl.classList.remove('bragi-native-toolbar-hidden')
+			window.setTimeout(() => {
+				if (menuEl.isConnected) menuEl.classList.remove('bragi-native-toolbar-fade')
+			}, NATIVE_TOOLBAR_FADE_MS)
+		})
 	})
 }
 
@@ -289,6 +329,11 @@ function addMoreButton(menuEl: HTMLElement): void {
 
 function clearMenuInjection(menuEl: HTMLElement): void {
 	closeBragiDropdown()
+	menuEl.classList.remove('bragi-inline-tool-toolbar-hidden')
+	menuEl.classList.remove('bragi-inline-tool-menu-inline')
+	menuEl.classList.remove('bragi-annotation-toolbar-hidden')
+	menuEl.classList.remove('bragi-annotation-menu-split')
+	menuEl.classList.remove('bragi-annotation-menu-inline')
 	menuEl
 		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more, .bragi-actions-separator')
 		.forEach((el) => el.remove())
@@ -334,6 +379,70 @@ function createMarkButton(menuEl: HTMLElement, canvas: Canvas, nodes: CanvasNode
 	})
 	insertMenuButton(menuEl, pinBtn, anchor)
 	return pinBtn
+}
+
+function hideNativeInlineToolMenuItems(menuEl: HTMLElement): void {
+	for (const button of getNativeMenuButtons(menuEl)) {
+		button.classList.add('bragi-hidden')
+	}
+	menuEl.querySelectorAll('.canvas-menu-separator').forEach((el) => {
+		(el as HTMLElement).classList.add('bragi-hidden')
+	})
+}
+
+function revealInlineToolMenuAfterLayout(menuEl: HTMLElement, canvas: Canvas): void {
+	const session = getActiveInlineToolSession(canvas)
+	const wrapper = canvas.wrapperEl
+	const sessionId = session?.context?.sessionId
+	window.requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
+			if (!menuEl.isConnected) return
+			if (wrapper?.dataset.bragiInlineToolSessionId !== sessionId) return
+			if (wrapper?.dataset.bragiInlineToolToolbar !== 'ready') return
+			menuEl.classList.remove('bragi-inline-tool-toolbar-hidden')
+			menuEl.classList.remove('bragi-annotation-toolbar-hidden')
+			wrapper.dataset.bragiInlineToolToolbarRevealed = 'true'
+			wrapper.dataset.bragiAnnotationToolbarRevealed = 'true'
+		})
+	})
+}
+
+function renderHiddenInlineToolMenu(menuEl: HTMLElement, canvas: Canvas): void {
+	const session = getActiveInlineToolSession(canvas)
+	if (!session) return
+	hideNativeInlineToolMenuItems(menuEl)
+	menuEl.classList.remove('bragi-annotation-menu-split')
+	menuEl.classList.add('bragi-inline-tool-menu-inline')
+	menuEl.classList.add('bragi-annotation-menu-inline')
+	menuEl.classList.add('bragi-inline-tool-toolbar-hidden')
+	menuEl.classList.add('bragi-annotation-toolbar-hidden')
+	clearNativeToolbarFade(menuEl)
+	if (canvas.wrapperEl) {
+		delete canvas.wrapperEl.dataset.bragiInlineToolToolbarRevealed
+		delete canvas.wrapperEl.dataset.bragiAnnotationToolbarRevealed
+	}
+	session.renderToolbar(menuEl)
+}
+
+function renderInlineToolMenu(menuEl: HTMLElement, canvas: Canvas): void {
+	const session = getActiveInlineToolSession(canvas)
+	if (!session) return
+	hideNativeInlineToolMenuItems(menuEl)
+	menuEl.classList.remove('bragi-annotation-menu-split')
+	menuEl.classList.add('bragi-inline-tool-menu-inline')
+	menuEl.classList.add('bragi-annotation-menu-inline')
+	clearNativeToolbarFade(menuEl)
+
+	const shouldReveal = canvas.wrapperEl?.dataset.bragiInlineToolToolbarRevealed !== 'true'
+	if (shouldReveal) {
+		menuEl.classList.add('bragi-inline-tool-toolbar-hidden')
+		menuEl.classList.add('bragi-annotation-toolbar-hidden')
+	} else {
+		menuEl.classList.remove('bragi-inline-tool-toolbar-hidden')
+		menuEl.classList.remove('bragi-annotation-toolbar-hidden')
+	}
+	session.renderToolbar(menuEl)
+	if (shouldReveal) revealInlineToolMenuAfterLayout(menuEl, canvas)
 }
 
 function replaceBuiltinIcons(menuEl: HTMLElement): void {
@@ -394,6 +503,7 @@ function openNativeAlignMenu(alignBtn: HTMLElement): void {
 }
 
 let bragiDropdownCloseTimer: ReturnType<typeof window.setTimeout> | null = null
+let bragiDropdownOutsideHandler: ((event: PointerEvent) => void) | null = null
 
 function cancelBragiDropdownClose(): void {
 	if (bragiDropdownCloseTimer) {
@@ -412,6 +522,10 @@ function scheduleBragiDropdownClose(): void {
 /** Close any open Bragi dropdown. */
 function closeBragiDropdown(): void {
 	cancelBragiDropdownClose()
+	if (bragiDropdownOutsideHandler) {
+		activeDocument.removeEventListener('pointerdown', bragiDropdownOutsideHandler, true)
+		bragiDropdownOutsideHandler = null
+	}
 	activeDocument.querySelectorAll('.bragi-more-dropdown').forEach((el) => el.remove())
 }
 
@@ -469,6 +583,7 @@ export function patchCanvasMenu(
 	onPanorama?: (node: CanvasNode) => void,
 	onGridSplit?: (node: CanvasNode) => void,
 	onComposeImages?: (nodes: CanvasNode[]) => void,
+	onAnnotateImage?: (node: CanvasNode) => void,
 ): void {
 	if (menuUninstaller) return
 
@@ -491,6 +606,7 @@ export function patchCanvasMenu(
 			const syncMenuGap = () => {
 				if (!canvas?.selection?.size) {
 					resetToolbarPosition(menuEl)
+					revealNativeToolbarIfRequested(menuEl)
 					return
 				}
 				const hasNodes = Array.from(canvas.selection).some(hasCanvasData)
@@ -499,6 +615,7 @@ export function patchCanvasMenu(
 				} else {
 					resetToolbarPosition(menuEl)
 				}
+				revealNativeToolbarIfRequested(menuEl)
 			}
 			clearMenuInjection(menuEl)
 
@@ -571,6 +688,17 @@ export function patchCanvasMenu(
 			const selectedNode = selectedNodes[0]
 			const nodeData = selectedNode ? getCanvasData(selectedNode) : null
 			const filePath = nodeData?.file || ''
+			const inlineToolSession = getActiveInlineToolSession(canvas)
+
+			if (selectedNode && inlineToolSession?.targetNodeId === selectedNode.id) {
+				if (inlineToolSession.phase === 'ready') {
+					renderInlineToolMenu(menuEl, canvas)
+				} else {
+					renderHiddenInlineToolMenu(menuEl, canvas)
+				}
+				syncMenuGap()
+				return result
+			}
 
 			const isTextNode = nodeData?.type === 'text'
 			const isNoteNode = Boolean(nodeData && isFileWithExtension(nodeData, /\.md$/i))
@@ -651,6 +779,12 @@ export function patchCanvasMenu(
 			}
 
 			if (isImageNode) {
+				if (onAnnotateImage) {
+					const annotateBtn = createMenuButton('bragi-annotate', 'bragi-annotate', 'Annotate image', () => {
+						fadeOutNativeToolbar(menuEl, () => onAnnotateImage(selectedNode))
+					})
+					menuEl.appendChild(annotateBtn)
+				}
 				if (onGridSplit) {
 					const splitBtn = createMenuButton('bragi-split', 'bragi-split', 'Split grid', () => {
 						onGridSplit(selectedNode)
@@ -1056,7 +1190,7 @@ export function unpatchCanvasMenu(): void {
 }
 
 export function removeToolbarButtons(): void {
-	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more').forEach(el => {
+	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-annotate, .bragi-annotation-tool, .bragi-annotation-control, .bragi-annotation-color-button, .bragi-annotation-toolstrip, .bragi-annotation-separator, .bragi-annotation-undo, .bragi-annotation-redo, .bragi-annotation-exit, .bragi-annotation-save, .bragi-more').forEach(el => {
 		if (el.previousElementSibling?.classList.contains('canvas-menu-separator')) {
 			el.previousElementSibling.remove()
 		}
@@ -1064,6 +1198,15 @@ export function removeToolbarButtons(): void {
 	})
 	activeDocument.querySelectorAll('.canvas-card-menu .bragi-card-extra, .canvas-card-menu .bragi-card-separator, .canvas-card-menu .bragi-interaction-tool, .canvas-card-menu .bragi-tool-separator, .canvas-card-menu .bragi-card-action-separator').forEach(el => el.remove())
 	activeDocument.querySelectorAll('.canvas-card-menu.bragi-card-menu-ready').forEach(el => el.classList.remove('bragi-card-menu-ready'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-inline-tool-toolbar-hidden').forEach(el => el.classList.remove('bragi-inline-tool-toolbar-hidden'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-annotation-toolbar-hidden').forEach(el => el.classList.remove('bragi-annotation-toolbar-hidden'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-annotation-menu-split').forEach(el => el.classList.remove('bragi-annotation-menu-split'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-native-toolbar-fade').forEach(el => el.classList.remove('bragi-native-toolbar-fade'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-native-toolbar-hidden').forEach(el => el.classList.remove('bragi-native-toolbar-hidden'))
+	activeDocument.querySelectorAll('.bragi-canvas-menu.bragi-inline-tool-menu-inline').forEach(el => el.classList.remove('bragi-inline-tool-menu-inline'))
+	activeDocument.querySelectorAll('.bragi-canvas-menu.bragi-annotation-menu-inline').forEach(el => el.classList.remove('bragi-annotation-menu-inline'))
+	delete activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar
+	delete activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar
 	setInteractionToolDisplaySync(null)
 	teardownCanvasInteractionTool()
 }

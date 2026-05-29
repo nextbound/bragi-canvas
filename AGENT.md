@@ -50,6 +50,14 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - Keep file, asset, canvas, and vault-content migrations in their own modules. Do not mix them into settings schema migration code.
 - When adding a settings field, update defaults, validator/import parsing, migration behavior, and the test plan in the same change.
 
+## Canvas Inline Tool Mode
+
+- For tools that directly operate on a canvas node, prefer `CanvasInlineToolSession` over a modal or full-screen overlay.
+- The standard flow is: toolbar entry -> create inline session -> focus target node -> lock non-target canvas interaction -> replace the floating topbar -> mount a temporary node layer -> save or cancel -> fully clean up classes, datasets, listeners, observers, and temporary DOM.
+- Keep tool-specific state and rendering in the feature module. The inline session should own focus, viewport restore, selection restore, interaction gating, and topbar lifecycle.
+- Editing coordinates may use the node's displayed dimensions. When writing a media file, map annotations or edits back to the original asset dimensions so saved outputs preserve the source resolution.
+- New inline tools must run `npm run build`, `npm run lint:obsidian`, and `git diff --check`, and should be manually checked for enter/exit behavior, topbar restoration, interaction lock, connection-point suppression, and cleanup after repeated open/close cycles.
+
 ## Model / Provider Catalog Changes
 
 - Adding a model to the local catalogue or adding provider support for a model must not automatically enable that model for existing users.
