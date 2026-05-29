@@ -70,6 +70,7 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 ## Reference Asset Upload Policy
 
 - When a provider needs a publicly fetchable reference asset URL, prefer the built-in Bragi temporary relay path first (`src/providers/upload.ts` + `src/providers/bragi-relay.ts`) and pass the returned public URL into the model request.
+- Before uploading a reference image, preserve PNG/JPEG bytes as-is and convert every other image format to PNG. Keep this normalization in the shared upload preparation helper instead of adding provider-specific WebP/GIF/BMP branches.
 - Keep upload endpoints and model-input URL endpoints conceptually separate. The relay upload API endpoint is only for writing bytes; the model request must receive the returned fetchable asset URL, not the upload endpoint.
 - Use a provider's own upload/File API only when that provider cannot consume a Bragi Relay HTTPS URL, or when it explicitly requires provider-native file IDs/URIs for the requested feature.
 - Do not write provider keys, relay tokens, uploaded asset URLs, or temporary media files into the repository. Keep live-test outputs summarized and redacted.

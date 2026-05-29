@@ -552,6 +552,7 @@ export default class BragiCanvas extends Plugin {
 			// Seedance can consume provider-specific asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7-i2v-spicy'
+			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
 			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
@@ -620,11 +621,14 @@ export default class BragiCanvas extends Plugin {
 			// Prepare reference videos for models/providers that can consume upstream video inputs.
 			// BytePlus Seedance videos must go through asset:// so face-containing clips are reviewed first.
 			if (model.type === 'video' && uniqueVideos.length > 0) {
-				if (mode === 'video-ref' && !supportsSeedanceUrlRefs) {
-					throw new Error('Reference video is only available with Volcengine, BytePlus, TokenRouter, or Token360 Seedance.')
+				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef) {
+					throw new Error('Reference video is only available with Volcengine, BytePlus, TokenRouter, or Token360 Seedance, or APIMart Omni-Flash-Ext.')
 				}
 				if (supportsSeedanceUrlRefs && uniqueVideos.length > 3) {
 					throw new Error('Seedance supports up to 3 reference videos.')
+				}
+				if (supportsApimartVideoRef && uniqueVideos.length > 1) {
+					throw new Error('APIMart Omni-Flash-Ext supports at most 1 reference video.')
 				}
 				if (isNativeSeedance && activeProvider === 'byteplus' && !bytePlusCreds) {
 					throw new Error('Add BytePlus access key and secret key in settings to use reference videos.')

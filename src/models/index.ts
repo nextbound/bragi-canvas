@@ -11,6 +11,7 @@ import { gpt55, gpt55Pro, gemini31Pro, gemini35Flash, gemini3Flash, claudeOpus47
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
 import { lumaUni1 } from './luma'
+import { omniFlashExt } from './omni-flash'
 import {
 	elevenLabsTTS,
 	minimaxTTS,
@@ -46,6 +47,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	veo31,
 	veo31Lite,
 	grokVideo,
+	omniFlashExt,
 	// Text
 	claudeOpus47,
 	claudeSonnet46,

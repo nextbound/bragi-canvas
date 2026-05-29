@@ -5,6 +5,7 @@ import type { GenerateImageResult, GenerateVideoResult, ImageProvider, VideoProv
 import type { TextGenProvider, TextGenResult } from './text-gen'
 import { uploadRef } from './upload'
 import { resolveOpenAIImageSize } from './openai-image-size'
+import { prepareReferenceUpload } from './image-upload-prep'
 
 const DEFAULT_BASE_URL = 'https://api.tokenrouter.com/v1'
 const IMAGE_GENERATION_MODELS = new Set([
@@ -412,7 +413,8 @@ export class TokenRouterImageProvider implements ImageProvider {
 			const mime = match[1]
 			const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0))
 			const ext = mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg'
-			appendMultipartFile(parts, boundary, 'image[]', `ref${i}.${ext}`, mime, bytes)
+			const prepared = await prepareReferenceUpload(copyToArrayBuffer(bytes), `ref${i}.${ext}`, mime, 'TokenRouter image edit upload')
+			appendMultipartFile(parts, boundary, 'image[]', prepared.fileName, prepared.contentType, new Uint8Array(prepared.bytes))
 		}
 		parts.push(new TextEncoder().encode(`--${boundary}--\r\n`))
 

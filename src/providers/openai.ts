@@ -4,6 +4,7 @@ import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { resolveOpenAIImageSize } from './openai-image-size'
 import { stringParam } from './params'
+import { prepareReferenceUpload } from './image-upload-prep'
 
 export class OpenAIProvider implements ImageProvider {
 	name = 'GPT Image'
@@ -103,7 +104,13 @@ export class OpenAIProvider implements ImageProvider {
 			const mime = match[1]
 			const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0))
 			const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg'
-			appendFile('image[]', `ref${i}.${ext}`, mime, bytes)
+			const prepared = await prepareReferenceUpload(
+				bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+				`ref${i}.${ext}`,
+				mime,
+				'OpenAI image edit upload',
+			)
+			appendFile('image[]', prepared.fileName, prepared.contentType, new Uint8Array(prepared.bytes))
 		}
 
 		parts.push(enc.encode(`--${boundary}--\r\n`))

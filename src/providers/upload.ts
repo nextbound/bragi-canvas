@@ -1,4 +1,5 @@
 import { uploadToBragiRelay, BUILTIN_BRAGI_RELAY } from './bragi-relay'
+import { prepareReferenceUpload } from './image-upload-prep'
 
 /**
  * Upload a reference asset via the built-in Bragi temporary storage worker and return its public URL.
@@ -13,5 +14,6 @@ export async function uploadRef(
 	fileName: string,
 	contentType: string,
 ): Promise<string> {
-	return uploadToBragiRelay(BUILTIN_BRAGI_RELAY, fileData, fileName, contentType)
+	const prepared = await prepareReferenceUpload(fileData, fileName, contentType, 'Bragi temporary storage upload')
+	return uploadToBragiRelay(BUILTIN_BRAGI_RELAY, prepared.bytes, prepared.fileName, prepared.contentType)
 }
