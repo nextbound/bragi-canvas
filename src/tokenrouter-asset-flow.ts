@@ -4,7 +4,6 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { uploadRef } from './providers/upload'
 import {
 	createModelArkAsset,
-	createModelArkAssetGroup,
 	getModelArkAsset,
 	isModelArkAssetNotFound,
 	isModelArkGroupNotFound,
@@ -13,7 +12,6 @@ import {
 import type { TokenRouterModelArkCreds } from './providers/tokenrouter-modelark-assets'
 
 const PROVIDER_KEY = 'tokenrouter'
-const GROUP_ID_KEY = 'tokenrouterModelArkGroupId'
 
 type TokenRouterModelArkAssetType = 'Image' | 'Audio' | 'Video'
 
@@ -66,30 +64,9 @@ function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 
 export function getTokenRouterModelArkCreds(plugin: BragiCanvas): TokenRouterModelArkCreds | null {
 	const apiKey = (plugin.settings.providers.tokenrouter || '').trim()
-	return apiKey ? { apiKey } : null
-}
-
-async function getOrCreateGroupId(canvas: Canvas, creds: TokenRouterModelArkCreds): Promise<string> {
-	const data = canvas.getData() as { bragi?: Record<string, unknown> }
-	const existing = data.bragi?.[GROUP_ID_KEY]
-	if (typeof existing === 'string' && existing) return existing
-	const groupId = await createModelArkAssetGroup(creds)
-	const current = canvas.getData() as { bragi?: Record<string, unknown> }
-	canvas.importData({
-		...current,
-		bragi: { ...(current.bragi || {}), [GROUP_ID_KEY]: groupId },
-	} as unknown as Parameters<Canvas['importData']>[0])
-	void canvas.requestSave()
-	return groupId
-}
-
-function clearGroupId(canvas: Canvas): void {
-	const current = canvas.getData() as { bragi?: Record<string, unknown> }
-	if (!current.bragi?.[GROUP_ID_KEY]) return
-	const rest = { ...current.bragi }
-	delete rest[GROUP_ID_KEY]
-	canvas.importData({ ...current, bragi: rest } as unknown as Parameters<Canvas['importData']>[0])
-	void canvas.requestSave()
+	const groupId = (plugin.settings.providers.tokenrouterModelArkAssetGroupId || '').trim()
+	if (!apiKey || !groupId) return null
+	return { apiKey, groupId }
 }
 
 function getCachedAssetId(node: CanvasNode): string | null {
@@ -151,15 +128,14 @@ export async function ensureTokenRouterModelArkAsset(
 	const binary = await adapter.readBinary(filePath)
 	const url = await uploadRef(undefined, binary, `ref.${ext}`, mime)
 
-	let groupId = await getOrCreateGroupId(canvas, creds)
 	let assetId: string
 	try {
-		assetId = await createModelArkAsset(creds, groupId, url, assetType)
+		assetId = await createModelArkAsset(creds, creds.groupId, url, assetType)
 	} catch (err: unknown) {
 		if (isModelArkGroupNotFound(err)) {
-			clearGroupId(canvas)
-			groupId = await getOrCreateGroupId(canvas, creds)
-			assetId = await createModelArkAsset(creds, groupId, url, assetType)
+			throw new Error(
+				`TokenRouter ModelArk asset group not found or inaccessible: ${creds.groupId}. Check the TokenRouter provider settings, switch Seedance provider, or ask TokenRouter to restore or create the group.`,
+			)
 		} else {
 			throw err
 		}

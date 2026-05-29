@@ -9,6 +9,7 @@ type JsonRecord = Record<string, unknown>
 
 export interface TokenRouterModelArkCreds {
 	apiKey: string
+	groupId: string
 }
 
 export interface ModelArkAssetGetResult {
@@ -64,17 +65,6 @@ async function callModelArk(
 		throw makeError(`TokenRouter ModelArk ${method} ${path}: ${msg}`, resp.status)
 	}
 	return asRecord(parsed?.data) || parsed || {}
-}
-
-export async function createModelArkAssetGroup(creds: TokenRouterModelArkCreds): Promise<string> {
-	const result = await callModelArk(creds, 'POST', '/asset-groups', {
-		Name: `bragi_${randomHex(8)}`,
-		Description: 'Bragi Canvas',
-		GroupType: 'AIGC',
-	})
-	const groupId = stringValue(result.Id || result.id, '')
-	if (!groupId) throw new Error('TokenRouter ModelArk CreateAssetGroup: no Id in response')
-	return groupId
 }
 
 export async function createModelArkAsset(

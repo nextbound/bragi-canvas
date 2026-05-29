@@ -104,6 +104,7 @@ export interface BragiSettings {
 		elevenlabs: string
 		legnext: string
 		tokenrouter: string
+		tokenrouterModelArkAssetGroupId: string
 		token360: string
 		token360AssetGroupId: string
 		mulerouter: string
@@ -168,6 +169,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		elevenlabs: '',
 		legnext: '',
 		tokenrouter: '',
+		tokenrouterModelArkAssetGroupId: '',
 		token360: '',
 		token360AssetGroupId: '',
 		mulerouter: '',
