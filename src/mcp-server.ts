@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
+import { existsSync, readdirSync } from 'fs'
 import type { IncomingHttpHeaders } from 'http'
+import { join } from 'path'
 import { z, ZodError } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { App } from 'obsidian'
@@ -202,6 +204,46 @@ process.on('uncaughtException', err => sendLog('error', err && err.stack ? err.s
 process.on('unhandledRejection', err => sendLog('error', err && err.stack ? err.stack : err))
 `
 
+function pushNodeCandidate(candidates: string[], candidate: string | undefined): void {
+	if (!candidate) return
+	if (candidate.includes('Obsidian.app/Contents/MacOS/Obsidian')) return
+	if (candidate.includes('Obsidian Helper')) return
+	if (!candidates.includes(candidate)) candidates.push(candidate)
+}
+
+function findNvmNodeCandidates(): string[] {
+	const nvmDir = process.env.NVM_DIR || (process.env.HOME ? join(process.env.HOME, '.nvm') : '')
+	const versionsDir = nvmDir ? join(nvmDir, 'versions', 'node') : ''
+	if (!versionsDir || !existsSync(versionsDir)) return []
+
+	try {
+		return readdirSync(versionsDir)
+			.filter(version => version.startsWith('v'))
+			.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+			.map(version => join(versionsDir, version, 'bin', 'node'))
+	} catch {
+		return []
+	}
+}
+
+function resolveWorkerNodeExecutable(): string {
+	const candidates: string[] = []
+	pushNodeCandidate(candidates, process.env.BRAGI_MCP_NODE_PATH)
+	pushNodeCandidate(candidates, process.env.NODE_BINARY)
+	pushNodeCandidate(candidates, process.env.npm_node_execpath)
+	pushNodeCandidate(candidates, process.execPath.endsWith('/node') ? process.execPath : undefined)
+	for (const candidate of findNvmNodeCandidates()) pushNodeCandidate(candidates, candidate)
+	pushNodeCandidate(candidates, '/opt/homebrew/bin/node')
+	pushNodeCandidate(candidates, '/usr/local/bin/node')
+	pushNodeCandidate(candidates, '/usr/bin/node')
+
+	for (const candidate of candidates) {
+		if (existsSync(candidate)) return candidate
+	}
+
+	return 'node'
+}
+
 function jsonResponse(id: JsonRpcId, result: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, result }
 }
@@ -251,8 +293,9 @@ export class BragiMcpServer {
 		if (this.httpWorker) await this.stop()
 
 		return new Promise<void>((resolve, reject) => {
-			const worker = spawn(process.execPath, ['-e', MCP_HTTP_WORKER_SOURCE], {
-				env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			const workerNode = resolveWorkerNodeExecutable()
+			const worker = spawn(workerNode, ['-e', MCP_HTTP_WORKER_SOURCE], {
+				env: { ...process.env },
 				stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
 				windowsHide: true,
 			})
