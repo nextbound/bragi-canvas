@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.19.0
+
+- Added APIMart Omni-Flash-Ext as a video model with text-to-video, first-frame, multi-image-ref, and video-ref modes.
+- Routed APIMart video reference images and videos through Bragi Relay before provider calls, avoiding raw data URIs and third-party source URLs.
+- Normalized reference image upload preparation across APIMart, OpenAI-compatible, TokenRouter, and Token360 paths.
+- Added reference image upload verification coverage.
+- Bumped the plugin version to `1.19.0`.
+
 ## 1.18.0
 
 - Added inline image annotation tools on canvas image nodes, including box, number, and mosaic markup with save/undo/redo controls.
