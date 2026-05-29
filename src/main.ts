@@ -570,15 +570,15 @@ export default class BragiCanvas extends Plugin {
 				? getToken360AssetCreds(this)
 				: null
 			for (const imgPath of uniqueImages) {
-				if (assetIdMap[imgPath]) {
-					refImages.push(`asset://${assetIdMap[imgPath]}`)
-				} else if (bytePlusCreds) {
+				if (bytePlusCreds) {
 					// Run through BytePlus asset library so faces can be reviewed+approved
 					refImages.push(await ensureBytePlusAsset(this, canvas, imgPath, bytePlusCreds))
 				} else if (tokenRouterModelArkCreds) {
 					refImages.push(await ensureTokenRouterModelArkAsset(this, canvas, imgPath, tokenRouterModelArkCreds))
 				} else if (token360AssetCreds) {
 					refImages.push(await ensureToken360Asset(this, canvas, imgPath, token360AssetCreds))
+				} else if (assetIdMap[imgPath]) {
+					refImages.push(`asset://${assetIdMap[imgPath]}`)
 				} else if (activeProvider === 'tokenrouter' && isSeedanceModel) {
 					const binary = await this.app.vault.adapter.readBinary(imgPath)
 					const ext = getFileExtension(imgPath, 'png')

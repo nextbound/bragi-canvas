@@ -105,6 +105,27 @@ assertOrder(
 	'TokenRouter no-groupId path must not read existing tokenrouter asset id cache',
 )
 
+assertOrder(
+	mainSource,
+	'if (bytePlusCreds) {',
+	'else if (assetIdMap[imgPath]) {',
+	'BytePlus image refs must validate cached asset ids through ensureBytePlusAsset before direct asset:// fallback',
+)
+
+assertOrder(
+	mainSource,
+	'else if (tokenRouterModelArkCreds) {',
+	'else if (assetIdMap[imgPath]) {',
+	'TokenRouter image refs must validate cached asset ids through ensureTokenRouterModelArkAsset before direct asset:// fallback',
+)
+
+assertOrder(
+	mainSource,
+	'else if (token360AssetCreds) {',
+	'else if (assetIdMap[imgPath]) {',
+	'Token360 image refs must validate cached asset ids through ensureToken360Asset before direct asset:// fallback',
+)
+
 assert.match(
 	mainSource,
 	/else if \(activeProvider === 'tokenrouter' && isSeedanceModel\) \{[\s\S]*uploadRef\(undefined, binary, `ref\.\$\{ext\}`, imageMimeType\(imgPath\)\)/,
