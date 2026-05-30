@@ -253,8 +253,10 @@ function jsonError(id: JsonRpcId, code: number, message: string, data?: unknown)
 }
 
 function toolInputSchema(tool: McpToolDef): unknown {
+	// Emit the schema inline (no `name`) so the top-level object keeps `type: "object"`.
+	// Passing `name` wraps the schema in `{ $ref, definitions }`, which has no top-level
+	// `type` and is rejected by hosts like OpenAI/Codex ("schema must be type object, got None").
 	return zodToJsonSchema(z.object(tool.inputSchema), {
-		name: tool.name,
 		$refStrategy: 'none',
 	})
 }
