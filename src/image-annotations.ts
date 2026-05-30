@@ -431,7 +431,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 function isAnnotationEventTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false
-	return Boolean(target.closest('.bragi-annotation-layer, .bragi-canvas-menu'))
+	return Boolean(target.closest('.bragi-annotation-layer, .bragi-canvas-menu, .bragi-annotation-color-dropdown'))
 }
 
 const ANNOTATION_COLOR_PRESETS = [
@@ -590,8 +590,10 @@ class ImageAnnotationCanvasMode {
 		}
 		if (isEditableTarget(event.target)) return
 
-		event.stopPropagation()
-		if (event.key === 'Backspace' || event.key === 'Delete' || event.key === ' ') event.preventDefault()
+		if (event.key === 'Backspace' || event.key === 'Delete' || event.key === ' ') {
+			event.preventDefault()
+			event.stopPropagation()
+		}
 	}
 
 	private async load(): Promise<void> {
@@ -605,6 +607,7 @@ class ImageAnnotationCanvasMode {
 			onAction: action => this.handleToolbarAction(action),
 			mountLayer: () => this.buildNodeLayer(),
 			isToolEventTarget: isAnnotationEventTarget,
+			onKeyDown: event => this.handleKeyDown(event),
 			onClose: () => this.cleanupAfterSessionClose(),
 			legacyModeClass: 'bragi-annotation-mode',
 			legacyTargetClass: 'bragi-annotation-target',
@@ -612,7 +615,6 @@ class ImageAnnotationCanvasMode {
 			legacyContentClass: 'bragi-annotation-content',
 			legacyDatasetPrefix: 'bragiAnnotation',
 		})
-		activeDocument.addEventListener('keydown', this.handleKeyDown, true)
 		this.session.open()
 		this.syncToolState()
 		this.render()
@@ -1062,7 +1064,6 @@ class ImageAnnotationCanvasMode {
 	}
 
 	private cleanupAfterSessionClose(): void {
-		activeDocument.removeEventListener('keydown', this.handleKeyDown, true)
 		closeAnnotationDropdown()
 		const wrapper = this.session?.context?.wrapperEl
 		if (wrapper) {

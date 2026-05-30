@@ -51,15 +51,37 @@ function fadeOutNativeToolbar(menuEl: HTMLElement, onComplete: () => void): void
 }
 
 function clearNativeToolbarFade(menuEl: HTMLElement): void {
-	menuEl.classList.remove('bragi-native-toolbar-fade', 'bragi-native-toolbar-hidden')
+	menuEl.classList.remove('bragi-native-toolbar-fade', 'bragi-native-toolbar-hidden', 'bragi-native-toolbar-suppressed')
 }
 
-function revealNativeToolbarIfRequested(menuEl: HTMLElement): void {
-	const shouldReveal = activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar === 'true'
-		|| activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar === 'true'
+function isNativeToolbarSuppressed(canvas?: Canvas): boolean {
+	return canvas?.wrapperEl?.dataset.bragiInlineToolSuppressNativeToolbar === 'true'
+		|| canvas?.wrapperEl?.dataset.bragiAnnotationSuppressNativeToolbar === 'true'
+}
+
+function suppressNativeToolbar(menuEl: HTMLElement): void {
+	closeBragiDropdown()
+	menuEl.classList.add('bragi-native-toolbar-suppressed', 'bragi-native-toolbar-hidden')
+	menuEl.classList.remove('bragi-native-toolbar-fade')
+}
+
+function revealNativeToolbarIfRequested(menuEl: HTMLElement, canvas?: Canvas): void {
+	if (isNativeToolbarSuppressed(canvas)) {
+		suppressNativeToolbar(menuEl)
+		return
+	}
+	const wrapper = canvas?.wrapperEl
+	const shouldReveal = wrapper?.dataset.bragiInlineToolRevealNativeToolbar === 'true'
+		|| wrapper?.dataset.bragiAnnotationRevealNativeToolbar === 'true'
 	if (!shouldReveal) return
-	delete activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar
-	delete activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar
+	if (wrapper) {
+		delete wrapper.dataset.bragiInlineToolRevealNativeToolbar
+		delete wrapper.dataset.bragiAnnotationRevealNativeToolbar
+	}
+	if (canvas?.selection?.size) {
+		queueSelectionMenuGapSync(menuEl, canvas, { placement: 'auto-above' })
+	}
+	menuEl.classList.remove('bragi-native-toolbar-suppressed')
 	menuEl.classList.add('bragi-native-toolbar-fade', 'bragi-native-toolbar-hidden')
 	window.requestAnimationFrame(() => {
 		window.requestAnimationFrame(() => {
@@ -329,6 +351,9 @@ function addMoreButton(menuEl: HTMLElement): void {
 
 function clearMenuInjection(menuEl: HTMLElement): void {
 	closeBragiDropdown()
+	delete menuEl.dataset.bragiInlineToolId
+	delete menuEl.dataset.bragiInlineToolSessionId
+	delete menuEl.dataset.bragiInlineToolNodeId
 	menuEl.classList.remove('bragi-inline-tool-toolbar-hidden')
 	menuEl.classList.remove('bragi-inline-tool-menu-inline')
 	menuEl.classList.remove('bragi-annotation-toolbar-hidden')
@@ -410,7 +435,12 @@ function revealInlineToolMenuAfterLayout(menuEl: HTMLElement, canvas: Canvas): v
 function renderHiddenInlineToolMenu(menuEl: HTMLElement, canvas: Canvas): void {
 	const session = getActiveInlineToolSession(canvas)
 	if (!session) return
+	const context = session.context
+	if (!context) return
 	hideNativeInlineToolMenuItems(menuEl)
+	menuEl.dataset.bragiInlineToolId = session.id
+	menuEl.dataset.bragiInlineToolSessionId = context.sessionId
+	menuEl.dataset.bragiInlineToolNodeId = session.targetNodeId
 	menuEl.classList.remove('bragi-annotation-menu-split')
 	menuEl.classList.add('bragi-inline-tool-menu-inline')
 	menuEl.classList.add('bragi-annotation-menu-inline')
@@ -427,7 +457,12 @@ function renderHiddenInlineToolMenu(menuEl: HTMLElement, canvas: Canvas): void {
 function renderInlineToolMenu(menuEl: HTMLElement, canvas: Canvas): void {
 	const session = getActiveInlineToolSession(canvas)
 	if (!session) return
+	const context = session.context
+	if (!context) return
 	hideNativeInlineToolMenuItems(menuEl)
+	menuEl.dataset.bragiInlineToolId = session.id
+	menuEl.dataset.bragiInlineToolSessionId = context.sessionId
+	menuEl.dataset.bragiInlineToolNodeId = session.targetNodeId
 	menuEl.classList.remove('bragi-annotation-menu-split')
 	menuEl.classList.add('bragi-inline-tool-menu-inline')
 	menuEl.classList.add('bragi-annotation-menu-inline')
@@ -583,7 +618,7 @@ export function patchCanvasMenu(
 	onPanorama?: (node: CanvasNode) => void,
 	onGridSplit?: (node: CanvasNode) => void,
 	onComposeImages?: (nodes: CanvasNode[]) => void,
-	onAnnotateImage?: (node: CanvasNode) => void,
+	onAnnotateImage?: (node: CanvasNode, canvas: Canvas) => void,
 ): void {
 	if (menuUninstaller) return
 
@@ -606,7 +641,7 @@ export function patchCanvasMenu(
 			const syncMenuGap = () => {
 				if (!canvas?.selection?.size) {
 					resetToolbarPosition(menuEl)
-					revealNativeToolbarIfRequested(menuEl)
+					revealNativeToolbarIfRequested(menuEl, canvas)
 					return
 				}
 				const hasNodes = Array.from(canvas.selection).some(hasCanvasData)
@@ -615,9 +650,15 @@ export function patchCanvasMenu(
 				} else {
 					resetToolbarPosition(menuEl)
 				}
-				revealNativeToolbarIfRequested(menuEl)
+				revealNativeToolbarIfRequested(menuEl, canvas)
 			}
 			clearMenuInjection(menuEl)
+
+			if (isNativeToolbarSuppressed(canvas)) {
+				suppressNativeToolbar(menuEl)
+				syncMenuGap()
+				return result
+			}
 
 			// ── Align button: hover-to-open (native menu) ──
 			if (selSize > 1) {
@@ -689,8 +730,17 @@ export function patchCanvasMenu(
 			const nodeData = selectedNode ? getCanvasData(selectedNode) : null
 			const filePath = nodeData?.file || ''
 			const inlineToolSession = getActiveInlineToolSession(canvas)
+			const inlineToolContext = inlineToolSession?.context
+			const isInlineToolSelection = Boolean(
+				selectedNode
+				&& inlineToolSession
+				&& inlineToolContext
+				&& inlineToolSession.isActive()
+				&& inlineToolSession.targetNodeId === selectedNode.id
+				&& canvas.wrapperEl?.dataset.bragiInlineToolSessionId === inlineToolContext.sessionId,
+			)
 
-			if (selectedNode && inlineToolSession?.targetNodeId === selectedNode.id) {
+			if (isInlineToolSelection && inlineToolSession) {
 				if (inlineToolSession.phase === 'ready') {
 					renderInlineToolMenu(menuEl, canvas)
 				} else {
@@ -781,7 +831,7 @@ export function patchCanvasMenu(
 			if (isImageNode) {
 				if (onAnnotateImage) {
 					const annotateBtn = createMenuButton('bragi-annotate', 'bragi-annotate', 'Annotate image', () => {
-						fadeOutNativeToolbar(menuEl, () => onAnnotateImage(selectedNode))
+						fadeOutNativeToolbar(menuEl, () => onAnnotateImage(selectedNode, canvas))
 					})
 					menuEl.appendChild(annotateBtn)
 				}
@@ -1203,10 +1253,19 @@ export function removeToolbarButtons(): void {
 	activeDocument.querySelectorAll('.canvas-card-menu.bragi-annotation-menu-split').forEach(el => el.classList.remove('bragi-annotation-menu-split'))
 	activeDocument.querySelectorAll('.canvas-card-menu.bragi-native-toolbar-fade').forEach(el => el.classList.remove('bragi-native-toolbar-fade'))
 	activeDocument.querySelectorAll('.canvas-card-menu.bragi-native-toolbar-hidden').forEach(el => el.classList.remove('bragi-native-toolbar-hidden'))
+	activeDocument.querySelectorAll('.canvas-card-menu.bragi-native-toolbar-suppressed').forEach(el => el.classList.remove('bragi-native-toolbar-suppressed'))
 	activeDocument.querySelectorAll('.bragi-canvas-menu.bragi-inline-tool-menu-inline').forEach(el => el.classList.remove('bragi-inline-tool-menu-inline'))
 	activeDocument.querySelectorAll('.bragi-canvas-menu.bragi-annotation-menu-inline').forEach(el => el.classList.remove('bragi-annotation-menu-inline'))
+	activeDocument.querySelectorAll<HTMLElement>('.canvas-card-menu').forEach(el => {
+		delete el.dataset.bragiInlineToolId
+		delete el.dataset.bragiInlineToolSessionId
+		delete el.dataset.bragiInlineToolNodeId
+	})
 	delete activeDocument.body.dataset.bragiInlineToolRevealNativeToolbar
 	delete activeDocument.body.dataset.bragiAnnotationRevealNativeToolbar
+	delete activeDocument.body.dataset.bragiInlineToolSuppressNativeToolbar
+	delete activeDocument.body.dataset.bragiInlineToolSuppressSessionId
+	delete activeDocument.body.dataset.bragiAnnotationSuppressNativeToolbar
 	setInteractionToolDisplaySync(null)
 	teardownCanvasInteractionTool()
 }

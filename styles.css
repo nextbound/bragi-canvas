@@ -742,8 +742,15 @@
 
 .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 .bragi-canvas-menu.bragi-annotation-menu-inline {
+	position: fixed !important;
+	top: var(--bragi-inline-tool-toolbar-top, 64px) !important;
+	left: 50% !important;
+	right: auto !important;
+	bottom: auto !important;
 	gap: 1px;
 	padding: var(--size-2-1);
+	transform: translateX(-50%) !important;
+	z-index: 1000 !important;
 }
 
 .bragi-canvas-menu .bragi-annotation-separator {
@@ -802,6 +809,14 @@
 	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
 }
 
+.bragi-canvas-menu.bragi-native-toolbar-suppressed {
+	opacity: 0 !important;
+	visibility: hidden !important;
+	transform: translateY(-4px) !important;
+	pointer-events: none !important;
+	transition: none !important;
+}
+
 .bragi-inline-tool-mode .canvas-node:not(.bragi-inline-tool-target),
 .bragi-annotation-mode .canvas-node:not(.bragi-annotation-target),
 .bragi-inline-tool-mode .canvas-edges,
@@ -812,27 +827,34 @@
 }
 
 .bragi-inline-tool-mode .canvas-controls,
-.bragi-inline-tool-mode .canvas-card-menu,
+.bragi-inline-tool-mode .canvas-card-menu:not(.bragi-canvas-menu),
 .bragi-annotation-mode .canvas-controls,
-.bragi-annotation-mode .canvas-card-menu {
-	opacity: 0.35;
+.bragi-annotation-mode .canvas-card-menu:not(.bragi-canvas-menu) {
+	opacity: 0;
+	visibility: hidden;
 	pointer-events: none;
+	z-index: 1 !important;
 }
 
 .bragi-inline-tool-mode .bragi-canvas-menu,
-.bragi-annotation-mode .bragi-canvas-menu {
+.bragi-annotation-mode .bragi-canvas-menu,
+body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-menu-inline,
+body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-menu-inline {
 	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
+	transform: translateX(-50%) translateY(0) !important;
 	pointer-events: auto;
+	z-index: 1000 !important;
 	transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 0s;
 }
 
 .bragi-inline-tool-mode .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
-.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
+.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden,
+body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
+body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
 	opacity: 0;
 	visibility: hidden;
-	transform: translateY(-4px);
+	transform: translateX(-50%) translateY(-4px) !important;
 	pointer-events: none;
 	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
 }
@@ -841,7 +863,7 @@
 .bragi-annotation-mode .bragi-annotation-target {
 	opacity: 1;
 	pointer-events: auto;
-	z-index: 20;
+	z-index: 50 !important;
 }
 
 .bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container,
@@ -889,15 +911,7 @@
 .bragi-annotation-mode .canvas-node-connection-point,
 .bragi-annotation-mode .canvas-node-connection-point::after,
 .bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point,
-.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after,
-body.bragi-inline-tool-active .canvas-node-connection-point,
-body.bragi-inline-tool-active .canvas-node-connection-point::after,
-body.bragi-inline-tool-active .canvas-node-resizer:hover .canvas-node-connection-point,
-body.bragi-inline-tool-active .canvas-node-resizer:hover .canvas-node-connection-point::after,
-body.bragi-annotation-mode-active .canvas-node-connection-point,
-body.bragi-annotation-mode-active .canvas-node-connection-point::after,
-body.bragi-annotation-mode-active .canvas-node-resizer:hover .canvas-node-connection-point,
-body.bragi-annotation-mode-active .canvas-node-resizer:hover .canvas-node-connection-point::after {
+.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after {
 	display: none !important;
 	visibility: hidden !important;
 	opacity: 0 !important;

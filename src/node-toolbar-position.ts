@@ -151,19 +151,24 @@ export function positionNodeToolbar(
 
 const pendingMenuSync = new WeakMap<HTMLElement, number>()
 
+type SelectionMenuGapSyncOptions = {
+	placement?: ToolbarPlacementPreference
+	preserveObsidianPlacement?: boolean
+}
+
 /** Re-apply the shared node gap after Obsidian positions the selection menu. */
-export function queueSelectionMenuGapSync(menuEl: HTMLElement, canvas: Canvas): void {
+export function queueSelectionMenuGapSync(menuEl: HTMLElement, canvas: Canvas, options?: SelectionMenuGapSyncOptions): void {
 	const pending = pendingMenuSync.get(menuEl)
 	if (pending) window.cancelAnimationFrame(pending)
 
 	const id = window.requestAnimationFrame(() => {
 		pendingMenuSync.delete(menuEl)
-		syncSelectionMenuGap(menuEl, canvas)
+		syncSelectionMenuGap(menuEl, canvas, options)
 	})
 	pendingMenuSync.set(menuEl, id)
 }
 
-export function syncSelectionMenuGap(menuEl: HTMLElement, canvas: Canvas): void {
+export function syncSelectionMenuGap(menuEl: HTMLElement, canvas: Canvas, options?: SelectionMenuGapSyncOptions): void {
 	if (!canvas.selection?.size) {
 		resetToolbarPosition(menuEl)
 		return
@@ -176,5 +181,5 @@ export function syncSelectionMenuGap(menuEl: HTMLElement, canvas: Canvas): void 
 		return
 	}
 
-	positionNodeToolbar(menuEl, bounds, { preserveObsidianPlacement: true })
+	positionNodeToolbar(menuEl, bounds, options ?? { preserveObsidianPlacement: true })
 }

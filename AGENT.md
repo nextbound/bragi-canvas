@@ -55,6 +55,11 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - For tools that directly operate on a canvas node, prefer `CanvasInlineToolSession` over a modal or full-screen overlay.
 - The standard flow is: toolbar entry -> create inline session -> focus target node -> lock non-target canvas interaction -> replace the floating topbar -> mount a temporary node layer -> save or cancel -> fully clean up classes, datasets, listeners, observers, and temporary DOM.
 - Keep tool-specific state and rendering in the feature module. The inline session should own focus, viewport restore, selection restore, interaction gating, and topbar lifecycle.
+- Focus must use the inline session's safe-rect viewport targeting so the floating toolbar and bottom canvas controls do not cover the target node. Do not center solely on the node bbox.
+- Focus animation should direct-fit to the final safe rect before it starts: compute visible size from rendered DOM using Canvas `scale`, convert the target scale back to Canvas `zoom`/`tZoom`, and keep `node.focus()` only as a fallback. Rendered correction is a small safety pass, not the normal second animation step.
+- Inline sessions are scoped by canvas wrapper. Closing must make the session inactive before restoring the viewport or native toolbar, and non-target canvas chrome must sit behind the target node while interactions are locked.
+- Keyboard shortcuts, pointer gates, toolbar queries, native topbar suppression, and connection-point hiding must be scoped to the active session's wrapper or session-tagged menu. Do not use body-level selectors or document-level handlers to block interaction in other canvases.
+- When restoring the native topbar after inline tool exit, force an `auto-above` selection-menu reposition during reveal so transient inline/restore placement does not leave the topbar below the node.
 - Editing coordinates may use the node's displayed dimensions. When writing a media file, map annotations or edits back to the original asset dimensions so saved outputs preserve the source resolution.
 - New inline tools must run `npm run build`, `npm run lint:obsidian`, and `git diff --check`, and should be manually checked for enter/exit behavior, topbar restoration, interaction lock, connection-point suppression, and cleanup after repeated open/close cycles.
 

@@ -372,7 +372,7 @@ export default class BragiCanvas extends Plugin {
 				console.error('Bragi compose images error:', err)
 				new Notice(`Collage failed: ${err.message || err}`)
 			}),
-			(node) => openImageAnnotationTool(this, canvas, node, 'box'),
+			(node, activeCanvas) => openImageAnnotationTool(this, activeCanvas, node, 'box'),
 		)
 
 		patchPlaceholderContextMenu(canvas)
