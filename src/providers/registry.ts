@@ -17,7 +17,7 @@ import { MiniMaxProvider } from './minimax'
 import { LegnextProvider } from './legnext'
 import { APIMartProvider } from './apimart'
 import { LumaProvider } from './luma'
-import { MuleRouterVideoProvider, testMuleRouterConnection } from './mulerouter'
+import { MuleRouterImageProvider, MuleRouterVideoProvider, testMuleRouterConnection } from './mulerouter'
 import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
 import { Token360VideoProvider } from './token360'
@@ -439,10 +439,12 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'mulerouter',
 		name: 'MuleRouter',
-		description: 'Wan 2.7 Spicy image-to-video.',
-		docUrl: 'https://www.mulerouter.ai/docs/api-reference/endpoint/carrothub/wan2.7-i2v-spicy/generation',
+		description: 'CarrotHub image and video models.',
+		docUrl: 'https://www.mulerouter.ai/docs/api-reference/endpoint/carrothub/z-image-spicy/generation',
 		fields: [{ key: 'mulerouter', label: 'API Key', placeholder: 'sk-mr-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.mulerouter,
+		makeImage: ({ settings, app, outputDir }) =>
+			new MuleRouterImageProvider(settings.providers.mulerouter, app, outputDir),
 		makeVideo: ({ settings, app, outputDir }) =>
 			new MuleRouterVideoProvider(settings.providers.mulerouter, app, outputDir),
 		testConnection: (d) => testMuleRouterConnection(d.mulerouter || ''),

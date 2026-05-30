@@ -65,13 +65,31 @@ function parseAspectRatio(raw?: string): { wRatio: number; hRatio: number } {
 	return { wRatio: w, hRatio: h }
 }
 
+function ratioParam(value: unknown): string | undefined {
+	if (typeof value === 'string' && value.trim()) return value.trim()
+	if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+	return undefined
+}
+
+function positiveIntParam(value: unknown): number | undefined {
+	const parsed = typeof value === 'number' ? value : parseInt(ratioParam(value) || '', 10)
+	if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+	return Math.round(parsed)
+}
+
 /**
  * Pull the user-selected aspect ratio out of PanelResult.params. Accepts both
  * `aspectRatio` (most models) and `aspect_ratio` (kling, grok video) spellings.
+ * Pixel-sized image models can also provide width/height.
  */
 export function readAspectRatio(params?: Record<string, unknown>): string | undefined {
 	if (!params) return undefined
-	return params.aspectRatio || params.aspect_ratio || params.ratio
+	const explicit = ratioParam(params.aspectRatio) || ratioParam(params.aspect_ratio) || ratioParam(params.ratio)
+	if (explicit) return explicit
+	const width = positiveIntParam(params.width)
+	const height = positiveIntParam(params.height)
+	if (width && height) return `${width}:${height}`
+	return undefined
 }
 
 interface BBox { x: number; y: number; w: number; h: number }

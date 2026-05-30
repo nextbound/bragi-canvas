@@ -13,6 +13,7 @@
     "lint:obsidian": "eslint .",
     "test:update-check": "node scripts/verify-update-check.mjs",
     "test:gemini-video-text": "node scripts/verify-gemini-video-text.mjs",
+    "test:mulerouter-carrothub": "node scripts/verify-mulerouter-carrothub-images.mjs",
     "test:reference-image-upload": "node scripts/verify-reference-image-upload.mjs",
     "test:tokenrouter-modelark-assets": "node scripts/verify-tokenrouter-modelark-assets.mjs",
     "test:text-multimodal": "node scripts/verify-text-multimodal.mjs"

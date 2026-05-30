@@ -6,7 +6,7 @@ import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
-import { wan27I2vSpicy } from './wan'
+import { zImageSpicy, qwenImageEditSpicy, wan27I2vSpicy } from './wan'
 import { gpt55, gpt55Pro, gemini31Pro, gemini35Flash, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
@@ -36,6 +36,8 @@ export const ALL_MODELS: ModelConfig[] = [
 	lumaUni1,
 	seedream5,
 	seedream45,
+	zImageSpicy,
+	qwenImageEditSpicy,
 	// Video
 	seedance2,
 	seedance2Fast,
