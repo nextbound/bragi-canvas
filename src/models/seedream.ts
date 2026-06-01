@@ -40,6 +40,37 @@ export const seedream5: ModelConfig = {
 	],
 }
 
+export const seedream5Lite: ModelConfig = {
+	id: 'seedream-5.0-lite',
+	name: 'Seedream 5.0 Lite',
+	type: 'image',
+	supportedProviders: {
+		bytedance: { apiModelId: 'doubao-seedream-5-0-lite-260128' },
+		byteplus: { apiModelId: 'seedream-5-0-lite-260128' },
+	},
+	modes: ['text-to-image'],
+	params: [
+		{
+			id: 'aspectRatio',
+			label: 'Aspect Ratio',
+			type: 'select',
+			options: SEEDREAM_RATIOS,
+			default: '1:1',
+		},
+		{
+			id: 'resolution',
+			label: 'Resolution',
+			type: 'select',
+			options: [
+				{ label: '2K', value: '2K' },
+				{ label: '3K', value: '3K' },
+				{ label: '4K', value: '4K' },
+			],
+			default: '2K',
+		},
+	],
+}
+
 export const seedream45: ModelConfig = {
 	id: 'seedream-4.5',
 	name: 'Seedream 4.5',

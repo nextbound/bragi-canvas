@@ -11,16 +11,20 @@ const SIZE_MAP: Record<string, Record<string, string>> = {
 	'4K': { '1:1': '4096x4096', '4:3': '4704x3520', '3:4': '3520x4704', '16:9': '5504x3040', '9:16': '3040x5504', '3:2': '4992x3328', '2:3': '3328x4992', '21:9': '6240x2656' },
 }
 
+const DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations'
+
 export class SeedreamProvider implements ImageProvider {
 	name = 'Seedream'
 	private apiKey: string
 	private app: App
 	private outputDir: string
+	private baseUrl: string
 
-	constructor(apiKey: string, app: App, outputDir: string) {
+	constructor(apiKey: string, app: App, outputDir: string, baseUrl?: string) {
 		this.apiKey = apiKey
 		this.app = app
 		this.outputDir = outputDir
+		this.baseUrl = baseUrl || DEFAULT_BASE_URL
 	}
 
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
@@ -48,7 +52,7 @@ export class SeedreamProvider implements ImageProvider {
 		}
 
 		const response = await requestUrl({
-			url: 'https://ark.cn-beijing.volces.com/api/v3/images/generations',
+			url: this.baseUrl,
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
