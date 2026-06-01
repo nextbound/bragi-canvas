@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Setting, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
-import { settingsWithProviderCredentialDraft, type ProviderCredentialDraft } from '../provider-model-prefs'
+import { describeProviderModelSupport, settingsWithProviderCredentialDraft, type ProviderCredentialDraft } from '../provider-model-prefs'
 import { PROVIDERS, type ProviderSpec } from '../providers/registry'
 
 export interface AddProviderModalOptions {
@@ -88,7 +88,9 @@ export class AddProviderModal extends Modal {
 		})
 		const listEl = contentEl.createDiv({ cls: 'bragi-add-modal-list' })
 
-		const candidates = PROVIDERS.filter(p => !p.isConfigured(this.plugin.settings))
+		const candidates = PROVIDERS
+			.filter(p => !p.isConfigured(this.plugin.settings))
+			.sort((a, b) => a.name.localeCompare(b.name))
 		if (candidates.length === 0) {
 			listEl.createEl('p', { text: 'All supported providers are already added.', cls: 'mod-muted' })
 			return
@@ -97,9 +99,7 @@ export class AddProviderModal extends Modal {
 		const render = (query: string) => {
 			listEl.empty()
 			const q = query.trim().toLowerCase()
-			const matches = candidates.filter(p =>
-				!q || p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
-			)
+			const matches = candidates.filter(p => !q || p.name.toLowerCase().includes(q))
 			if (matches.length === 0) {
 				listEl.createEl('p', { text: 'No matches.', cls: 'mod-muted' })
 				return
@@ -108,9 +108,7 @@ export class AddProviderModal extends Modal {
 				const row = listEl.createDiv({ cls: 'bragi-add-modal-row' })
 				const info = row.createDiv({ cls: 'bragi-add-modal-row-info' })
 				info.createDiv({ cls: 'bragi-add-modal-row-name', text: spec.name })
-				if (spec.description) {
-					info.createDiv({ cls: 'bragi-add-modal-row-desc', text: spec.description })
-				}
+				info.createDiv({ cls: 'bragi-add-modal-row-desc', text: describeProviderModelSupport(spec.id) })
 				const btn = row.createEl('button', { text: 'Add', cls: 'mod-cta' })
 				btn.addEventListener('click', () => this.renderForm(spec, true))
 			}
@@ -152,11 +150,11 @@ export class AddProviderModal extends Modal {
 				cls: 'setting-item-description bragi-add-provider-desc',
 				text: 'Pick a provider that supports this model and add its credentials.',
 			})
-		} else if (currentSpec.description || currentSpec.docUrl) {
+		} else {
+			// Non-dropdown mode has no provider switcher, so currentSpec is fixed here.
 			const p = contentEl.createEl('p', { cls: 'setting-item-description bragi-add-provider-desc' })
-			if (currentSpec.description) p.appendText(currentSpec.description)
+			p.appendText('Enter your credentials to connect. ')
 			if (currentSpec.docUrl) {
-				if (currentSpec.description) p.appendText(' ')
 				const link = p.createEl('a', { text: 'Get key →', href: currentSpec.docUrl, cls: 'bragi-add-modal-doclink' })
 				link.addEventListener('click', (e) => {
 					e.preventDefault()
@@ -210,7 +208,7 @@ export class AddProviderModal extends Modal {
 							// Toggle-visibility eye button
 							const control = t.inputEl.parentElement
 							if (control) {
-								const eye = control.createEl('button', { cls: 'bragi-eye-btn' })
+								const eye = control.createEl('button', { cls: 'clickable-icon bragi-eye-btn' })
 								setIcon(eye, 'eye-off')
 								setTooltip(eye, 'Show')
 								eye.addEventListener('click', (e) => {

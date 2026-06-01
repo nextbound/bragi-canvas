@@ -7,7 +7,7 @@ import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './typ
 import type { PanelResult } from './panel'
 import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
 import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputLabels } from './models/text-input-capabilities'
-import { getConnectedConfiguredProviderIds } from './provider-model-prefs'
+import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import type { GenerationType, Mode } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
@@ -436,7 +436,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 						const pref = settings.modelPrefs[m.id]
 						const provider = getActiveProvider(m, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, m))
 						if (!provider) continue
-						const apiModelId = m.supportedProviders[provider]?.apiModelId
+						const apiModelId = resolveApiModelId(settings, provider, m)
 						const capability = m.type === 'text'
 							? getTextInputCapability(m.id, provider, apiModelId)
 							: null
@@ -514,7 +514,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				const provider = getActiveProvider(model, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, model))
 				if (!provider) throw new Error(`No configured provider for model ${modelId}`)
 
-				const apiModelId = model.supportedProviders[provider]?.apiModelId || modelId
+				const apiModelId = resolveApiModelId(settings, provider, model)
 
 				// Read prompt from node
 				const nodeData = node.getData()

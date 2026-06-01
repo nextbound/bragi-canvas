@@ -14,8 +14,11 @@ const POLL_TIMEOUT_MS = 300000  // 5 minutes
 export interface BytePlusAssetCreds {
 	accessKey: string
 	secretKey: string
-	projectName: string
+	groupId: string
 }
+
+// All Bragi Canvas assets live in the `default` IAM project.
+const PROJECT_NAME = 'default'
 
 export interface AssetGetResult {
 	status: 'Active' | 'Processing' | 'Failed' | 'Rejected' | 'Unknown'
@@ -61,19 +64,6 @@ async function callUniversal(creds: BytePlusAssetCreds, action: string, body: un
 	return json?.Result ?? json
 }
 
-/** Create a new asset group. Returns the GroupId. */
-export async function createAssetGroup(creds: BytePlusAssetCreds): Promise<string> {
-	const name = randomHex(8)
-	const result = await callUniversal(creds, 'CreateAssetGroup', {
-		Name: name,
-		Description: 'Bragi Canvas',
-		ProjectName: creds.projectName || 'default',
-	})
-	const groupId = result.Id
-	if (!groupId) throw new Error(`BytePlus CreateAssetGroup: no Id in response`)
-	return groupId
-}
-
 /** Create an asset under a group. Returns the AssetId. */
 export async function createAsset(
 	creds: BytePlusAssetCreds,
@@ -87,7 +77,7 @@ export async function createAsset(
 		URL: url,
 		AssetType: assetType,
 		Name: name,
-		ProjectName: creds.projectName || 'default',
+		ProjectName: PROJECT_NAME,
 	})
 	const assetId = result.Id
 	if (!assetId) throw new Error(`BytePlus CreateAsset: no Id in response`)
@@ -98,7 +88,7 @@ export async function createAsset(
 export async function getAsset(creds: BytePlusAssetCreds, assetId: string): Promise<AssetGetResult> {
 	const result = await callUniversal(creds, 'GetAsset', {
 		Id: assetId,
-		ProjectName: creds.projectName || 'default',
+		ProjectName: PROJECT_NAME,
 	})
 	const status = (result.Status || 'Unknown') as AssetGetResult['status']
 	return { status, raw: result }

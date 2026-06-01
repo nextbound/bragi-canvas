@@ -54,7 +54,6 @@ export interface TestResult {
 export interface ProviderSpec {
 	id: string
 	name: string
-	description?: string
 	docUrl?: string
 	fields: ProviderField[]
 	isConfigured: (s: BragiSettings) => boolean
@@ -114,7 +113,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'openai',
 		name: 'OpenAI',
-		description: 'GPT and GPT Image models.',
 		docUrl: 'https://platform.openai.com/api-keys',
 		fields: [{ key: 'openai', label: 'API Key', placeholder: 'sk-proj-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.openai,
@@ -127,7 +125,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'anthropic',
 		name: 'Anthropic',
-		description: 'Claude models.',
 		docUrl: 'https://console.anthropic.com/settings/keys',
 		fields: [{ key: 'anthropic', label: 'API Key', placeholder: 'sk-ant-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.anthropic,
@@ -161,7 +158,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'bedrock',
 		name: 'AWS Bedrock',
-		description: 'Claude via AWS.',
 		docUrl: 'https://console.aws.amazon.com/bedrock/',
 		fields: [
 			{ key: 'bedrockAccessKeyId', label: 'Access Key ID', placeholder: 'Access Key ID', type: 'password' },
@@ -179,7 +175,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'gemini',
 		name: 'Google Gemini',
-		description: 'Gemini, Imagen, and Veo.',
 		docUrl: 'https://aistudio.google.com/apikey',
 		fields: [{ key: 'gemini', label: 'API Key', placeholder: 'AIza...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.gemini,
@@ -214,7 +209,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'bytedance',
 		name: 'Volcengine',
-		description: 'Seedream and Seedance.',
 		docUrl: 'https://console.volcengine.com/ark',
 		fields: [{ key: 'bytedance', label: 'ARK API Key', placeholder: '...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.bytedance,
@@ -227,13 +221,12 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'byteplus',
 		name: 'BytePlus',
-		description: 'Seedance on the global endpoint.',
 		docUrl: 'https://console.byteplus.com/ark',
 		fields: [
 			{ key: 'byteplus', label: 'ARK API Key', placeholder: '...', type: 'password' },
 			{ key: 'byteplusAccessKey', label: 'Access Key (optional)', placeholder: 'AK...', type: 'password' },
 			{ key: 'byteplusSecretKey', label: 'Secret Key (optional)', placeholder: 'SK...', type: 'password' },
-			{ key: 'byteplusProjectName', label: 'Asset group ID (optional)', placeholder: 'default', type: 'text' },
+			{ key: 'byteplusAssetGroupId', label: 'Asset group ID (optional)', placeholder: 'group-2026...-xxxxx', type: 'text' },
 		],
 		isConfigured: (s) => !!s.providers.byteplus,
 		makeVideo: ({ settings, app, outputDir }) =>
@@ -243,7 +236,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'kling',
 		name: 'Kling',
-		description: 'Kling video models.',
 		docUrl: 'https://app.klingai.com/global/dev/document-api/',
 		fields: [
 			{ key: 'klingAk', label: 'Access Key', placeholder: 'AK', type: 'password' },
@@ -257,7 +249,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'fal',
 		name: 'fal.ai',
-		description: 'Multi-model gateway.',
 		docUrl: 'https://fal.ai/dashboard/keys',
 		fields: [{ key: 'fal', label: 'API Key', placeholder: 'key-id:secret', type: 'password' }],
 		isConfigured: (s) => !!s.providers.fal,
@@ -289,7 +280,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'elevenlabs',
 		name: 'ElevenLabs',
-		description: 'Speech, music, and sound effects.',
 		docUrl: 'https://elevenlabs.io/app/settings/api-keys',
 		fields: [{ key: 'elevenlabs', label: 'API Key', placeholder: 'sk_...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.elevenlabs,
@@ -325,7 +315,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'minimax',
 		name: 'MiniMax',
-		description: 'Speech and music generation.',
 		docUrl: 'https://platform.minimaxi.com/',
 		fields: [{ key: 'minimax', label: 'Bearer Token', placeholder: 'eyJ...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.minimax,
@@ -355,7 +344,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'dashscope',
 		name: 'DashScope',
-		description: 'Alibaba Cloud official model provider.',
 		docUrl: 'https://dashscope.console.aliyun.com/',
 		fields: [{ key: 'dashscope', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.dashscope,
@@ -389,7 +377,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'legnext',
 		name: 'Legnext',
-		description: 'Midjourney proxy.',
 		docUrl: 'https://legnext.ai',
 		fields: [{ key: 'legnext', label: 'API Key', placeholder: 'key...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.legnext,
@@ -404,7 +391,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'tokenrouter',
 		name: 'TokenRouter',
-		description: 'All-in-one model gateway.',
 		docUrl: 'https://www.tokenrouter.com',
 		fields: [
 			{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' },
@@ -422,7 +408,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'token360',
 		name: 'Token360',
-		description: 'Unified AI gateway for Seedance video.',
 		docUrl: 'https://www.token360.ai/en-US/docs/api-reference/video-generation/submit-video-generation-request',
 		fields: [
 			{ key: 'token360', label: 'API Key', placeholder: 'sk-token360-...', type: 'password' },
@@ -440,7 +425,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'mulerouter',
 		name: 'MuleRouter',
-		description: 'CarrotHub image and video models.',
 		docUrl: 'https://www.mulerouter.ai/docs/api-reference/endpoint/carrothub/z-image-spicy/generation',
 		fields: [{ key: 'mulerouter', label: 'API Key', placeholder: 'sk-mr-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.mulerouter,
@@ -453,7 +437,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'apimart',
 		name: 'APIMart',
-		description: 'GPT text, GPT Image 2, and Omni-Flash video gateway.',
 		docUrl: 'https://docs.apimart.ai/en/api-reference/videos/omni-flash-ext/generation',
 		fields: [{ key: 'apimart', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.apimart,
@@ -468,7 +451,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'suchuang',
 		name: 'SuChuang',
-		description: 'Gemini Omni video gateway.',
 		docUrl: 'https://api.wuyinkeji.com/doc/72',
 		fields: [{ key: 'suchuang', label: 'API Key', placeholder: 'API key', type: 'password' }],
 		isConfigured: (s) => !!s.providers.suchuang,
@@ -479,7 +461,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'xai',
 		name: 'xAI',
-		description: 'Grok text, image, video, and TTS.',
 		docUrl: 'https://console.x.ai',
 		fields: [{ key: 'xai', label: 'API Key', placeholder: 'xai-...', type: 'password' }],
 		isConfigured: (s) => !!s.providers.xai,
@@ -496,7 +477,6 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'luma',
 		name: 'Luma',
-		description: 'Luma Uni-1 image generation.',
 		fields: [
 			{ key: 'lumaToken', label: 'API Key', placeholder: 'API Key', type: 'password' },
 		],

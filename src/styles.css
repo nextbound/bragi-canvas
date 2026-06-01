@@ -2158,15 +2158,23 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	right: 6px;
 	top: 50%;
 	transform: translateY(-50%);
-	background: transparent;
-	border: none;
-	box-shadow: none;
 	padding: 4px;
 	cursor: pointer;
 	color: var(--bragi-text-muted);
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+/* Strip native button chrome across all states (some themes add bg/border/shadow on hover/active/focus). */
+.bragi-eye-btn,
+.bragi-eye-btn:hover,
+.bragi-eye-btn:active,
+.bragi-eye-btn:focus,
+.bragi-eye-btn:focus-visible {
+	background: transparent;
+	border: none;
+	box-shadow: none;
 }
 
 .bragi-eye-btn:hover {
@@ -2536,6 +2544,9 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-provider-models-modal .modal-content {
 	max-height: 70vh;
 	overflow-y: auto;
+	/* overflow-y:auto makes this a scroll container that also clips overflow-x at the
+	   padding box; the extra inline padding gives button focus rings room not to be cut. */
+	padding-inline: 4px;
 }
 
 .bragi-provider-models-desc {
@@ -2580,16 +2591,13 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	cursor: pointer;
 }
 
-.bragi-provider-models-row:hover {
-	background: var(--bragi-hover);
-}
-
 .bragi-provider-models-row input[type="checkbox"] {
 	flex-shrink: 0;
 }
 
 .bragi-provider-models-info {
 	min-width: 0;
+	flex: 1;
 }
 
 .bragi-provider-models-name {
@@ -2600,13 +2608,50 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	white-space: nowrap;
 }
 
-.bragi-provider-models-id {
+.bragi-provider-models-id-line {
 	margin-top: 2px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.bragi-provider-models-id {
 	color: var(--bragi-text-muted);
 	font-size: 12px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.bragi-model-id-badge {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	padding: 1px 6px;
+	border-radius: 20px;
+	color: var(--bragi-accent, var(--interactive-accent));
+	background: var(--bragi-hover);
+}
+
+.bragi-model-id-edit-btn {
+	flex-shrink: 0;
+	opacity: 0.55;
+	margin-left: auto;
+}
+
+.bragi-model-id-edit-btn:hover {
+	opacity: 1;
+}
+
+.bragi-provider-models-id-input {
+	flex: 1;
+	min-width: 0;
+	font-size: 12px;
+	font-family: var(--font-monospace, monospace);
+	padding: 2px 6px;
 }
 
 /* ── Hide vault-level _bragi folder from file tree ──────────────────── */

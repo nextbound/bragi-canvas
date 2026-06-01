@@ -1,4 +1,4 @@
-import { Modal, Notice } from 'obsidian'
+import { Modal, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
 import { ALL_MODELS, getActiveProvider, type GenerationType, type ModelConfig } from '../models'
 import {
@@ -8,6 +8,7 @@ import {
 	getConnectedConfiguredProviderIds,
 	getReplacementProvider,
 	isProviderConnectedToModel,
+	resolveApiModelId,
 	type ProviderCredentialDraft,
 } from '../provider-model-prefs'
 import { getProvider } from '../providers/registry'
@@ -125,8 +126,8 @@ export class ProviderModelsModal extends Modal {
 		})
 
 		const toolbar = contentEl.createDiv({ cls: 'bragi-provider-models-toolbar' })
-		const selectAll = toolbar.createEl('button', { text: 'Select all' })
-		const clear = toolbar.createEl('button', { text: 'Clear' })
+		const selectAll = toolbar.createEl('button', { text: 'Select all', attr: { type: 'button' } })
+		const clear = toolbar.createEl('button', { text: 'Clear', attr: { type: 'button' } })
 
 		const list = contentEl.createDiv({ cls: 'bragi-provider-models-list' })
 		for (const type of TYPE_ORDER) {
@@ -184,6 +185,12 @@ export class ProviderModelsModal extends Modal {
 			void this.requestApply(candidates)
 		})
 		sync()
+
+		// Don't leave focus on "Select all" (it would show a focus ring as if pre-selected).
+		window.setTimeout(() => {
+			const active = this.contentEl.ownerDocument.activeElement
+			if (active instanceof HTMLElement && this.contentEl.contains(active)) active.blur()
+		}, 0)
 	}
 
 	private renderModelRow(parent: HTMLElement, model: ModelConfig) {
@@ -198,7 +205,102 @@ export class ProviderModelsModal extends Modal {
 
 		const info = row.createDiv({ cls: 'bragi-provider-models-info' })
 		info.createDiv({ cls: 'bragi-provider-models-name', text: model.name })
-		info.createDiv({ cls: 'bragi-provider-models-id', text: model.id })
+		const idLine = info.createDiv({ cls: 'bragi-provider-models-id-line' })
+		this.renderIdDisplay(idLine, model)
+	}
+
+	private catalogApiModelId(model: ModelConfig): string {
+		return model.supportedProviders[this.opts.providerId]?.apiModelId || model.id
+	}
+
+	private isOverridden(model: ModelConfig): boolean {
+		return !!this.plugin.settings.apiModelIdOverrides?.[this.opts.providerId]?.[model.id]
+	}
+
+	/** Display mode: effective api model id + "Modified" badge + a pencil to edit. */
+	private renderIdDisplay(idLine: HTMLElement, model: ModelConfig) {
+		idLine.empty()
+		const effective = resolveApiModelId(this.plugin.settings, this.opts.providerId, model)
+		idLine.createSpan({ cls: 'bragi-provider-models-id', text: effective })
+		if (this.isOverridden(model)) {
+			idLine.createSpan({ cls: 'bragi-model-id-badge', text: 'Modified' })
+		}
+		const edit = idLine.createEl('button', { cls: 'clickable-icon bragi-model-id-edit-btn' })
+		setIcon(edit, 'pencil')
+		setTooltip(edit, 'Edit API model id')
+		// The row is a <label>; stop the click from toggling the checkbox.
+		edit.addEventListener('click', (e) => {
+			e.preventDefault()
+			e.stopPropagation()
+			this.renderIdEditor(idLine, model)
+		})
+	}
+
+	/** Edit mode: text input + save/cancel, plus reset-to-default when overridden. */
+	private renderIdEditor(idLine: HTMLElement, model: ModelConfig) {
+		idLine.empty()
+		const effective = resolveApiModelId(this.plugin.settings, this.opts.providerId, model)
+		const input = idLine.createEl('input', {
+			type: 'text',
+			cls: 'bragi-provider-models-id-input',
+			value: effective,
+		})
+		input.placeholder = this.catalogApiModelId(model)
+		// Clicks/keys inside the editor must not toggle the row's checkbox.
+		const swallow = (e: Event) => e.stopPropagation()
+		idLine.addEventListener('click', (e) => e.preventDefault())
+		input.addEventListener('click', swallow)
+
+		const save = idLine.createEl('button', { cls: 'clickable-icon' })
+		setIcon(save, 'check')
+		setTooltip(save, 'Save')
+		const cancel = idLine.createEl('button', { cls: 'clickable-icon' })
+		setIcon(cancel, 'x')
+		setTooltip(cancel, 'Cancel')
+
+		const commit = () => { void this.saveOverride(model, input.value); this.renderIdDisplay(idLine, model) }
+		save.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); commit() })
+		cancel.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.renderIdDisplay(idLine, model) })
+		input.addEventListener('keydown', (e) => {
+			e.stopPropagation()
+			if (e.key === 'Enter') { e.preventDefault(); commit() }
+			else if (e.key === 'Escape') { e.preventDefault(); this.renderIdDisplay(idLine, model) }
+		})
+
+		if (this.isOverridden(model)) {
+			const reset = idLine.createEl('button', { cls: 'clickable-icon' })
+			setIcon(reset, 'rotate-ccw')
+			setTooltip(reset, 'Reset to default')
+			reset.addEventListener('click', (e) => {
+				e.preventDefault()
+				e.stopPropagation()
+				void this.saveOverride(model, '')
+				this.renderIdDisplay(idLine, model)
+			})
+		}
+
+		input.focus()
+		input.select()
+	}
+
+	/** Persist (or clear, when empty / equal to catalog default) the api model id override. */
+	private async saveOverride(model: ModelConfig, rawValue: string): Promise<void> {
+		const value = rawValue.trim()
+		const providerId = this.opts.providerId
+		const overrides = this.plugin.settings.apiModelIdOverrides || (this.plugin.settings.apiModelIdOverrides = {})
+		const isDefault = !value || value === this.catalogApiModelId(model)
+
+		if (isDefault) {
+			const map = overrides[providerId]
+			if (map) {
+				delete map[model.id]
+				if (Object.keys(map).length === 0) delete overrides[providerId]
+			}
+		} else {
+			if (!overrides[providerId]) overrides[providerId] = {}
+			overrides[providerId][model.id] = value
+		}
+		await this.plugin.saveSettings()
 	}
 
 	private computeActiveDisconnectImpact(candidates: ModelConfig[]): ActiveDisconnectImpact {

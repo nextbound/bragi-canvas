@@ -63,29 +63,14 @@ export async function applyRemoval(plugin: BragiCanvas, providerId: string, impa
 }
 
 /**
- * Remove a provider. If any models would be unlisted, pops a confirm modal first.
- * Otherwise applies silently (with a Notice if models got switched).
+ * Remove a provider. Always pops a confirm modal first — removing a provider
+ * clears its credentials, so we confirm even when no models are affected.
  */
 export function removeProvider(plugin: BragiCanvas, providerId: string, onDone: () => void) {
 	const spec = getProvider(providerId)
 	if (!spec) return
 
 	const impact = computeRemovalImpact(plugin, providerId)
-
-	if (impact.disappearing.length === 0) {
-		// Silent removal (possibly with auto-switch Notice)
-		void applyRemoval(plugin, providerId, impact).then(() => {
-			if (impact.switching.length > 0) {
-				new Notice(`${spec.name} removed — ${impact.switching.length} model${impact.switching.length === 1 ? '' : 's'} switched provider`)
-			} else {
-				new Notice(`${spec.name} removed`)
-			}
-			onDone()
-		})
-		return
-	}
-
-	// Has disappearing models: confirm modal
 	new RemoveProviderConfirmModal(plugin, spec.name, providerId, impact, onDone).open()
 }
 
@@ -104,6 +89,10 @@ class RemoveProviderConfirmModal extends Modal {
 		const { contentEl, titleEl, modalEl } = this
 		modalEl.classList.add('bragi-modal')
 		titleEl.setText(`Remove ${this.providerName}?`)
+
+		if (this.impact.disappearing.length === 0 && this.impact.switching.length === 0) {
+			contentEl.createEl('p', { text: `This clears ${this.providerName}'s saved credentials. You can add it again anytime.` })
+		}
 
 		if (this.impact.disappearing.length > 0) {
 			const p = contentEl.createEl('p', { cls: 'mod-warning' })

@@ -3,7 +3,7 @@ import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian'
 import type BragiCanvas from './main'
 import { getActiveProvider, getEnabledModels } from './models/index'
 import type { GenerationType } from './models/types'
-import { disableModel, getConnectedConfiguredProviderIds, type ProviderCredentialDraft } from './provider-model-prefs'
+import { describeProviderModelSupport, disableModel, getConnectedConfiguredProviderIds, type ProviderCredentialDraft } from './provider-model-prefs'
 import { PROVIDERS } from './providers/registry'
 import { AddProviderModal } from './ui/add-provider-modal'
 import { AddModelModal } from './ui/add-model-modal'
@@ -96,7 +96,7 @@ export interface BragiSettings {
 		byteplus: string
 		byteplusAccessKey: string
 		byteplusSecretKey: string
-		byteplusProjectName: string
+		byteplusAssetGroupId: string
 		klingAk: string
 		klingSk: string
 		fal: string
@@ -118,6 +118,8 @@ export interface BragiSettings {
 	// Per-model preferences
 	modelPrefs: Record<string, ModelPref>
 	providerModelPrefs: Record<string, Record<string, boolean>>
+	/** Per-provider override of the API model id sent for a model. providerId → modelId → apiModelId. */
+	apiModelIdOverrides: Record<string, Record<string, string>>
 
 	// Model display order per type
 	modelOrder: {
@@ -162,7 +164,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		byteplus: '',
 		byteplusAccessKey: '',
 		byteplusSecretKey: '',
-		byteplusProjectName: 'default',
+		byteplusAssetGroupId: '',
 		klingAk: '',
 		klingSk: '',
 		fal: '',
@@ -182,6 +184,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 	},
 	modelPrefs: {},
 	providerModelPrefs: {},
+	apiModelIdOverrides: {},
 	modelOrder: {
 		image: [],
 		video: [],
@@ -361,7 +364,9 @@ export class BragiSettingTab extends PluginSettingTab {
 		})
 
 		const wrap = groupEl.createDiv({ cls: 'setting-items bragi-providers-list' })
-		const configured = PROVIDERS.filter(p => p.isConfigured(this.plugin.settings))
+		const configured = PROVIDERS
+			.filter(p => p.isConfigured(this.plugin.settings))
+			.sort((a, b) => a.name.localeCompare(b.name))
 
 		if (configured.length === 0) {
 			addEmptySetting(wrap, 'No providers have been added. Click + to connect one.')
@@ -371,9 +376,9 @@ export class BragiSettingTab extends PluginSettingTab {
 		for (const spec of configured) {
 			const row = new Setting(wrap)
 				.setName(spec.name)
-				.setDesc(spec.description || '')
+				.setDesc(describeProviderModelSupport(spec.id))
 				.addExtraButton(btn => btn
-					.setIcon('list-checks')
+					.setIcon('package')
 					.setTooltip('Manage models')
 					.onClick(() => {
 						new ProviderModelsModal(this.plugin, {
@@ -383,7 +388,7 @@ export class BragiSettingTab extends PluginSettingTab {
 						}).open()
 					}))
 				.addExtraButton(btn => btn
-					.setIcon('pencil')
+					.setIcon('settings-2')
 					.setTooltip('Edit')
 					.onClick(() => {
 						new AddProviderModal(this.plugin, {
@@ -392,7 +397,7 @@ export class BragiSettingTab extends PluginSettingTab {
 						}).open()
 					}))
 				.addExtraButton(btn => btn
-					.setIcon('x')
+					.setIcon('trash-2')
 					.setTooltip('Remove')
 					.onClick(() => {
 						removeProvider(this.plugin, spec.id, () => this.display())

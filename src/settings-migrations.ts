@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 4
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 5
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {
@@ -35,6 +35,7 @@ function cloneDefaultSettings(defaults: BragiSettings): BragiSettings {
 		providers: { ...defaults.providers },
 		modelPrefs: {},
 		providerModelPrefs: {},
+		apiModelIdOverrides: {},
 		modelOrder: {
 			image: [],
 			video: [],
@@ -251,6 +252,30 @@ function readProviderModelPrefs(raw: UnknownRecord, settings: BragiSettings, err
 	}
 }
 
+function readApiModelIdOverrides(raw: UnknownRecord, settings: BragiSettings, errors: string[]): void {
+	if (!('apiModelIdOverrides' in raw)) return
+	if (!isRecord(raw.apiModelIdOverrides)) {
+		errors.push('apiModelIdOverrides')
+		return
+	}
+	for (const [providerId, rawOverrides] of Object.entries(raw.apiModelIdOverrides)) {
+		if (!isRecord(rawOverrides)) {
+			errors.push(`apiModelIdOverrides.${providerId}`)
+			continue
+		}
+		const overrides: Record<string, string> = {}
+		for (const [modelId, value] of Object.entries(rawOverrides)) {
+			if (typeof value !== 'string') {
+				errors.push(`apiModelIdOverrides.${providerId}.${modelId}`)
+				continue
+			}
+			const trimmed = value.trim()
+			if (trimmed) overrides[modelId] = trimmed
+		}
+		if (Object.keys(overrides).length > 0) settings.apiModelIdOverrides[providerId] = overrides
+	}
+}
+
 function readModelOrder(raw: UnknownRecord, settings: BragiSettings, errors: string[]): void {
 	if (!('modelOrder' in raw)) return
 	if (!isRecord(raw.modelOrder)) {
@@ -303,6 +328,7 @@ function readSettings(raw: UnknownRecord, defaults: BragiSettings): { settings: 
 
 	readModelPrefs(raw, settings, errors)
 	readProviderModelPrefs(raw, settings, errors)
+	readApiModelIdOverrides(raw, settings, errors)
 	readModelOrder(raw, settings, errors)
 
 	const lastImage = readLastSelection(raw, 'lastImage', errors)
@@ -406,6 +432,18 @@ function migrateDashScopeSettings(settings: BragiSettings, raw: UnknownRecord): 
 	}
 }
 
+function migrateByteplusGroupId(settings: BragiSettings, raw: UnknownRecord): void {
+	// The old `byteplusProjectName` field was mislabelled "Asset group ID" in the UI,
+	// so some users typed a real asset group id into it. Carry those over to the new
+	// `byteplusAssetGroupId` field; plain project names (e.g. "default") are dropped.
+	if (settings.providers.byteplusAssetGroupId) return
+	const rawProviders = isRecord(raw.providers) ? raw.providers : null
+	const legacy = rawProviders?.byteplusProjectName
+	if (typeof legacy === 'string' && /^group-/.test(legacy.trim())) {
+		settings.providers.byteplusAssetGroupId = legacy.trim()
+	}
+}
+
 function migrateProviderPrefs19(settings: BragiSettings): void {
 	if (settings.migrationProviders_1_9) return
 
@@ -469,6 +507,7 @@ const RECOGNIZABLE_KEYS = [
 	'providers',
 	'modelPrefs',
 	'providerModelPrefs',
+	'apiModelIdOverrides',
 	'modelOrder',
 	'mcpEnabled',
 	'mcpPort',
@@ -508,6 +547,7 @@ export function migrateSettings(
 	const previousVersion = settings.settingsSchemaVersion || 0
 
 	migrateDashScopeSettings(settings, raw)
+	migrateByteplusGroupId(settings, raw)
 	migrateProviderPrefs19(settings)
 	migrateProviderModelPrefs(settings, previousVersion)
 	settings.settingsSchemaVersion = CURRENT_SETTINGS_SCHEMA_VERSION

@@ -3,7 +3,7 @@ import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, ModelParam, VoiceSourceMode } from './models/types'
 import { getEnabledModels, getActiveProvider } from './models/index'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
-import { getConnectedConfiguredProviderIds } from './provider-model-prefs'
+import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedAudios } from './audio-refs'
 import { getOrderedTextRefs } from './text-refs'
@@ -135,7 +135,7 @@ function resolveProvider(
 ): { provider: string; apiModelId: string } {
 	const pref = settings.modelPrefs[model.id]
 	const provider = getActiveProvider(model, pref?.selectedProvider, getConnectedConfiguredProviderIds(settings, model)) || Object.keys(model.supportedProviders)[0]
-	const apiModelId = model.supportedProviders[provider]?.apiModelId || model.id
+	const apiModelId = resolveApiModelId(settings, provider, model)
 	return { provider, apiModelId }
 }
 

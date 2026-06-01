@@ -5,7 +5,6 @@ import { uploadRef } from './providers/upload'
 import {
 	BytePlusAssetCreds,
 	createAsset,
-	createAssetGroup,
 	getAsset,
 	isAssetNotFound,
 	isGroupNotFound,
@@ -57,43 +56,20 @@ function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 	return null
 }
 
-/** Credentials for BytePlus asset library. null if not configured. */
+/**
+ * Credentials for BytePlus asset library. null if not configured.
+ * Requires AK/SK *and* an asset group id — without a group id we fall back to
+ * passing the plain URL to Seedance (no asset library, no face support), matching
+ * the TokenRouter / Token360 behaviour. We never auto-create asset groups, since
+ * each project has a cap on group count.
+ */
 export function getBytePlusAssetCreds(plugin: BragiCanvas): BytePlusAssetCreds | null {
 	const p = plugin.settings.providers
 	const ak = (p.byteplusAccessKey || '').trim()
 	const sk = (p.byteplusSecretKey || '').trim()
-	if (!ak || !sk) return null
-	return {
-		accessKey: ak,
-		secretKey: sk,
-		projectName: (p.byteplusProjectName || 'default').trim(),
-	}
-}
-
-
-async function getOrCreateGroupId(canvas: Canvas, creds: BytePlusAssetCreds): Promise<string> {
-	const data = canvas.getData() as unknown
-	const existing = data?.bragi?.byteplusGroupId as string | undefined
-	if (existing) return existing
-	const groupId = await createAssetGroup(creds)
-	const current = canvas.getData() as unknown
-	canvas.importData({
-		...current,
-		bragi: { ...(current.bragi || {}), byteplusGroupId: groupId },
-	})
-	void canvas.requestSave()
-	return groupId
-}
-
-/** Invalidate the canvas-level group id (e.g. after a group-not-found error). */
-function clearGroupId(canvas: Canvas) {
-	const current = canvas.getData() as unknown
-	if (current?.bragi?.byteplusGroupId) {
-		const rest = { ...current.bragi }
-		delete rest.byteplusGroupId
-		canvas.importData({ ...current, bragi: rest })
-		void canvas.requestSave()
-	}
+	const groupId = (p.byteplusAssetGroupId || '').trim()
+	if (!ak || !sk || !groupId) return null
+	return { accessKey: ak, secretKey: sk, groupId }
 }
 
 function getCachedAssetId(node: CanvasNode): string | null {
@@ -164,19 +140,17 @@ export async function ensureBytePlusAsset(
 	const binary = await adapter.readBinary(filePath)
 	const url = await uploadRef(undefined, binary, `ref.${ext}`, mime)
 
-	// 3. Create the asset (retry once if group was missing)
-	let groupId = await getOrCreateGroupId(canvas, creds)
+	// 3. Create the asset under the configured group
 	let assetId: string
 	try {
-		assetId = await createAsset(creds, groupId, url, assetType)
+		assetId = await createAsset(creds, creds.groupId, url, assetType)
 	} catch (err: unknown) {
 		if (isGroupNotFound(err)) {
-			clearGroupId(canvas)
-			groupId = await getOrCreateGroupId(canvas, creds)
-			assetId = await createAsset(creds, groupId, url, assetType)
-		} else {
-			throw err
+			throw new Error(
+				`BytePlus asset group not found or inaccessible: ${creds.groupId}. Check the BytePlus "Asset group ID" in provider settings, or switch the Seedance provider.`,
+			)
 		}
+		throw err
 	}
 
 	// 4. Poll until Active

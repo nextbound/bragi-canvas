@@ -14,6 +14,44 @@ export function providerSupportsModel(providerId: string, model: ModelConfig): b
 	return model.supportedProviders[providerId] !== undefined
 }
 
+const SUPPORT_TYPE_ORDER = ['text', 'image', 'video', 'audio'] as const
+const SUPPORT_TYPE_LABELS: Record<(typeof SUPPORT_TYPE_ORDER)[number], string> = {
+	text: 'text',
+	image: 'image',
+	video: 'video',
+	audio: 'audio',
+}
+
+/**
+ * One-line summary of how many catalog models of each type a provider supports,
+ * e.g. "5 image, 3 video, 2 text models". Used in place of a static description.
+ */
+export function describeProviderModelSupport(providerId: string): string {
+	const counts: Record<string, number> = {}
+	let total = 0
+	for (const model of ALL_MODELS) {
+		if (model.supportedProviders[providerId]) {
+			counts[model.type] = (counts[model.type] || 0) + 1
+			total++
+		}
+	}
+	if (total === 0) return 'No catalog models'
+	const parts = SUPPORT_TYPE_ORDER
+		.filter(type => counts[type])
+		.map(type => `${counts[type]} ${SUPPORT_TYPE_LABELS[type]}`)
+	return `Supports ${parts.join(', ')} model${total === 1 ? '' : 's'}`
+}
+
+/**
+ * The API model id to send for `model` via `providerId`. Honours a user override
+ * (settings.apiModelIdOverrides), then the catalog default, then the model id.
+ */
+export function resolveApiModelId(settings: BragiSettings, providerId: string, model: ModelConfig): string {
+	return settings.apiModelIdOverrides?.[providerId]?.[model.id]
+		|| model.supportedProviders[providerId]?.apiModelId
+		|| model.id
+}
+
 export function isProviderConnectedToModel(settings: BragiSettings, providerId: string, modelId: string): boolean {
 	const model = getModelById(modelId)
 	return !!model && providerSupportsModel(providerId, model) && settings.providerModelPrefs?.[providerId]?.[modelId] === true
