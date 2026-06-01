@@ -229,6 +229,8 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'byteplusAssetGroupId', label: 'Asset group ID (optional)', placeholder: 'group-2026...-xxxxx', type: 'text' },
 		],
 		isConfigured: (s) => !!s.providers.byteplus,
+		makeImage: ({ settings, app, outputDir }) =>
+			new SeedreamProvider(settings.providers.byteplus, app, outputDir, 'https://ark.ap-southeast.bytepluses.com/api/v3/images/generations'),
 		makeVideo: ({ settings, app, outputDir }) =>
 			new SeedanceProvider(settings.providers.byteplus, app, outputDir, 'https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks'),
 		testConnection: (d) => testListModels('https://ark.ap-southeast.bytepluses.com/api/v3/models', d.byteplus || ''),

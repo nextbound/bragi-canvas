@@ -1,7 +1,7 @@
 import type { ModelConfig, GenerationType } from './types'
 import { gptImage } from './gpt-image'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
-import { seedream5, seedream45 } from './seedream'
+import { seedream5, seedream5Lite, seedream45 } from './seedream'
 import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
@@ -35,6 +35,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	midjourneyNiji7,
 	lumaUni1,
 	seedream5,
+	seedream5Lite,
 	seedream45,
 	zImageSpicy,
 	qwenImageEditSpicy,
