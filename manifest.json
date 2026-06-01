@@ -1,7 +1,7 @@
 {
 	"id": "bragi-canvas",
 	"name": "Bragi Canvas",
-	"version": "1.20.0",
+	"version": "1.21.0",
 	"minAppVersion": "1.8.7",
 	"description": "Turn Canvas into a node-based AI generation pipeline for images, video, text, and audio.",
 	"author": "Nextbound",

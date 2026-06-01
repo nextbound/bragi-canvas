@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.21.0
+
+- Added `seedream-5.0-lite` as an image model on Volcengine and BytePlus, with 2K, 3K, and 4K output options.
+- Added BytePlus Seedream image generation through the international BytePlus ARK endpoint.
+- Changed BytePlus asset handling to use an explicit reusable Asset group ID instead of creating asset groups automatically.
+- Added per-provider API model ID overrides in the provider model management UI.
+- Migrated legacy BytePlus `byteplusProjectName` values that look like asset group IDs into the new `byteplusAssetGroupId` setting.
+- Bumped the plugin version to `1.21.0`.
+
 ## 1.20.0
 
 - Added MuleRouter CarrotHub image models: `z-image-spicy` for text-to-image and `qwen-image-edit-spicy` for image-ref-to-image.
