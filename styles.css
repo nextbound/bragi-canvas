@@ -743,7 +743,9 @@
 .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 .bragi-canvas-menu.bragi-annotation-menu-inline {
 	/* Node-relative: left/top are set in JS by positionNodeToolbar so the toolbar
-	   hugs the node a fixed gap above it, centered on the node. */
+	   hugs the node a fixed gap above it, centered on the node.
+	   !important overrides Obsidian's native .canvas-card-menu positioning/z-index
+	   so JS-driven node-relative placement isn't reset by core canvas styles. */
 	position: absolute !important;
 	right: auto !important;
 	bottom: auto !important;
@@ -816,6 +818,8 @@
 }
 
 .bragi-canvas-menu.bragi-native-toolbar-suppressed {
+	/* !important beats the show-state rule below (same specificity) and Obsidian's
+	   native .canvas-card-menu styles to force-hide the toolbar during suppression. */
 	opacity: 0 !important;
 	visibility: hidden !important;
 	transform: translateY(-4px) !important;
@@ -839,6 +843,8 @@
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
+	/* !important overrides the z-index Obsidian sets inline on .canvas-controls/.canvas-card-menu
+	   so the plugin toolbar (z-index below) can stack above the native controls. */
 	z-index: 1 !important;
 }
 
@@ -848,6 +854,8 @@ body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-menu-inline {
 	opacity: 1;
 	visibility: visible;
+	/* !important wins over the hide-state transform rules above and Obsidian's native
+	   .canvas-card-menu transform/z-index, keeping the active toolbar shown and on top. */
 	transform: translateY(0) !important;
 	pointer-events: auto;
 	z-index: 1000 !important;
@@ -860,6 +868,7 @@ body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-toolbar-hidde
 body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
 	opacity: 0;
 	visibility: hidden;
+	/* !important wins over the show-state transform rule above when the toolbar is hidden. */
 	transform: translateY(-4px) !important;
 	pointer-events: none;
 	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
@@ -869,6 +878,8 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-annotation-mode .bragi-annotation-target {
 	opacity: 1;
 	pointer-events: auto;
+	/* !important overrides the inline z-index Obsidian sets on .canvas-node so the active
+	   target node lifts above the dimmed siblings. */
 	z-index: 50 !important;
 }
 
@@ -880,6 +891,8 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container,
 .bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container,
 .bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container {
+	/* !important strips Obsidian's .is-selected/.is-focused node chrome (set at high
+	   specificity) so the target node shows no selection border in tool/annotation mode. */
 	border-color: transparent !important;
 	box-shadow: none !important;
 	outline: 0 !important;
@@ -895,6 +908,7 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-annotation-mode .bragi-annotation-target:hover .canvas-node-container::before,
 .bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container::before,
 .bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container::before {
+	/* Same as above, for the ::before/::after chrome Obsidian draws on selected/focused nodes. */
 	border-color: transparent !important;
 	box-shadow: none !important;
 	outline: 0 !important;
@@ -906,8 +920,8 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-annotation-mode .bragi-annotation-target .canvas-node-label,
 .bragi-annotation-mode .bragi-annotation-target .mod-hover-label,
 .bragi-annotation-mode .bragi-annotation-target .bragi-media-meta-label {
+	/* !important overrides Obsidian core label styles on canvas nodes. */
 	display: none !important;
-	opacity: 0 !important;
 }
 
 .bragi-inline-tool-mode .canvas-node-connection-point,
@@ -918,6 +932,8 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-annotation-mode .canvas-node-connection-point::after,
 .bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point,
 .bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after {
+	/* Fully neutralize Obsidian's core connection-point controls (incl. their :hover and
+	   ::after states) during tool/annotation mode; !important is required to beat core. */
 	display: none !important;
 	visibility: hidden !important;
 	opacity: 0 !important;
@@ -1598,7 +1614,7 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin: var(--size-4-2) 0 var(--size-4-4);
+	margin: var(--size-4-4) 0;
 	padding: 0 var(--size-4-5);
 	border: none;
 	border-radius: var(--radius-l);
@@ -1607,11 +1623,11 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-empty-setting .setting-item-info {
 	margin-right: 0;
 	width: 100%;
-	padding: 0 !important;
-	border-radius: 0 !important;
-	background: none !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
+	padding: 0;
+	border-radius: 0;
+	background: none;
+	background-color: transparent;
+	box-shadow: none;
 	text-align: center;
 }
 
@@ -1619,10 +1635,10 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	color: var(--text-muted);
 	display: block;
 	width: 100%;
-	border-radius: 0 !important;
-	background: none !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
+	border-radius: 0;
+	background: none;
+	background-color: transparent;
+	box-shadow: none;
 	font-size: var(--font-ui-medium);
 	font-weight: var(--font-normal);
 	line-height: 1.45;
@@ -1633,8 +1649,8 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 .bragi-empty-setting .setting-item-info::after,
 .bragi-empty-setting .setting-item-name::before,
 .bragi-empty-setting .setting-item-name::after {
-	display: none !important;
-	content: none !important;
+	display: none;
+	content: none;
 }
 
 .bragi-empty-setting .setting-item-description,
@@ -1663,7 +1679,7 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	grid-template-columns: auto minmax(0, 1fr);
 	grid-template-rows: auto auto;
 	align-items: center;
-	column-gap: 8px;
+	gap: 0 8px;
 	min-width: 0;
 }
 

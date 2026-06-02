@@ -32,8 +32,6 @@
     "typescript-eslint": "^8.59.2"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.0.0",
-    "ai": "^4.0.0",
     "monkey-around": "^3.0.0",
     "pannellum": "^2.5.7",
     "zod": "^3.25.76",
