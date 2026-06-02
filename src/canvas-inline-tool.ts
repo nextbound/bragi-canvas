@@ -559,6 +559,12 @@ export class CanvasInlineToolSession<TAction> {
 	private keyboardScopeActive = false
 	private bottomBarEl: HTMLElement | null = null
 	private positionRAF: number | null = null
+	/** Elevate the target node above the dimmed siblings. Obsidian writes z-index inline on
+	   .canvas-node, which no stylesheet rule can beat, so we set it inline too and restore the
+	   captured prior value on close. `null` = not currently elevated. */
+	private readonly TARGET_NODE_Z_INDEX = '50'
+	private prevNodeZIndex: string | null = null
+	private nodeZIndexElevated = false
 
 	constructor(private readonly options: CanvasInlineToolSessionOptions<TAction>) {}
 
@@ -623,6 +629,9 @@ export class CanvasInlineToolSession<TAction> {
 		this.options.canvas.selectOnly(this.options.node, false)
 		this.refreshToolbar()
 		const target = this.focusTargetNode()
+		// Elevate AFTER focusTargetNode(): node.focus()/zoomToSelection() rewrite the node's
+		// inline z-index, so setting it earlier would be clobbered. The position loop re-asserts.
+		this.elevateTargetNode()
 		this.refreshToolbar()
 		void this.showToolbarAfterFocus(target)
 	}
@@ -722,8 +731,34 @@ export class CanvasInlineToolSession<TAction> {
 		})
 	}
 
+	/** Set the target node's inline z-index so it lifts above the dimmed siblings, capturing
+	   Obsidian's prior inline value once so it can be restored on close. */
+	private elevateTargetNode(): void {
+		const nodeEl = this.options.node.nodeEl
+		if (!this.nodeZIndexElevated) {
+			this.prevNodeZIndex = nodeEl.style.zIndex || null
+			this.nodeZIndexElevated = true
+		}
+		if (nodeEl.style.zIndex !== this.TARGET_NODE_Z_INDEX) {
+			nodeEl.style.zIndex = this.TARGET_NODE_Z_INDEX
+		}
+	}
+
+	/** Restore the node's inline z-index to whatever Obsidian had set before we elevated it. */
+	private restoreTargetNodeZIndex(): void {
+		if (!this.nodeZIndexElevated) return
+		const nodeEl = this.options.node.nodeEl
+		if (this.prevNodeZIndex === null) nodeEl.style.removeProperty('z-index')
+		else nodeEl.style.zIndex = this.prevNodeZIndex
+		this.nodeZIndexElevated = false
+		this.prevNodeZIndex = null
+	}
+
 	private repositionToolbars(): void {
 		if (!this.isActive()) return
+		// Re-assert the elevated z-index each frame: Obsidian rewrites the node's inline
+		// z-index during interaction, so this keeps us winning the way !important used to.
+		if (this.nodeZIndexElevated) this.elevateTargetNode()
 		const bounds = getSelectionBounds([this.options.node])
 		if (!bounds) return
 		const topEl = getInlineToolbarEl(this.options.canvas)
@@ -1027,6 +1062,7 @@ export class CanvasInlineToolSession<TAction> {
 		}
 		if (!ownsWrapper) {
 			if (wrapper && activeInlineToolSessions.get(wrapper) !== this) {
+				this.restoreTargetNodeZIndex()
 				this.options.node.nodeEl.classList.remove('bragi-inline-tool-target')
 				if (this.options.legacyTargetClass) this.options.node.nodeEl.classList.remove(this.options.legacyTargetClass)
 				if (this.options.legacyContentClass) this.options.node.contentEl.classList.remove(this.options.legacyContentClass)
@@ -1034,6 +1070,7 @@ export class CanvasInlineToolSession<TAction> {
 			this.sessionState = 'closed'
 			return
 		}
+		this.restoreTargetNodeZIndex()
 		this.options.node.nodeEl.classList.remove('bragi-inline-tool-target')
 		if (this.options.legacyTargetClass) this.options.node.nodeEl.classList.remove(this.options.legacyTargetClass)
 		if (this.options.legacyContentClass) this.options.node.contentEl.classList.remove(this.options.legacyContentClass)

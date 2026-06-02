@@ -880,9 +880,9 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-c
 .bragi-annotation-mode .bragi-annotation-target {
 	opacity: 1;
 	pointer-events: auto;
-	/* !important overrides the inline z-index Obsidian sets on .canvas-node so the active
-	   target node lifts above the dimmed siblings. */
-	z-index: 50 !important;
+	/* z-index is set inline on the node by the session (elevateTargetNode in
+	   canvas-inline-tool.ts) — Obsidian writes z-index inline on .canvas-node, which a
+	   stylesheet rule cannot override, so it can't live here. */
 }
 
 /* Strip Obsidian's .is-selected/.is-focused node chrome on the target node during
