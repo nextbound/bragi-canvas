@@ -817,14 +817,17 @@
 	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
 }
 
-.bragi-canvas-menu.bragi-native-toolbar-suppressed {
-	/* !important beats the show-state rule below (same specificity) and Obsidian's
-	   native .canvas-card-menu styles to force-hide the toolbar during suppression. */
-	opacity: 0 !important;
-	visibility: hidden !important;
-	transform: translateY(-4px) !important;
-	pointer-events: none !important;
-	transition: none !important;
+/* Suppressed = force-hide. Anchored with body + .canvas-wrapper mode classes to reach
+   specificity (0,4,0), strictly above the show-state rule (0,3,0) further down, so it
+   wins without !important. Ordering note: show is (0,3,0); hidden + suppressed are both
+   (0,4,0) — keep that tiering when editing. */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .bragi-canvas-menu.bragi-native-toolbar-suppressed,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-canvas-menu.bragi-native-toolbar-suppressed {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(-4px);
+	pointer-events: none;
+	transition: none;
 }
 
 .bragi-inline-tool-mode .canvas-node:not(.bragi-inline-tool-target),
@@ -848,28 +851,26 @@
 	z-index: 1 !important;
 }
 
-.bragi-inline-tool-mode .bragi-canvas-menu,
-.bragi-annotation-mode .bragi-canvas-menu,
+/* Show state (toolbar visible). Body-anchored at specificity (0,3,0) — beats Obsidian's
+   native .canvas-card-menu transform (0,1,0) without !important. The hidden/suppressed
+   rules sit a step higher at (0,4,0) so they win when their class is present. */
 body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-menu-inline {
 	opacity: 1;
 	visibility: visible;
-	/* !important wins over the hide-state transform rules above and Obsidian's native
-	   .canvas-card-menu transform/z-index, keeping the active toolbar shown and on top. */
-	transform: translateY(0) !important;
+	transform: translateY(0);
 	pointer-events: auto;
-	z-index: 1000 !important;
+	z-index: 1000;
 	transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 0s;
 }
 
-.bragi-inline-tool-mode .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
-.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden,
-body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
-body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
+/* Hidden toggle. Anchored with the .canvas-wrapper mode class to reach (0,4,0), strictly
+   above the show rule (0,3,0), so it wins on transform/opacity without !important. */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
 	opacity: 0;
 	visibility: hidden;
-	/* !important wins over the show-state transform rule above when the toolbar is hidden. */
-	transform: translateY(-4px) !important;
+	transform: translateY(-4px);
 	pointer-events: none;
 	transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
 }
