@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.21.1
+
+- Fixed Obsidian community audit warnings by removing unused AI SDK dependencies from the plugin package.
+- Removed remaining CSS `!important` usage from inline tool and generated stylesheet output.
+- Tightened inline tool CSS specificity so the toolbar behavior remains intact without `!important`.
+- Bumped the plugin version to `1.21.1`.
+
 ## 1.21.0
 
 - Added `seedream-5.0-lite` as an image model on Volcengine and BytePlus, with 2K, 3K, and 4K output options.

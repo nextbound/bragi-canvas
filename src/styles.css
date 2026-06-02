@@ -745,7 +745,7 @@
 	/* Node-relative: left/top are set in JS by positionNodeToolbar so the toolbar
 	   hugs the node a fixed gap above it, centered on the node. This (0,2,0) selector
 	   outranks Obsidian's native .canvas-card-menu (0,1,0), so it overrides core's
-	   positioning/z-index without !important. (Core does not inline z-index on this menu.) */
+	   positioning/z-index without priority flags. (Core does not inline z-index on this menu.) */
 	position: absolute;
 	right: auto;
 	bottom: auto;
@@ -819,7 +819,7 @@
 
 /* Suppressed = force-hide. Anchored with body + .canvas-wrapper mode classes to reach
    specificity (0,4,0), strictly above the show-state rule (0,3,0) further down, so it
-   wins without !important. Ordering note: show is (0,3,0); hidden + suppressed are both
+   wins without priority flags. Ordering note: show is (0,3,0); hidden + suppressed are both
    (0,4,0) — keep that tiering when editing. */
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .bragi-canvas-menu.bragi-native-toolbar-suppressed,
 body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-canvas-menu.bragi-native-toolbar-suppressed {
@@ -845,7 +845,7 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-c
 .bragi-annotation-mode .canvas-card-menu:not(.bragi-canvas-menu) {
 	/* Native controls/menu are fully hidden in tool mode (opacity:0 + visibility:hidden +
 	   pointer-events:none), so their stacking order is moot — no z-index override needed.
-	   Obsidian sets z-index inline on these elements, which only !important could have beaten,
+	   Obsidian sets z-index inline on these elements, which a stylesheet rule could not beat,
 	   but a hidden element never participates in paint order so it was redundant. */
 	opacity: 0;
 	visibility: hidden;
@@ -853,7 +853,7 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-c
 }
 
 /* Show state (toolbar visible). Body-anchored at specificity (0,3,0) — beats Obsidian's
-   native .canvas-card-menu transform (0,1,0) without !important. The hidden/suppressed
+   native .canvas-card-menu transform (0,1,0) without priority flags. The hidden/suppressed
    rules sit a step higher at (0,4,0) so they win when their class is present. */
 body.bragi-inline-tool-active .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-menu-inline {
@@ -866,7 +866,7 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-menu-inlin
 }
 
 /* Hidden toggle. Anchored with the .canvas-wrapper mode class to reach (0,4,0), strictly
-   above the show rule (0,3,0), so it wins on transform/opacity without !important. */
+   above the show rule (0,3,0), so it wins on transform/opacity without priority flags. */
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .bragi-canvas-menu.bragi-inline-tool-toolbar-hidden,
 body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-canvas-menu.bragi-annotation-toolbar-hidden {
 	opacity: 0;
@@ -889,7 +889,7 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-c
    tool/annotation mode. The body + .canvas-wrapper + .canvas-node anchor chain gives
    specificity (0,6,0), which beats core's worst case
    `.canvas-node.is-selected.is-themed.is-dragging .canvas-node-container` (0,5,0)
-   without needing !important. */
+   without priority flags. */
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container,
 body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container {
 	border-color: transparent;
@@ -923,7 +923,7 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-
    ::after states) during tool/annotation mode. The body + .canvas-wrapper anchors lift
    each selector a full step above the core rules they override:
    point (0,3,0) > core (0,1,0); ::after (0,3,1) > core (0,1,1);
-   resizer:hover ::after (0,4,1) > core (0,2,1) — no !important needed. */
+   resizer:hover ::after (0,4,1) > core (0,2,1) -- no priority flag needed. */
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-connection-point,
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-connection-point::after,
 body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point,
