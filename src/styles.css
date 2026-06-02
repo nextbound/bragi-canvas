@@ -743,15 +743,15 @@
 .bragi-canvas-menu.bragi-inline-tool-menu-inline,
 .bragi-canvas-menu.bragi-annotation-menu-inline {
 	/* Node-relative: left/top are set in JS by positionNodeToolbar so the toolbar
-	   hugs the node a fixed gap above it, centered on the node.
-	   !important overrides Obsidian's native .canvas-card-menu positioning/z-index
-	   so JS-driven node-relative placement isn't reset by core canvas styles. */
-	position: absolute !important;
-	right: auto !important;
-	bottom: auto !important;
+	   hugs the node a fixed gap above it, centered on the node. This (0,2,0) selector
+	   outranks Obsidian's native .canvas-card-menu (0,1,0), so it overrides core's
+	   positioning/z-index without !important. (Core does not inline z-index on this menu.) */
+	position: absolute;
+	right: auto;
+	bottom: auto;
 	gap: 1px;
 	padding: var(--size-2-1);
-	z-index: 1000 !important;
+	z-index: 1000;
 }
 
 .bragi-canvas-menu .bragi-annotation-separator {
@@ -843,12 +843,13 @@ body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .bragi-c
 .bragi-inline-tool-mode .canvas-card-menu:not(.bragi-canvas-menu),
 .bragi-annotation-mode .canvas-controls,
 .bragi-annotation-mode .canvas-card-menu:not(.bragi-canvas-menu) {
+	/* Native controls/menu are fully hidden in tool mode (opacity:0 + visibility:hidden +
+	   pointer-events:none), so their stacking order is moot — no z-index override needed.
+	   Obsidian sets z-index inline on these elements, which only !important could have beaten,
+	   but a hidden element never participates in paint order so it was redundant. */
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
-	/* !important overrides the z-index Obsidian sets inline on .canvas-controls/.canvas-card-menu
-	   so the plugin toolbar (z-index below) can stack above the native controls. */
-	z-index: 1 !important;
 }
 
 /* Show state (toolbar visible). Body-anchored at specificity (0,3,0) — beats Obsidian's
