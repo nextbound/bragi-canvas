@@ -883,67 +883,63 @@ body.bragi-annotation-mode-active .bragi-canvas-menu.bragi-annotation-toolbar-hi
 	z-index: 50 !important;
 }
 
-.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container,
-.bragi-inline-tool-mode .bragi-inline-tool-target.is-selected .canvas-node-container,
-.bragi-inline-tool-mode .bragi-inline-tool-target.is-focused .canvas-node-container,
-.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container,
-.bragi-annotation-mode .bragi-annotation-target .canvas-node-container,
-.bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container,
-.bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container,
-.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container {
-	/* !important strips Obsidian's .is-selected/.is-focused node chrome (set at high
-	   specificity) so the target node shows no selection border in tool/annotation mode. */
-	border-color: transparent !important;
-	box-shadow: none !important;
-	outline: 0 !important;
+/* Strip Obsidian's .is-selected/.is-focused node chrome on the target node during
+   tool/annotation mode. The body + .canvas-wrapper + .canvas-node anchor chain gives
+   specificity (0,6,0), which beats core's worst case
+   `.canvas-node.is-selected.is-themed.is-dragging .canvas-node-container` (0,5,0)
+   without needing !important. */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container {
+	border-color: transparent;
+	box-shadow: none;
+	outline: 0;
 }
 
-.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container::before,
-.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-container::after,
-.bragi-inline-tool-mode .bragi-inline-tool-target:hover .canvas-node-container::before,
-.bragi-inline-tool-mode .bragi-inline-tool-target.is-selected .canvas-node-container::before,
-.bragi-inline-tool-mode .bragi-inline-tool-target.is-focused .canvas-node-container::before,
-.bragi-annotation-mode .bragi-annotation-target .canvas-node-container::before,
-.bragi-annotation-mode .bragi-annotation-target .canvas-node-container::after,
-.bragi-annotation-mode .bragi-annotation-target:hover .canvas-node-container::before,
-.bragi-annotation-mode .bragi-annotation-target.is-selected .canvas-node-container::before,
-.bragi-annotation-mode .bragi-annotation-target.is-focused .canvas-node-container::before {
-	/* Same as above, for the ::before/::after chrome Obsidian draws on selected/focused nodes. */
-	border-color: transparent !important;
-	box-shadow: none !important;
-	outline: 0 !important;
+/* Same as above, for the ::before/::after chrome Obsidian draws on selected/focused nodes.
+   Anchored chain + pseudo-element = specificity (0,6,1), beating core's pseudo rules. */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container::before,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-container::after,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container::before,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-container::after {
+	border-color: transparent;
+	box-shadow: none;
+	outline: 0;
 }
 
-.bragi-inline-tool-mode .bragi-inline-tool-target .canvas-node-label,
-.bragi-inline-tool-mode .bragi-inline-tool-target .mod-hover-label,
-.bragi-inline-tool-mode .bragi-inline-tool-target .bragi-media-meta-label,
-.bragi-annotation-mode .bragi-annotation-target .canvas-node-label,
-.bragi-annotation-mode .bragi-annotation-target .mod-hover-label,
-.bragi-annotation-mode .bragi-annotation-target .bragi-media-meta-label {
-	/* !important overrides Obsidian core label styles on canvas nodes. */
-	display: none !important;
+/* Hide node labels on the target during tool/annotation mode. Anchored chain (0,6,0)
+   beats core label rules like `.canvas-node.is-selected .canvas-node-label` (0,3,0). */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .canvas-node-label,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .mod-hover-label,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node.bragi-inline-tool-target .bragi-media-meta-label,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .canvas-node-label,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .mod-hover-label,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node.bragi-annotation-target .bragi-media-meta-label {
+	display: none;
 }
 
-.bragi-inline-tool-mode .canvas-node-connection-point,
-.bragi-inline-tool-mode .canvas-node-connection-point::after,
-.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point,
-.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point::after,
-.bragi-annotation-mode .canvas-node-connection-point,
-.bragi-annotation-mode .canvas-node-connection-point::after,
-.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point,
-.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after {
-	/* Fully neutralize Obsidian's core connection-point controls (incl. their :hover and
-	   ::after states) during tool/annotation mode; !important is required to beat core. */
-	display: none !important;
-	visibility: hidden !important;
-	opacity: 0 !important;
-	width: 0 !important;
-	height: 0 !important;
-	background: transparent !important;
-	border: 0 !important;
-	box-shadow: none !important;
-	pointer-events: none !important;
-	transform: none !important;
+/* Fully neutralize Obsidian's core connection-point controls (incl. their :hover and
+   ::after states) during tool/annotation mode. The body + .canvas-wrapper anchors lift
+   each selector a full step above the core rules they override:
+   point (0,3,0) > core (0,1,0); ::after (0,3,1) > core (0,1,1);
+   resizer:hover ::after (0,4,1) > core (0,2,1) — no !important needed. */
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-connection-point,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-connection-point::after,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point,
+body.bragi-inline-tool-active .canvas-wrapper.bragi-inline-tool-mode .canvas-node-resizer:hover .canvas-node-connection-point::after,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node-connection-point,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node-connection-point::after,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point,
+body.bragi-annotation-mode-active .canvas-wrapper.bragi-annotation-mode .canvas-node-resizer:hover .canvas-node-connection-point::after {
+	display: none;
+	visibility: hidden;
+	opacity: 0;
+	width: 0;
+	height: 0;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	pointer-events: none;
+	transform: none;
 }
 
 .bragi-annotation-target .bragi-annotation-content {
