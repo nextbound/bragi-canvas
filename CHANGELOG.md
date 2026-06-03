@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.21.3
+
+- Fixed TokenRouter text generation with upstream video references by sending relay video URLs as `video_url` content parts.
+- Kept non-video file references on the existing file content path for TokenRouter text generation.
+- Bumped the plugin version to `1.21.3`.
+
 ## 1.21.2
 
 - Skipped the ModelArk and BytePlus asset moderation prefilter when creating reference assets for supported generation flows.
