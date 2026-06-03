@@ -290,7 +290,7 @@ export class TokenRouterTextProvider implements TextGenProvider {
 			content.push({ type: 'image_url', image_url: { url: ref } })
 		}
 		for (let i = 0; i < refVideos.length; i++) {
-			content.push(this.fileContentPart(refVideos[i], `video-${i + 1}`))
+			content.push(this.videoContentPart(refVideos[i], `video-${i + 1}`))
 		}
 		for (let i = 0; i < refAudios.length; i++) {
 			content.push(this.fileContentPart(refAudios[i], `audio-${i + 1}`))
@@ -322,6 +322,13 @@ export class TokenRouterTextProvider implements TextGenProvider {
 		const text = extractText(resp.json)
 		if (!text) throw new Error('TokenRouter: No text in response')
 		return { text }
+	}
+
+	private videoContentPart(ref: string, basename: string): unknown {
+		if (isHttpUrl(ref)) {
+			return { type: 'video_url', video_url: { url: ref } }
+		}
+		return this.fileContentPart(ref, basename)
 	}
 
 	private fileContentPart(ref: string, basename: string): unknown {

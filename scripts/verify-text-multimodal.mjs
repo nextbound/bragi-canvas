@@ -169,8 +169,8 @@ assert.match(
 
 assert.match(
 	tokenRouterSource,
-	/if \(isHttpUrl\(ref\)\) \{[\s\S]*file_data: ref[\s\S]*return \{[\s\S]*file_id: ref/,
-	'TokenRouter text provider must send relay URLs as file_data, not file_id',
+	/private videoContentPart\(ref: string, basename: string\): unknown \{[\s\S]*if \(isHttpUrl\(ref\)\) \{[\s\S]*type: 'video_url'[\s\S]*video_url: \{ url: ref \}[\s\S]*return this\.fileContentPart\(ref, basename\)/,
+	'TokenRouter text provider must send relay video URLs as video_url parts',
 )
 
 assert.match(

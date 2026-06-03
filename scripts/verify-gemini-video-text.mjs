@@ -81,6 +81,12 @@ assert.match(
 )
 
 assert.match(
+	tokenRouterSource,
+	/private videoContentPart\(ref: string, basename: string\): unknown \{[\s\S]*if \(isHttpUrl\(ref\)\) \{[\s\S]*type: 'video_url'[\s\S]*video_url: \{ url: ref \}[\s\S]*return this\.fileContentPart\(ref, basename\)/,
+	'TokenRouter text provider must send relay video URLs as video_url parts',
+)
+
+assert.match(
 	mcpToolRegistrySource,
 	/audios: upstream\.audios[\s\S]*pdfs: upstream\.pdfs/,
 	'MCP get_upstream must expose audio and PDF refs',
