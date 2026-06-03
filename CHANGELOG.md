@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.21.2
+
+- Skipped the ModelArk and BytePlus asset moderation prefilter when creating reference assets for supported generation flows.
+- Fixed reference asset uploads that could be rejected before the provider generation request started.
+- Bumped the plugin version to `1.21.2`.
+
 ## 1.21.1
 
 - Fixed Obsidian community audit warnings by removing unused AI SDK dependencies from the plugin package.
