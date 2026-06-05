@@ -34,7 +34,11 @@ export class FalAudioProvider implements AudioProvider {
 				'Authorization': `Key ${this.apiKey}`,
 			},
 			body: JSON.stringify(body),
+			throw: false,
 		})
+		if (response.status < 200 || response.status >= 300) {
+			throw new Error(`fal.ai audio: ${parseErr(response)}`)
+		}
 
 		const data = response.json
 		const audioUrl = data.audio?.url || data.audio_url || data.audio?.audio_url
@@ -52,6 +56,29 @@ export class FalAudioProvider implements AudioProvider {
 
 		return { filePath }
 	}
+}
+
+function parseErr(response: { status: number; json?: unknown; text?: string }): string {
+	const data = response.json
+	if (isRecord(data)) {
+		const detail = data.detail
+		if (Array.isArray(detail) && detail.length > 0) {
+			const first = detail[0]
+			if (isRecord(first)) {
+				const loc = Array.isArray(first.loc) ? first.loc.join('.') : ''
+				const msg = typeof first.msg === 'string' ? first.msg : ''
+				if (loc || msg) return `${response.status} ${loc ? `${loc}: ` : ''}${msg}`.trim()
+			}
+		}
+		if (typeof detail === 'string' && detail) return `${response.status} ${detail}`
+		if (typeof data.message === 'string' && data.message) return `${response.status} ${data.message}`
+		return `${response.status} ${JSON.stringify(data).substring(0, 500)}`
+	}
+	return `${response.status} ${(response.text || '').substring(0, 500)}`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function buildAudioInput(prompt: string, params: Record<string, unknown>, apiModelId: string, mode: unknown, upstreamPrompts?: string[]): unknown {
