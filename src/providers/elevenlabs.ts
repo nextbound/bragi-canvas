@@ -259,7 +259,7 @@ export class ElevenLabsProvider implements AudioProvider {
 	 * Returns binary mp3 directly.
 	 */
 	async generateMusic(prompt: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
-		const body: unknown = {
+		const body: UnknownRecord = {
 			prompt,
 			model_id: 'music_v1',
 		}
@@ -280,7 +280,10 @@ export class ElevenLabsProvider implements AudioProvider {
 				'xi-api-key': this.apiKey,
 			},
 			body: JSON.stringify(body),
+			throw: false,
 		})
+		if (response.status === 401 || response.status === 403) throw new Error(`ElevenLabs auth: ${parseErr(response)}`)
+		if (response.status >= 400) throw new Error(`ElevenLabs Music: ${parseErr(response)}`)
 
 		return this.saveAudio(response.arrayBuffer, 'music')
 	}
@@ -290,7 +293,7 @@ export class ElevenLabsProvider implements AudioProvider {
 	 * Returns binary mp3 directly.
 	 */
 	async generateSFX(text: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
-		const body: unknown = {
+		const body: UnknownRecord = {
 			text,
 			model_id: 'eleven_text_to_sound_v2',
 		}
@@ -308,7 +311,10 @@ export class ElevenLabsProvider implements AudioProvider {
 				'xi-api-key': this.apiKey,
 			},
 			body: JSON.stringify(body),
+			throw: false,
 		})
+		if (response.status === 401 || response.status === 403) throw new Error(`ElevenLabs auth: ${parseErr(response)}`)
+		if (response.status >= 400) throw new Error(`ElevenLabs Sound Effects: ${parseErr(response)}`)
 
 		return this.saveAudio(response.arrayBuffer, 'sfx')
 	}
