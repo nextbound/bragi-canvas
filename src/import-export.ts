@@ -1,10 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, Notice, TFile } from 'obsidian'
+import { zip, unzipSync, strToU8, strFromU8 } from 'fflate'
 import type { BragiSettings } from './settings'
 import type { Canvas } from './types/canvas-internal'
 
 const PACKAGE_FORMAT = 'bragi-canvas-package'
-const PACKAGE_VERSION = 2
+// v3 is a ZIP container (assets stored as raw binary entries); v2 is the legacy
+// single-JSON format with base64-inlined assets. We write v3 and import both.
+const PACKAGE_VERSION = 3
+const PACKAGE_VERSION_LEGACY = 2
+// Name of the JSON metadata+canvas entry inside a v3 ZIP package.
+const PACKAGE_META_ENTRY = 'bragi-package.json'
 const TARGET_ASSET_DIR = '_bragi/assets'
 const RESERVED_ASSET_BASENAMES = new Set([
 	makeReservedAssetBasename('main', 'js'),
@@ -18,21 +24,17 @@ type CanvasData = {
 	[key: string]: unknown
 }
 
-type BragiPackageAsset = {
+// Unified, format-agnostic result of reading any bragi package: the canvas plus
+// each asset's raw binary (decoded from base64 for v2, or read straight out of
+// the ZIP for v3). Keeps the import pipeline identical across formats.
+type LoadedAsset = {
 	path: string
-	encoding: 'base64'
-	data: string
+	binary: Uint8Array
 }
 
-type BragiPackageFile = {
-	format: typeof PACKAGE_FORMAT
-	version: typeof PACKAGE_VERSION
-	exportDate: string
-	canvasName: string
-	nodeCount: number
-	assetCount: number
+type LoadedPackage = {
 	canvas: CanvasData
-	assets: BragiPackageAsset[]
+	assets: LoadedAsset[]
 }
 
 function generateId(): string {
@@ -70,13 +72,32 @@ function asCanvasData(value: unknown): CanvasData {
 	return value && typeof value === 'object' ? value as CanvasData : { nodes: [], edges: [] }
 }
 
-function toBase64(buffer: ArrayBuffer): string {
-	return Buffer.from(buffer).toString('base64')
+// Kept for importing legacy (v2) packages whose assets are base64-inlined.
+function fromBase64(data: string): Uint8Array {
+	return new Uint8Array(Buffer.from(data, 'base64'))
 }
 
-function fromBase64(data: string): ArrayBuffer {
-	const bytes = Buffer.from(data, 'base64')
+// Obsidian's adapter.writeBinary wants an ArrayBuffer; copy out the exact bytes
+// (the Uint8Array may be a view into a larger backing buffer).
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+}
+
+// A v3 package is a ZIP, which always starts with the local-file-header magic
+// "PK\x03\x04". A v2 package is JSON, starting with "{".
+function isZipPackage(bytes: Uint8Array): boolean {
+	return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04
+}
+
+function zipAsync(files: Record<string, Uint8Array>): Promise<Uint8Array> {
+	return new Promise((resolve, reject) => {
+		// level 0 = store. Assets are already-compressed media; re-deflating them
+		// wastes CPU for ~no size gain.
+		zip(files, { level: 0 }, (err, data) => {
+			if (err) reject(err)
+			else resolve(data)
+		})
+	})
 }
 
 function downloadBlob(fileName: string, data: BlobPart, mimeType: string): void {
@@ -128,42 +149,76 @@ function validateAssetPackagePath(pkgPath: string): string {
 	return relativePart
 }
 
-async function readBragiPackage(raw: string): Promise<{ canvas: CanvasData; assets: BragiPackageAsset[] }> {
-	const parsed = JSON.parse(raw) as unknown
-	const pkg = asRecord(parsed)
+/** Read any bragi package (v3 ZIP or legacy v2 JSON) into a unified shape. */
+function loadBragiPackage(bytes: Uint8Array): LoadedPackage {
+	return isZipPackage(bytes) ? loadZipPackage(bytes) : loadLegacyJsonPackage(bytes)
+}
 
-	if (!pkg || pkg.format !== PACKAGE_FORMAT || pkg.version !== PACKAGE_VERSION) {
+function validatePackageCanvas(pkg: Record<string, unknown> | null, allowedVersions: number[]): CanvasData {
+	if (!pkg || pkg.format !== PACKAGE_FORMAT || typeof pkg.version !== 'number' || !allowedVersions.includes(pkg.version)) {
 		throw new Error("This doesn't look like a valid bragi package")
 	}
-
 	const canvas = asCanvasData(pkg.canvas)
 	if (!Array.isArray(canvas.nodes) || !Array.isArray(canvas.edges)) {
 		throw new Error('This bragi package has a damaged canvas')
 	}
+	return JSON.parse(JSON.stringify(canvas)) as CanvasData
+}
 
-	const assetsValue = pkg.assets
+/** v3: ZIP with a JSON metadata entry + raw binary asset entries. */
+function loadZipPackage(bytes: Uint8Array): LoadedPackage {
+	let entries: Record<string, Uint8Array>
+	try {
+		entries = unzipSync(bytes)
+	} catch {
+		throw new Error('This bragi package is a damaged archive')
+	}
+
+	const metaBytes = entries[PACKAGE_META_ENTRY]
+	if (!metaBytes) {
+		throw new Error("This doesn't look like a valid bragi package")
+	}
+	const pkg = asRecord(JSON.parse(strFromU8(metaBytes)) as unknown)
+	const canvas = validatePackageCanvas(pkg, [PACKAGE_VERSION])
+
+	const assets: LoadedAsset[] = []
+	for (const name of Object.keys(entries)) {
+		if (name === PACKAGE_META_ENTRY) continue
+		validateAssetPackagePath(name)
+		assets.push({ path: name, binary: entries[name] })
+	}
+
+	return { canvas, assets }
+}
+
+/** Legacy v2: a single JSON document with base64-inlined assets. */
+function loadLegacyJsonPackage(bytes: Uint8Array): LoadedPackage {
+	const pkg = asRecord(JSON.parse(strFromU8(bytes)) as unknown)
+	const canvas = validatePackageCanvas(pkg, [PACKAGE_VERSION_LEGACY])
+
+	const assetsValue = pkg!.assets
 	if (assetsValue !== undefined && !Array.isArray(assetsValue)) {
 		throw new Error('This bragi package has a damaged asset list')
 	}
 
-	const assets: BragiPackageAsset[] = []
-	for (const item of assetsValue || []) {
+	const assets: LoadedAsset[] = []
+	for (const item of (assetsValue as unknown[]) || []) {
 		const asset = asRecord(item)
 		if (!asset || typeof asset.path !== 'string' || asset.encoding !== 'base64' || typeof asset.data !== 'string') {
 			throw new Error('This bragi package has a damaged asset')
 		}
 		validateAssetPackagePath(asset.path)
-		assets.push({ path: asset.path, encoding: 'base64', data: asset.data })
+		assets.push({ path: asset.path, binary: fromBase64(asset.data) })
 	}
 
-	return { canvas: JSON.parse(JSON.stringify(canvas)) as CanvasData, assets }
+	return { canvas, assets }
 }
 
 function chooseBragiPackageFile(): Promise<File | null> {
 	return new Promise((resolve) => {
 		const input = createEl('input')
 		input.type = 'file'
-		input.accept = '.bragi,application/json'
+		input.accept = '.bragi,application/zip,application/json'
 		input.classList.add('bragi-hidden')
 		activeDocument.body.appendChild(input)
 
@@ -243,28 +298,17 @@ export async function exportCanvas(app: App, _settings: BragiSettings, canvas: C
 		// Rewrite paths in cloned data
 		rewritePaths(cloned, pathMap)
 
-		const packageData: BragiPackageFile = {
-			format: PACKAGE_FORMAT,
-			version: PACKAGE_VERSION,
-			exportDate: new Date().toISOString(),
-			canvasName,
-			nodeCount: cloned.nodes?.length || 0,
-			assetCount: fileRefs.length,
-			canvas: cloned,
-			assets: [],
-		}
-
-		// Add asset files
+		// Build the ZIP entry map. Assets are stored as raw binary entries (no
+		// base64), and the metadata+canvas is a single small JSON entry. This
+		// avoids ever materializing the whole package as one JS string, which is
+		// what overflowed V8's ~512MB string cap ("Invalid string length").
+		const zipFiles: Record<string, Uint8Array> = {}
 		let added = 0
 		for (const [vaultPath, pkgPath] of pathMap) {
 			try {
 				if (await app.vault.adapter.exists(vaultPath)) {
 					const binary = await app.vault.adapter.readBinary(vaultPath)
-					packageData.assets.push({
-						path: pkgPath,
-						encoding: 'base64',
-						data: toBase64(binary),
-					})
+					zipFiles[pkgPath] = new Uint8Array(binary)
 					added++
 					notice.setMessage(`Reading assets… ${added}/${fileRefs.length}`)
 				} else {
@@ -275,14 +319,24 @@ export async function exportCanvas(app: App, _settings: BragiSettings, canvas: C
 			}
 		}
 
-		packageData.assetCount = added
+		const metadata = {
+			format: PACKAGE_FORMAT,
+			version: PACKAGE_VERSION,
+			exportDate: new Date().toISOString(),
+			canvasName,
+			nodeCount: cloned.nodes?.length || 0,
+			assetCount: added,
+			canvas: cloned,
+		}
+		zipFiles[PACKAGE_META_ENTRY] = strToU8(JSON.stringify(metadata))
+
 		notice.setMessage('Preparing package…')
-		const buffer = Buffer.from(JSON.stringify(packageData, null, 2), 'utf8')
+		const packed = await zipAsync(zipFiles)
 		const fileName = `${canvasName}.bragi`
-		downloadBlob(fileName, buffer, 'application/octet-stream')
+		downloadBlob(fileName, packed, 'application/zip')
 
 		notice.hide()
-		const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(1)
+		const sizeMB = (packed.byteLength / 1024 / 1024).toFixed(1)
 		new Notice(`Exported ${fileName} — ${sizeMB} MB, ${added} file${added === 1 ? '' : 's'}`)
 	} catch (err: unknown) {
 		notice.hide()
@@ -308,8 +362,12 @@ export async function importCanvas(
 			return
 		}
 
-		const packageFile = await readBragiPackage(await selectedFile.text())
-		const importedData = packageFile.canvas
+		// Read as bytes (not text): a large package would overflow V8's string
+		// cap if read via selectedFile.text(). loadBragiPackage detects ZIP (v3)
+		// vs legacy JSON (v2) by magic bytes.
+		const packageBytes = new Uint8Array(await selectedFile.arrayBuffer())
+		const loaded = loadBragiPackage(packageBytes)
+		const importedData = loaded.canvas
 
 		// Determine target asset directory
 		let targetCanvasDir: string
@@ -345,7 +403,7 @@ export async function importCanvas(
 
 		await ensureVaultFolder(app, TARGET_ASSET_DIR)
 
-		for (const asset of packageFile.assets) {
+		for (const asset of loaded.assets) {
 			try {
 				const relativePart = validateAssetPackagePath(asset.path)
 				let vaultPath = `${TARGET_ASSET_DIR}/${relativePart}`
@@ -363,11 +421,10 @@ export async function importCanvas(
 					vaultPath = `${base}_${i}${extension}`
 				}
 
-				const binary = fromBase64(asset.data)
-				await app.vault.adapter.writeBinary(vaultPath, binary)
+				await app.vault.adapter.writeBinary(vaultPath, toArrayBuffer(asset.binary))
 				pathMap.set(asset.path, vaultPath)
 				importedFileCount++
-				notice.setMessage(`Importing assets… ${importedFileCount}/${packageFile.assets.length}`)
+				notice.setMessage(`Importing assets… ${importedFileCount}/${loaded.assets.length}`)
 			} catch (err: unknown) {
 				new Notice(`Couldn't import ${basename(asset.path)}: ${err.message}`)
 			}
