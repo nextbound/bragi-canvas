@@ -81,6 +81,12 @@ function paramsVisibleForMode(model: ModelConfig, mode: Mode | null): ModelParam
 	return model.params.filter(param => paramVisibleForMode(param, mode))
 }
 
+function optionsForContext(param: ModelParam, mode: Mode | null, provider: string | null): Array<{ label: string; value: string }> | undefined {
+	return (provider ? param.optionsByProvider?.[provider] : undefined)
+		|| (mode ? param.optionsByMode?.[mode] : undefined)
+		|| param.options
+}
+
 function renderRangeParamDropdown(
 	paramsEl: HTMLElement,
 	param: ModelParam,
@@ -656,8 +662,8 @@ export function showGenerateBar(
 		if (!selectedModel) return
 		for (const param of paramsVisibleForMode(selectedModel, selectedMode)) {
 			if (param.type === 'select' && param.options) {
-				// Pick mode-specific options if declared; otherwise the base list.
-				const effectiveOptions = (selectedMode && param.optionsByMode?.[selectedMode]) || param.options
+				const activeProvider = selectedModel ? resolveProvider(selectedModel, settings).provider : null
+				const effectiveOptions = optionsForContext(param, selectedMode, activeProvider) || param.options
 
 				// If current value isn't valid in the new option set, snap back to default.
 				const currentValue = String(paramValues[param.id] ?? param.default)
@@ -1235,7 +1241,8 @@ export function showBatchGenerateBar(
 		if (!selectedModel) return
 		for (const param of paramsVisibleForMode(selectedModel, selectedMode)) {
 			if (param.type === 'select' && param.options) {
-				const effectiveOptions = (selectedMode && param.optionsByMode?.[selectedMode]) || param.options
+				const activeProvider = selectedModel ? resolveProvider(selectedModel, settings).provider : null
+				const effectiveOptions = optionsForContext(param, selectedMode, activeProvider) || param.options
 				const currentValue = String(paramValues[param.id] ?? param.default)
 				if (!effectiveOptions.some(o => o.value === currentValue) && param.id !== 'voice') paramValues[param.id] = param.default
 

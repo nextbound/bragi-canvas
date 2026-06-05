@@ -8,7 +8,7 @@ import type { PanelResult } from './panel'
 import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
 import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputLabels } from './models/text-input-capabilities'
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
-import type { GenerationType, Mode } from './models/types'
+import type { GenerationType, Mode, ModelParam } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
@@ -35,6 +35,10 @@ type BragiCanvasNodeData = AllCanvasNodeData & {
 type SerializableEdge = CanvasEdgeData | CanvasEdge
 type FileView = { file?: TFile }
 type EdgeStore = Map<string, CanvasEdge> | CanvasEdge[]
+
+function optionsForProvider(param: ModelParam, provider: string): ModelParam['options'] {
+	return param.optionsByProvider?.[provider] || param.options
+}
 
 export interface McpToolContext {
 	getCanvas: GetCanvas
@@ -456,8 +460,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 								type: p.type,
 								default: p.default,
 								...(p.modes ? { modes: p.modes } : {}),
-								...(p.options ? { options: p.options } : {}),
+								...(optionsForProvider(p, provider) ? { options: optionsForProvider(p, provider) } : {}),
 								...(p.optionsByMode ? { optionsByMode: p.optionsByMode } : {}),
+								...(p.optionsByProvider ? { optionsByProvider: p.optionsByProvider } : {}),
 								...(p.min !== undefined ? { min: p.min, max: p.max, step: p.step, unit: p.unit } : {}),
 							})),
 						})

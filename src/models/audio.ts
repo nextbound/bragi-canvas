@@ -392,6 +392,15 @@ export const elevenLabsSFX: ModelConfig = {
 				{ label: '20s', value: '20' },
 				{ label: '30s', value: '30' },
 			],
+			optionsByProvider: {
+				fal: [
+					{ label: '1s', value: '1' },
+					{ label: '3s', value: '3' },
+					{ label: '5s', value: '5' },
+					{ label: '10s', value: '10' },
+					{ label: '20s', value: '20' },
+				],
+			},
 			default: '5',
 		},
 	],

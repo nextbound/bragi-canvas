@@ -30,6 +30,11 @@ export interface ModelParam {
 	 * Used e.g. for xAI video where image-ref caps duration at 10s while others go to 15s.
 	 */
 	optionsByMode?: Record<string, ParamOption[]>
+	/**
+	 * Provider-specific option overrides. Used when two providers expose the same
+	 * catalog model but enforce different parameter limits.
+	 */
+	optionsByProvider?: Record<string, ParamOption[]>
 	default: string | number
 	min?: number
 	max?: number

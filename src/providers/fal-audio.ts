@@ -121,7 +121,13 @@ function buildAudioInput(prompt: string, params: Record<string, unknown>, apiMod
 		}
 	} else if (mode === 'sound-effect') {
 		input.text = prompt
-		if (params.duration) input.duration_seconds = parseFloat(params.duration)
+		const duration = numericParam(params.duration)
+		if (duration !== null) {
+			if (apiModelId === 'fal-ai/elevenlabs/sound-effects/v2' && duration > 22) {
+				throw new Error('fal.ai ElevenLabs Sound Effects supports up to 22 seconds. Choose 20s or switch the model provider to native ElevenLabs for 30s.')
+			}
+			input.duration_seconds = duration
+		}
 	} else {
 		input.prompt = prompt
 	}
