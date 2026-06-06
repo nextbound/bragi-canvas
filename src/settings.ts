@@ -209,7 +209,17 @@ export class BragiSettingTab extends PluginSettingTab {
 		this.plugin = plugin
 	}
 
+	// PluginSettingTab.display() is deprecated since Obsidian 1.13.0 in favor of
+	// the declarative getSettingDefinitions(), but it remains the required
+	// imperative entry point for plugins that target Obsidian < 1.13.0 (our
+	// minAppVersion is 1.8.7). Keep this override thin and route every render —
+	// including internal re-renders — through renderSettings() so no deprecated
+	// member is referenced.
 	display(): void {
+		this.renderSettings()
+	}
+
+	private renderSettings(): void {
 		const { containerEl } = this
 		containerEl.empty()
 		containerEl.classList.add('bragi-settings')
@@ -347,7 +357,7 @@ export class BragiSettingTab extends PluginSettingTab {
 						submitLabel: 'Select models',
 					}).open()
 				},
-				onDone: () => this.display(),
+				onDone: () => this.renderSettings(),
 			}).open()
 		}
 
@@ -386,7 +396,7 @@ export class BragiSettingTab extends PluginSettingTab {
 						new ProviderModelsModal(this.plugin, {
 							mode: 'manage',
 							providerId: spec.id,
-							onDone: () => this.display(),
+							onDone: () => this.renderSettings(),
 						}).open()
 					}))
 				.addExtraButton(btn => btn
@@ -395,14 +405,14 @@ export class BragiSettingTab extends PluginSettingTab {
 					.onClick(() => {
 						new AddProviderModal(this.plugin, {
 							initialProviderId: spec.id,
-							onSaved: () => this.display(),
+							onSaved: () => this.renderSettings(),
 						}).open()
 					}))
 				.addExtraButton(btn => btn
 					.setIcon('trash-2')
 					.setTooltip('Remove')
 					.onClick(() => {
-						removeProvider(this.plugin, spec.id, () => this.display())
+						removeProvider(this.plugin, spec.id, () => this.renderSettings())
 					}))
 			row.settingEl.addClass('bragi-provider-row')
 		}
@@ -479,7 +489,7 @@ export class BragiSettingTab extends PluginSettingTab {
 					this.plugin.stopMcpServer()
 					if (this.plugin.settings.mcpEnabled) this.plugin.startMcpServer()
 					modal.close()
-					this.display()
+					this.renderSettings()
 					new Notice('Settings imported')
 				} catch (err) {
 					this.plugin.settings = previousSettings
@@ -498,7 +508,7 @@ export class BragiSettingTab extends PluginSettingTab {
 			icon: 'plus',
 			tooltip: `Add ${type} model`,
 			onClick: () => {
-				new AddModelModal(this.plugin, () => this.display(), type).open()
+				new AddModelModal(this.plugin, () => this.renderSettings(), type).open()
 			},
 		})
 
@@ -585,7 +595,7 @@ export class BragiSettingTab extends PluginSettingTab {
 						void (async () => {
 							disableModel(this.plugin.settings, model.id)
 							await this.plugin.saveSettings()
-							this.display()
+							this.renderSettings()
 						})()
 					})
 			})
@@ -622,7 +632,7 @@ export class BragiSettingTab extends PluginSettingTab {
 				this.plugin.settings.modelOrder[orderKey] = currentOrder
 				void (async () => {
 					await this.plugin.saveSettings()
-					this.display()
+					this.renderSettings()
 				})()
 			})
 		}
