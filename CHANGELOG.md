@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.23.0
+
+- Reworked `.bragi` export/import to use a streaming ZIP package format that avoids large-canvas string and buffer limits while keeping legacy JSON package import compatibility.
+- Added an export confirmation modal with asset/package size stats, destination selection, and reveal-in-file-manager support.
+- Fixed merge import, large canvas export/import, and asset-heavy package handling so imported nodes repaint reliably and exports clean up partial files on failure.
+- Changed ElevenLabs Sound Effects duration to a range control with provider-specific ElevenLabs and fal.ai limits, including clamped provider/MCP defaults.
+- Cleared Obsidian community review lint warnings and deprecated settings re-render self-calls.
+- Bumped the plugin version to `1.23.0`.
+
 ## 1.22.0
 
 - Added DashScope Wan 2.7 video generation with text-to-video, image-to-video, reference-to-video, video extend, and video edit modes.
