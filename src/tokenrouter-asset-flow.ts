@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this flow narrows at use sites. */
 import type BragiCanvas from './main'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { uploadRef } from './providers/upload'
@@ -146,5 +145,3 @@ export async function ensureTokenRouterModelArkAsset(
 
 	return `asset://${assetId}`
 }
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the TokenRouter ModelArk asset flow. */

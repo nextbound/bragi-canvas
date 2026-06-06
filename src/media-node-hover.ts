@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas file nodes are runtime-shaped internals. */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas file nodes are runtime-shaped internals. */
 import { around } from 'monkey-around'
 import type { App, TFile } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
@@ -353,3 +353,5 @@ export function stopMediaNodeHover(): void {
 		el.classList.remove(MEDIA_CONTAINER_CLASS)
 	})
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */

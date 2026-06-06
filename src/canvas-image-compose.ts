@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals are runtime-shaped data that this flow narrows at use sites. */
 import { Notice } from 'obsidian'
 import type BragiCanvas from './main'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
@@ -291,5 +290,3 @@ export async function composeSelectedImageNodes(plugin: BragiCanvas, canvas: Can
 	const scaleNote = wasScaleLimited ? ` (${pixelScale.toFixed(2)}x)` : ''
 	new Notice(`Collage ready${scaleNote}`)
 }
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Resume strict linting after the runtime-shaped data boundary. */

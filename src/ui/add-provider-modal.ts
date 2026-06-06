@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Setting, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
 import { describeProviderModelSupport, settingsWithProviderCredentialDraft, type ProviderCredentialDraft } from '../provider-model-prefs'
@@ -296,5 +295,3 @@ export class AddProviderModal extends Modal {
 		})
 	}
 }
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Resume strict linting after the runtime-shaped data boundary. */

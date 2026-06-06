@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- DashScope API responses arrive as runtime-shaped JSON narrowed at use sites. */
 import { requestUrl } from 'obsidian'
 import { stringParam } from './params'
 import { uploadRef } from './upload'
@@ -120,3 +121,5 @@ export class DashScopeTextProvider implements TextGenProvider {
 		return { text }
 	}
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */

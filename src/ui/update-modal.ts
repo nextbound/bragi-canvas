@@ -19,8 +19,7 @@ export class UpdateReminderModal extends Modal {
 	onOpen(): void {
 		const { contentEl, titleEl, modalEl } = this
 		modalEl.classList.add('bragi-modal', 'bragi-update-modal')
-		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Plugin name is branded copy.
-		titleEl.setText('Update Bragi Canvas')
+		titleEl.setText('Update available')
 
 		contentEl.createEl('p', {
 			text: `Bragi Canvas ${this.opts.update.latestVersion} is available. You are using ${this.opts.update.currentVersion}.`,
@@ -32,8 +31,7 @@ export class UpdateReminderModal extends Modal {
 			})
 		}
 		contentEl.createEl('p', {
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Matches the planned modal copy.
-			text: `Click Update, then use Obsidian's Community Plugins update flow if prompted.`,
+			text: `Click update, then follow Obsidian's community plugins update flow if prompted.`,
 		})
 
 		const releaseLink = contentEl.createEl('a', {

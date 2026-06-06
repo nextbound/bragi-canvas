@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian'
 import type BragiCanvas from './main'
 import { getActiveProvider, getEnabledModels } from './models/index'
@@ -737,4 +737,4 @@ export class BragiSettingTab extends PluginSettingTab {
 	}
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
+/* eslint-enable @typescript-eslint/no-unsafe-argument -- Resume strict linting after the runtime-shaped data boundary. */

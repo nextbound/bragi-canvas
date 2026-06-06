@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas menu internals are runtime-shaped data narrowed at use sites. */
 import { around } from 'monkey-around'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 
@@ -71,3 +72,5 @@ export function unpatchPlaceholderContextMenu(): void {
 		contextMenuUninstaller = null
 	}
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */

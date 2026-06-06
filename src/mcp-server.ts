@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- HTTP headers and worker IPC payloads arrive as runtime-shaped data narrowed at use sites. */
 import { spawn, type ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
 import { existsSync, readdirSync } from 'fs'
@@ -302,17 +303,17 @@ export class BragiMcpServer {
 				windowsHide: true,
 			})
 
-			const startTimeout = setTimeout(() => {
+			const startTimeout = window.setTimeout(() => {
 				this.failWorkerStart(new Error(`Bragi MCP worker did not report listening on port ${port}`))
 			}, 5000)
 			this.httpWorker = worker
 			this.workerStart = {
 				resolve: () => {
-					clearTimeout(startTimeout)
+					window.clearTimeout(startTimeout)
 					resolve()
 				},
 				reject: (err) => {
-					clearTimeout(startTimeout)
+					window.clearTimeout(startTimeout)
 					reject(err)
 				},
 			}
@@ -378,7 +379,7 @@ export class BragiMcpServer {
 		}
 
 		if (payload.type === 'log') {
-			const logMessage = typeof payload.message === 'string' ? payload.message : String(payload.message ?? '')
+			const logMessage = typeof payload.message === 'string' ? payload.message : JSON.stringify(payload.message ?? '')
 			if (payload.level === 'error') console.error('Bragi MCP worker:', logMessage)
 			else console.debug('Bragi MCP worker:', logMessage)
 			return
@@ -600,12 +601,12 @@ export class BragiMcpServer {
 				settled = true
 				resolve()
 			}
-			const timeout = setTimeout(() => {
+			const timeout = window.setTimeout(() => {
 				if (!worker.killed) worker.kill()
 				finish()
 			}, 1500)
 			worker.once('exit', () => {
-				clearTimeout(timeout)
+				window.clearTimeout(timeout)
 				finish()
 			})
 			if (worker.connected && worker.send) {
@@ -622,3 +623,5 @@ function parseJsonBody(raw: string | undefined): unknown {
 	if (!raw) return undefined
 	return JSON.parse(raw)
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */

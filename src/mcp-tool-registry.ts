@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- MCP request payloads and Canvas bridge data arrive as runtime-shaped JSON that is validated at the command boundary. */
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- MCP request payloads and Canvas bridge data arrive as runtime-shaped JSON that is validated at the command boundary. */
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { Modal, TFile, type App } from 'obsidian'
@@ -1003,4 +1003,4 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 	]
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */

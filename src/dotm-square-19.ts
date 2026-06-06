@@ -109,13 +109,13 @@ export function mountSquare19Loader(loader: HTMLElement): void {
 			const col = Number(dot.dataset.bragiCol)
 			dot.style.opacity = String(square19Opacity(row, col, step, reducedMotion))
 		}
-		rafId = requestAnimationFrame(tick)
+		rafId = window.requestAnimationFrame(tick)
 	}
 
-	rafId = requestAnimationFrame(tick)
+	rafId = window.requestAnimationFrame(tick)
 	const el = loader as LoaderWithStop
 	el._bragiSquare19Stop = () => {
-		cancelAnimationFrame(rafId)
+		window.cancelAnimationFrame(rafId)
 		delete el._bragiSquare19Stop
 	}
 }

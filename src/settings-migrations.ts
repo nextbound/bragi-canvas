@@ -105,9 +105,10 @@ function readGeneratedAssets(source: UnknownRecord, errors: string[]): Generated
 		errors.push('generatedAssets')
 		return []
 	}
+	const items = value as unknown[]
 	const records: GeneratedAssetRecord[] = []
-	for (let i = 0; i < value.length; i++) {
-		const record = value[i]
+	for (let i = 0; i < items.length; i++) {
+		const record = items[i]
 		if (!isRecord(record)) {
 			errors.push(`generatedAssets.${i}`)
 			continue
@@ -289,7 +290,7 @@ function readModelOrder(raw: UnknownRecord, settings: BragiSettings, errors: str
 			errors.push(`modelOrder.${type}`)
 			continue
 		}
-		settings.modelOrder[type] = [...value]
+		settings.modelOrder[type] = [...(value as string[])]
 	}
 }
 

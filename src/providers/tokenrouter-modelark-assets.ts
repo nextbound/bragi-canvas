@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- TokenRouter ModelArk responses are runtime-shaped and normalized at this provider boundary. */
 import { requestUrl } from 'obsidian'
 
 const BASE_URL = 'https://api.tokenrouter.com/thirdparty/modelark'
@@ -118,5 +117,3 @@ export async function waitForModelArkAssetActive(creds: TokenRouterModelArkCreds
 	}
 	throw new Error(`TokenRouter ModelArk asset timed out after ${POLL_TIMEOUT_MS / 1000}s`)
 }
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the TokenRouter ModelArk provider boundary. */

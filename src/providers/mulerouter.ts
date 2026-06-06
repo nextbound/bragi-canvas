@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- MuleRouter responses are runtime-shaped and narrowed at the provider boundary. */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- MuleRouter responses are runtime-shaped and narrowed at the provider boundary. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { GenerateImageResult, GenerateVideoResult, ImageProvider, VideoProvider } from './types'
@@ -358,4 +358,4 @@ export async function testMuleRouterConnection(apiKey: string): Promise<{ ok: bo
 	}
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
+/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Resume strict linting after the runtime-shaped data boundary. */

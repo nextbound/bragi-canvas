@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Notice, App, setIcon } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import 'pannellum/build/pannellum.js'
@@ -319,4 +319,4 @@ export function openPanoramaViewer(app: App, canvas: Canvas, node: CanvasNode, o
 	new PanoramaViewerModal(app, canvas, node, filePath, outputDir, rememberAsset).open()
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call -- Resume strict linting after the runtime-shaped data boundary. */

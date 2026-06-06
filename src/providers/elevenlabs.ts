@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- ElevenLabs API responses arrive as runtime-shaped JSON narrowed at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceCloneOptions, VoiceCloneResult, VoiceOption } from './types'
@@ -332,3 +333,5 @@ export class ElevenLabsProvider implements AudioProvider {
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max)
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */

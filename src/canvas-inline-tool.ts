@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas node bounding-box internals are runtime-shaped data narrowed at use sites. */
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { getSelectionBounds, positionNodeToolbar, NODE_TOOLBAR_GAP } from './node-toolbar-position'
 
@@ -1119,3 +1120,5 @@ export function getActiveInlineToolSession(canvas?: Canvas): CanvasInlineToolSes
 	if (session.canvas !== canvas) return null
 	return session
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */
