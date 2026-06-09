@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 7
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 8
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {
@@ -355,6 +355,9 @@ const LEGACY_MODEL_ID_RENAMES: Record<string, string> = {
 	'dashscope-qwen3-tts-vc': 'dashscope-qwen-voice',
 	'dashscope-qwen3-tts-flash': 'dashscope-qwen-voice',
 	'dashscope-qwen3-tts-instruct-flash': 'dashscope-qwen-voice',
+	// Wan 2.7 MuleRouter i2v-spicy merged into the unified wan-2.7 model (MuleRouter
+	// is now a provider on wan-2.7, restricted to first-frame).
+	'wan-2.7-i2v-spicy': 'wan-2.7',
 }
 
 function normalizeDashScopeProviderId(provider: string): string {

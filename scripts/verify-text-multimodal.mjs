@@ -139,8 +139,14 @@ assert.match(
 
 assert.match(
 	textGenSource,
-	/import \{ uploadRef \} from '\.\/upload'[\s\S]*await uploadRef\(undefined, copyToArrayBuffer\(decoded\.bytes\), `\$\{label\}\.\$\{extensionForMime\(decoded\.mimeType\)\}`, decoded\.mimeType\)/,
-	'Gemini text provider must upload file refs through Bragi Relay before passing fileData URLs',
+	/await uploadToGeminiFiles\(this\.apiKey, copyToArrayBuffer\(decoded\.bytes\), mimeType, label\)/,
+	'Gemini text provider must upload file refs through the Gemini Files API (not the relay — generativelanguage.googleapis.com rejects arbitrary URLs in fileData.fileUri)',
+)
+
+assert.match(
+	textGenSource,
+	/upload\/v1beta\/files\?key=[\s\S]*X-Goog-Upload-Protocol[\s\S]*resumable/,
+	'Gemini Files API helper must use the resumable upload protocol',
 )
 
 assert.match(

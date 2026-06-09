@@ -1,8 +1,30 @@
 import type { BragiSettings } from './settings'
 import { ALL_MODELS, getModelById, type ModelConfig } from './models'
+import type { RefDelivery, RefModality } from './models/types'
 import { getConfiguredProviderIds, getProvider, type ProviderKey } from './providers/registry'
 
 export type ProviderCredentialDraft = Partial<Record<ProviderKey, string>>
+
+export interface ResolvedRefDelivery {
+	delivery: RefDelivery
+	relayIfLargerThanBytes?: number
+	nativeAssetProvider?: 'byteplus' | 'token360' | 'tokenrouter'
+}
+
+/**
+ * Resolve how reference media of `modality` should be delivered to `providerId`
+ * for `model`: per-model override (`supportedProviders[p].refDelivery`) wins over
+ * the provider's `defaultRefDelivery`, falling back to `relay`.
+ */
+export function getRefDelivery(model: ModelConfig, providerId: string, modality: RefModality): ResolvedRefDelivery {
+	const perModel = model.supportedProviders[providerId]?.refDelivery
+	const perProvider = getProvider(providerId)?.defaultRefDelivery
+	return {
+		delivery: perModel?.[modality] ?? perProvider?.[modality] ?? 'relay',
+		relayIfLargerThanBytes: perModel?.relayIfLargerThanBytes ?? perProvider?.relayIfLargerThanBytes,
+		nativeAssetProvider: perModel?.nativeAssetProvider ?? perProvider?.nativeAssetProvider,
+	}
+}
 
 function ensureProviderPrefs(settings: BragiSettings, providerId: string): Record<string, boolean> {
 	if (!settings.providerModelPrefs) settings.providerModelPrefs = {}

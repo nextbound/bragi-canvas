@@ -6,8 +6,33 @@ Use these checks when adding a built-in model/provider pairing:
 - Put provider-specific model IDs in `supportedProviders`; runtime code should receive the API model ID through `params.modelId`.
 - Add `makeImage`, `makeVideo`, `makeText`, or `makeAudio` on the provider spec only for modalities the provider can actually run.
 - Keep model params aligned with provider validation so saved settings or stale UI state fail with a clear message.
-- For async video, return `{ done: false, taskId }` from `generateVideo`, implement `checkStatus`, and download the completed asset into `outputDir`.
+- For async video, return `{ done: false, taskId }` from `generateVideo`, implement `checkStatus`, and download the completed asset into `outputDir`. There is no polling timeout — a task runs until it succeeds or fails; the user can delete the placeholder node or rerun.
 - Upload local upstream media with the built-in Bragi temporary relay before sending it to providers that require public URLs.
+
+## Modeling provider differences
+
+Everything that makes a provider differ from the base model lives in its `supportedProviders[providerId]` entry (`ProviderConfig`) or in a param's `providerOverrides`. Do not fork a whole second model entry for a "neutered" provider.
+
+- `apiModelId` — the upstream model id this provider uses. The id editor in settings is **locked (static label) by default**.
+- `editableApiModelId?: boolean` — opt-in. Set `true` to expose the pencil editor for providers that accept arbitrary upstream model ids (e.g. BytePlus C-Dance). Ignored when `aggregated` is set.
+- `aggregated?: boolean` — the provider routes the model's modes to multiple upstream ids internally (e.g. DashScope Wan 2.7 -> t2v/i2v/r2v/videoedit; DashScope voice -> tts/enrollment models). Routing stays hard-coded in the provider; the catalog only marks it. Aggregated locks the id editor and shows a static label. Must not also set `editableApiModelId`.
+- `modes?: Mode[]` — restrict this provider to a subset of the model's `modes`. The mode dropdown and MCP schema only show the active provider's effective modes; unsupported modes are hidden (never shown as disabled / "not supported"). Provider resolution is strict-to-active — there is no mode-based provider fallback.
+- Param `providerOverrides[providerId]` — narrow a param's `options`/`default`/`min`/`max`/`step`/`unit` for one provider, or set `hidden: true` to drop the param entirely for that provider (e.g. MuleRouter Wan 2.7 omits `ratio` and uses lowercase resolutions).
+
+Example: Wan 2.7 (`src/models/wan.ts`) is one model with DashScope (aggregated, all modes) and MuleRouter (`modes: ['first-frame']`, lowercase resolution override, hidden `ratio`).
+
+## Static catalog check
+
+`npm run check:catalog` (also part of root `npm run verify`) statically validates the catalog with no network. It fails the build when:
+
+- a `supportedProviders` key is not a real provider id;
+- `supportedProviders[p].modes` is not a subset of `model.modes`;
+- a `model.modes` entry is offered by no provider (orphan mode);
+- a `providerOverrides` key references a provider not in `supportedProviders`;
+- an entry sets both `aggregated` and `editableApiModelId`, or `aggregated` has an empty `apiModelId`;
+- a DashScope voice model with `clone`/`design`/`modelIds` does not mark its DashScope entry `aggregated: true`.
+
+When you add a model/provider, run the check; if it fails, fix the catalog rather than the script.
 
 ## APIMart Omni-Flash-Ext
 

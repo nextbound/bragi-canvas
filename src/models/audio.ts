@@ -227,7 +227,7 @@ export const dashScopeCosyVoice35Plus: ModelConfig = {
 	name: 'CosyVoice v3.5 Plus',
 	type: 'audio',
 	supportedProviders: {
-		dashscope: { apiModelId: 'cosyvoice-v3.5-plus' },
+		dashscope: { apiModelId: 'cosyvoice-v3.5-plus', aggregated: true },
 	},
 	modes: ['tts'],
 	params: dashScopeVoiceParams(),
@@ -239,7 +239,7 @@ export const dashScopeCosyVoice35Flash: ModelConfig = {
 	name: 'CosyVoice v3.5 Flash',
 	type: 'audio',
 	supportedProviders: {
-		dashscope: { apiModelId: 'cosyvoice-v3.5-flash' },
+		dashscope: { apiModelId: 'cosyvoice-v3.5-flash', aggregated: true },
 	},
 	modes: ['tts'],
 	params: dashScopeVoiceParams(),
@@ -251,7 +251,7 @@ export const dashScopeQwenVoice: ModelConfig = {
 	name: 'Qwen Voice',
 	type: 'audio',
 	supportedProviders: {
-		dashscope: { apiModelId: QWEN_VOICE_BUILTIN_MODEL },
+		dashscope: { apiModelId: QWEN_VOICE_BUILTIN_MODEL, aggregated: true },
 	},
 	modes: ['tts'],
 	params: qwen3VoiceParams('Cherry', true),

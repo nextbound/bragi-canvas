@@ -3,7 +3,9 @@ import { Plugin, Notice, requestUrl, Menu, Modal, Setting } from 'obsidian'
 import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, type GeneratedAssetRecord } from './settings'
 import { migrateSettings } from './settings-migrations'
 import { uploadRef } from './providers/upload'
+import { prepareReferenceUpload } from './providers/image-upload-prep'
 import { getProvider } from './providers/registry'
+import { getRefDelivery } from './provider-model-prefs'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
 import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
@@ -33,7 +35,7 @@ import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
-import type { VoiceSourceMode } from './models/types'
+import type { VoiceSourceMode, RefModality, ModelConfig } from './models/types'
 import { validateTextInputs } from './models/text-input-capabilities'
 import { prepareTextInputs } from './text-input-prep'
 import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
@@ -515,6 +517,41 @@ export default class BragiCanvas extends Plugin {
 		return placeholder.id
 	}
 
+	/**
+	 * Convert a vault reference asset into the form the active provider expects,
+	 * driven by the catalog `refDelivery` declaration:
+	 * - relay / native_asset (when not handled by a provider-native asset flow) -> Bragi relay https URL
+	 * - inline / passthrough -> a (PNG/JPEG-normalized for images) data URI the provider sends or encodes itself
+	 */
+	private async prepareReferenceMedia(
+		activeProvider: string,
+		model: ModelConfig,
+		modality: RefModality,
+		vaultPath: string,
+	): Promise<string> {
+		const { delivery } = getRefDelivery(model, activeProvider, modality)
+		const binary = await this.app.vault.adapter.readBinary(vaultPath)
+		const mime = modality === 'image'
+			? imageMimeType(vaultPath)
+			: modality === 'video'
+				? videoMimeType(vaultPath)
+				: audioMimeType(vaultPath)
+		const ext = getFileExtension(vaultPath, modality === 'image' ? 'png' : modality === 'video' ? 'mp4' : 'mp3')
+
+		// native_asset reaches here only when no provider-native asset flow ran
+		// (e.g. credentials missing) — fall back to relay so generation still works.
+		if (delivery === 'relay' || delivery === 'native_asset') {
+			return uploadRef(undefined, binary, `ref.${ext}`, mime)
+		}
+
+		// inline / passthrough: hand the provider a data URI; normalize images to PNG/JPEG.
+		if (modality === 'image') {
+			const prepared = await prepareReferenceUpload(binary, `ref.${ext}`, mime, 'inline reference')
+			return `data:${prepared.contentType};base64,${arrayBufferToBase64(prepared.bytes)}`
+		}
+		return `data:${mime};base64,${arrayBufferToBase64(binary)}`
+	}
+
 	private async runSingleGeneration(
 		node: CanvasNode,
 		result: PanelResult,
@@ -554,7 +591,7 @@ export default class BragiCanvas extends Plugin {
 			} else {
 			// Seedance can consume provider-specific asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
-			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7-i2v-spicy'
+			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7'
 			const isDashScopeWan = activeProvider === 'dashscope' && model.id === 'wan-2.7'
 			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
@@ -584,20 +621,9 @@ export default class BragiCanvas extends Plugin {
 					refImages.push(await ensureToken360Asset(this, canvas, imgPath, token360AssetCreds))
 				} else if (assetIdMap[imgPath]) {
 					refImages.push(`asset://${assetIdMap[imgPath]}`)
-				} else if (activeProvider === 'tokenrouter' && isSeedanceModel) {
-					const binary = await this.app.vault.adapter.readBinary(imgPath)
-					const ext = getFileExtension(imgPath, 'png')
-					refImages.push(await uploadRef(undefined, binary, `ref.${ext}`, imageMimeType(imgPath)))
-				} else if (isMuleRouterWan || isDashScopeWan) {
-					const binary = await this.app.vault.adapter.readBinary(imgPath)
-					const ext = getFileExtension(imgPath, 'png')
-					refImages.push(await uploadRef(undefined, binary, `ref.${ext}`, imageMimeType(imgPath)))
 				} else {
-					const binary = await this.app.vault.adapter.readBinary(imgPath)
-					const base64 = arrayBufferToBase64(binary)
-					const ext = imgPath.split('.').pop()?.toLowerCase() || 'png'
-					const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
-					refImages.push(`data:${mime};base64,${base64}`)
+					// Delivery (relay vs inline/passthrough) is declared per provider×model in the catalog.
+					refImages.push(await this.prepareReferenceMedia(activeProvider, model, 'image', imgPath))
 				}
 			}
 
@@ -614,10 +640,7 @@ export default class BragiCanvas extends Plugin {
 					} else if (tokenRouterModelArkCreds) {
 						refAudios.push(await ensureTokenRouterModelArkAsset(this, canvas, audioPath, tokenRouterModelArkCreds))
 					} else {
-						const binary = await this.app.vault.adapter.readBinary(audioPath)
-						const ext = audioPath.split('.').pop()?.toLowerCase() || 'mp3'
-						const audioUrl = await uploadRef(undefined, binary, `ref.${ext}`, audioMimeType(audioPath))
-						refAudios.push(audioUrl)
+						refAudios.push(await this.prepareReferenceMedia(activeProvider, model, 'audio', audioPath))
 					}
 				}
 			}
@@ -645,10 +668,7 @@ export default class BragiCanvas extends Plugin {
 						} else if (tokenRouterModelArkCreds) {
 							refVideos.push(await ensureTokenRouterModelArkAsset(this, canvas, videoPath, tokenRouterModelArkCreds))
 						} else {
-							const binary = await this.app.vault.adapter.readBinary(videoPath)
-							const ext = getFileExtension(videoPath, 'mp4')
-							const videoUrl = await uploadRef(undefined, binary, `ref.${ext}`, videoMimeType(videoPath))
-							refVideos.push(videoUrl)
+							refVideos.push(await this.prepareReferenceMedia(activeProvider, model, 'video', videoPath))
 						}
 					}
 				}

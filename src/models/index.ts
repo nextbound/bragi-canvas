@@ -1,4 +1,4 @@
-import type { ModelConfig, GenerationType } from './types'
+import type { ModelConfig, GenerationType, Mode } from './types'
 import { gptImage } from './gpt-image'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
 import { seedream5, seedream5Lite, seedream45 } from './seedream'
@@ -6,7 +6,7 @@ import { seedance2, seedance2Fast } from './seedance'
 import { kling3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
-import { zImageSpicy, qwenImageEditSpicy, wan27, wan27I2vSpicy } from './wan'
+import { zImageSpicy, qwenImageEditSpicy, wan27 } from './wan'
 import { gpt55, gpt55Pro, gemini31Pro, gemini35Flash, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
 import { grokImagine, grokVideo } from './grok'
 import { midjourneyV8, midjourneyNiji7 } from './midjourney'
@@ -47,7 +47,6 @@ export const ALL_MODELS: ModelConfig[] = [
 	happyHorseT2V,
 	happyHorseI2V,
 	wan27,
-	wan27I2vSpicy,
 	veo31,
 	veo31Lite,
 	grokVideo,
@@ -78,6 +77,22 @@ export const ALL_MODELS: ModelConfig[] = [
 /** Get all models of a given type */
 export function getModelsByType(type: GenerationType): ModelConfig[] {
 	return ALL_MODELS.filter(m => m.type === type)
+}
+
+/**
+ * The modes a given provider actually exposes for a model. A provider may
+ * restrict itself to a subset of the model's modes via `supportedProviders[p].modes`
+ * (e.g. MuleRouter only offers Wan 2.7 first-frame). Falls back to the model's modes.
+ */
+export function getProviderModes(model: ModelConfig, providerId: string | undefined): Mode[] {
+	const restricted = providerId ? model.supportedProviders[providerId]?.modes : undefined
+	if (!restricted) return model.modes
+	return model.modes.filter(mode => restricted.includes(mode))
+}
+
+/** Whether this provider routes the model's modes to multiple upstream ids internally. */
+export function isAggregated(model: ModelConfig, providerId: string | undefined): boolean {
+	return !!(providerId && model.supportedProviders[providerId]?.aggregated)
 }
 
 /** Get model by ID */
@@ -151,4 +166,4 @@ export function getEnabledModels(
 	})
 }
 
-export type { ModelConfig, GenerationType } from './types'
+export type { ModelConfig, GenerationType, Mode } from './types'

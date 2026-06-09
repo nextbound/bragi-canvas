@@ -5,7 +5,7 @@ import { getOrderedImages } from './ref-thumbnails'
 import { uploadRef } from './providers/upload'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
 
-const GEMINI_INLINE_MAX_BYTES = 15 * 1024 * 1024
+const RELAY_UPLOAD_MAX_BYTES = 15 * 1024 * 1024
 const ANTHROPIC_PDF_MAX_BYTES = 32 * 1024 * 1024
 
 export interface PreparedTextInputs {
@@ -64,11 +64,12 @@ async function readVaultFileSize(app: App, filePath: string): Promise<number> {
 }
 
 function shouldUploadForProvider(providerId: string, byteSize: number): boolean {
-	if (providerId === 'gemini' || providerId === 'dashscope') {
-		return byteSize > GEMINI_INLINE_MAX_BYTES
-	}
-	if (providerId === 'tokenrouter') {
-		return byteSize > GEMINI_INLINE_MAX_BYTES
+	// Gemini is intentionally excluded: its API-key endpoint rejects arbitrary
+	// relay URLs in fileData.fileUri (verified live → HTTP 500). The Gemini text
+	// provider re-hosts large/non-image refs via the Files API instead, so it must
+	// receive the raw bytes (data URI) here rather than a relay URL.
+	if (providerId === 'dashscope' || providerId === 'tokenrouter') {
+		return byteSize > RELAY_UPLOAD_MAX_BYTES
 	}
 	return false
 }

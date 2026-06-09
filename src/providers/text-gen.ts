@@ -92,20 +92,6 @@ function audioMimeTypeFromRef(ref: string): string {
 	return 'audio/mpeg'
 }
 
-function extensionForMime(mimeType: string): string {
-	if (mimeType === 'application/pdf') return 'pdf'
-	if (mimeType.includes('quicktime')) return 'mov'
-	if (mimeType.includes('webm')) return 'webm'
-	if (mimeType.includes('wav')) return 'wav'
-	if (mimeType.includes('mp4')) return 'mp4'
-	if (mimeType.includes('aac')) return 'aac'
-	if (mimeType.includes('flac')) return 'flac'
-	if (mimeType.includes('ogg')) return 'ogg'
-	if (mimeType.includes('opus')) return 'opus'
-	if (mimeType.includes('mpeg')) return 'mp3'
-	return 'bin'
-}
-
 function parseDataUri(dataUri: string): { mimeType: string; data: string } | null {
 	const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
 	if (!match) return null
@@ -372,6 +358,10 @@ export class APIMartTextProvider implements TextGenProvider {
 /**
  * Gemini text generation with vision support.
  */
+// Inline images up to this size; larger images go via the Files API to keep the
+// whole generateContent request under the endpoint's ~20 MB limit.
+const GEMINI_INLINE_IMAGE_MAX_BYTES = 7 * 1024 * 1024
+
 export class GeminiTextProvider implements TextGenProvider {
 	name = 'Gemini'
 	private apiKey: string
@@ -392,7 +382,9 @@ export class GeminiTextProvider implements TextGenProvider {
 
 		for (const ref of refImages) {
 			const parsed = parseDataUri(ref)
-			if (parsed) {
+			// Inline only small images; large ones go through the Files API so the
+			// whole generateContent request stays under the size limit.
+			if (parsed && base64ByteLength(parsed.data) <= GEMINI_INLINE_IMAGE_MAX_BYTES) {
 				parts.push({
 					inlineData: { mimeType: parsed.mimeType, data: parsed.data },
 				})
@@ -449,10 +441,89 @@ export class GeminiTextProvider implements TextGenProvider {
 
 	private async fileDataPart(ref: string, fallbackMimeType: string, label: string): Promise<{ mimeType: string; fileUri: string }> {
 		const decoded = dataUriToBytes(ref)
-		if (!decoded) return { mimeType: fallbackMimeType, fileUri: ref }
-		const fileUri = await uploadRef(undefined, copyToArrayBuffer(decoded.bytes), `${label}.${extensionForMime(decoded.mimeType)}`, decoded.mimeType)
-		return { mimeType: decoded.mimeType, fileUri }
+		if (!decoded) {
+			// The API-key endpoint (generativelanguage.googleapis.com) only accepts a
+			// Files API URI or a YouTube URL in fileData.fileUri — NOT an arbitrary
+			// public URL (verified live: an external https URL returns HTTP 500). Pass
+			// an already-valid URI through; otherwise fetch and re-host via the Files API.
+			if (/^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/files\//.test(ref) || /(youtube\.com|youtu\.be)\//.test(ref)) {
+				return { mimeType: fallbackMimeType, fileUri: ref }
+			}
+			const resp = await requestUrl({ url: ref })
+			const fileUri = await uploadToGeminiFiles(this.apiKey, resp.arrayBuffer, fallbackMimeType, label)
+			return { mimeType: fallbackMimeType, fileUri }
+		}
+		const mimeType = decoded.mimeType || fallbackMimeType
+		const fileUri = await uploadToGeminiFiles(this.apiKey, copyToArrayBuffer(decoded.bytes), mimeType, label)
+		return { mimeType, fileUri }
 	}
+}
+
+/** Approximate decoded byte size of a base64 string. */
+function base64ByteLength(b64: string): number {
+	const len = b64.length
+	const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0
+	return Math.floor((len * 3) / 4) - padding
+}
+
+/** Case-insensitive header lookup for Obsidian's requestUrl response. */
+function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
+	if (!headers) return undefined
+	const lower = name.toLowerCase()
+	for (const key of Object.keys(headers)) {
+		if (key.toLowerCase() === lower) return headers[key]
+	}
+	return undefined
+}
+
+/**
+ * Upload bytes to the Gemini Files API (resumable) and return the resulting
+ * `files/...` URI, waiting until the file is ACTIVE (video/audio need server-side
+ * processing). This is the only way to attach large or non-image media to a
+ * generateContent call on the API-key endpoint — arbitrary public URLs are rejected.
+ */
+async function uploadToGeminiFiles(apiKey: string, bytes: ArrayBuffer, mimeType: string, label: string): Promise<string> {
+	const numBytes = bytes.byteLength
+	const start = await requestUrl({
+		url: `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`,
+		method: 'POST',
+		headers: {
+			'X-Goog-Upload-Protocol': 'resumable',
+			'X-Goog-Upload-Command': 'start',
+			'X-Goog-Upload-Header-Content-Length': String(numBytes),
+			'X-Goog-Upload-Header-Content-Type': mimeType,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ file: { display_name: label } }),
+		throw: false,
+	})
+	const uploadUrl = headerValue(start.headers, 'x-goog-upload-url')
+	if (!uploadUrl) throw new Error(`Gemini Files API: no upload URL (HTTP ${start.status})`)
+
+	const fin = await requestUrl({
+		url: uploadUrl,
+		method: 'POST',
+		headers: { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' },
+		body: bytes,
+		throw: false,
+	})
+	const file = fin.json?.file
+	if (!file?.uri || !file?.name) throw new Error(`Gemini Files API: upload failed (HTTP ${fin.status})`)
+
+	// Images are ACTIVE immediately; video/audio go through PROCESSING.
+	let state: string = file.state
+	const deadline = Date.now() + 120_000
+	while (state === 'PROCESSING' && Date.now() < deadline) {
+		await new Promise(r => window.setTimeout(r, 2000))
+		const check = await requestUrl({
+			url: `https://generativelanguage.googleapis.com/v1beta/${file.name}?key=${encodeURIComponent(apiKey)}`,
+			method: 'GET',
+			throw: false,
+		})
+		state = check.json?.state || state
+	}
+	if (state === 'FAILED') throw new Error('Gemini Files API: file processing failed')
+	return file.uri
 }
 
 /**

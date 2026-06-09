@@ -217,11 +217,24 @@ export class ProviderModelsModal extends Modal {
 		return !!this.plugin.settings.apiModelIdOverrides?.[this.opts.providerId]?.[model.id]
 	}
 
-	/** Display mode: effective api model id + "Modified" badge + a pencil to edit. */
+	/** Whether the API model id is user-editable for this provider×model. */
+	private isApiModelIdEditable(model: ModelConfig): boolean {
+		const cfg = model.supportedProviders[this.opts.providerId]
+		// Aggregated models route modes to multiple upstream ids internally; a single
+		// editable id is meaningless and could corrupt routing, so it's always locked.
+		if (!cfg || cfg.aggregated) return false
+		return cfg.editableApiModelId === true
+	}
+
+	/** Display mode: effective api model id + (when editable) "Modified" badge + a pencil to edit. */
 	private renderIdDisplay(idLine: HTMLElement, model: ModelConfig) {
 		idLine.empty()
 		const effective = resolveApiModelId(this.plugin.settings, this.opts.providerId, model)
 		idLine.createSpan({ cls: 'bragi-provider-models-id', text: effective })
+
+		// Locked id: static label only, no badge/pencil.
+		if (!this.isApiModelIdEditable(model)) return
+
 		if (this.isOverridden(model)) {
 			idLine.createSpan({ cls: 'bragi-model-id-badge', text: 'Modified' })
 		}

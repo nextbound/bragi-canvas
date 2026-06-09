@@ -56,6 +56,12 @@ export interface ProviderSpec {
 	name: string
 	docUrl?: string
 	fields: ProviderField[]
+	/**
+	 * How this provider normally receives reference media, by modality. Per-model
+	 * exceptions go on `ModelConfig.supportedProviders[id].refDelivery`. Resolved
+	 * via `getRefDelivery(model, providerId, modality)`.
+	 */
+	defaultRefDelivery?: import('../models/types').RefDeliverySpec
 	isConfigured: (s: BragiSettings) => boolean
 	makeImage?: (ctx: ProviderCtx) => ImageProvider
 	makeVideo?: (ctx: ProviderCtx) => VideoProvider
@@ -115,6 +121,8 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'OpenAI',
 		docUrl: 'https://platform.openai.com/api-keys',
 		fields: [{ key: 'openai', label: 'API Key', placeholder: 'sk-proj-...', type: 'password' }],
+		// GPT Image edits upload raw bytes as multipart; reference images stay inline.
+		defaultRefDelivery: { image: 'inline' },
 		isConfigured: (s) => !!s.providers.openai,
 		makeImage: ({ settings, app, outputDir }) =>
 			new OpenAIProvider(settings.providers.openai, app, outputDir),
@@ -177,6 +185,8 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'Google Gemini',
 		docUrl: 'https://aistudio.google.com/apikey',
 		fields: [{ key: 'gemini', label: 'API Key', placeholder: 'AIza...', type: 'password' }],
+		// Gemini image (nano-banana inlineData) and Veo (bytesBase64) require inline bytes.
+		defaultRefDelivery: { image: 'inline' },
 		isConfigured: (s) => !!s.providers.gemini,
 		makeImage: ({ settings, app, outputDir }) =>
 			new GeminiProvider(settings.providers.gemini, app, outputDir),
@@ -211,6 +221,8 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'Volcengine',
 		docUrl: 'https://console.volcengine.com/ark',
 		fields: [{ key: 'bytedance', label: 'ARK API Key', placeholder: '...', type: 'password' }],
+		// Seedream/Seedance on Volcengine accept public URLs.
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.bytedance,
 		makeImage: ({ settings, app, outputDir }) =>
 			new SeedreamProvider(settings.providers.bytedance, app, outputDir),
@@ -228,6 +240,8 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'byteplusSecretKey', label: 'Secret Key (optional)', placeholder: 'SK...', type: 'password' },
 			{ key: 'byteplusAssetGroupId', label: 'Asset group ID (optional)', placeholder: 'group-2026...-xxxxx', type: 'text' },
 		],
+		// Default to relay; Seedance overrides to native_asset when AK/SK are set (see seedance models).
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.byteplus,
 		makeImage: ({ settings, app, outputDir }) =>
 			new SeedreamProvider(settings.providers.byteplus, app, outputDir, 'https://ark.ap-southeast.bytepluses.com/api/v3/images/generations'),
@@ -244,6 +258,9 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'klingSk', label: 'Secret Key', placeholder: 'SK', type: 'password' },
 		],
 		isConfigured: (s) => !!(s.providers.klingAk && s.providers.klingSk),
+		// Kling image2video accepts a public image URL (verified live) — relay avoids
+		// bloating the JSON body with base64. stripDataUriPrefix passes a URL through unchanged.
+		defaultRefDelivery: { image: 'relay' },
 		makeVideo: ({ settings, app, outputDir }) =>
 			new KlingProvider(settings.providers.klingAk, settings.providers.klingSk, app, outputDir),
 		// Kling uses JWT with HMAC-SHA256; auth is complex. Skip network test for now — Save will fail fast at first use.
@@ -253,6 +270,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'fal.ai',
 		docUrl: 'https://fal.ai/dashboard/keys',
 		fields: [{ key: 'fal', label: 'API Key', placeholder: 'key-id:secret', type: 'password' }],
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.fal,
 		makeImage: ({ settings, app, outputDir }) =>
 			new FalImageProvider(settings.providers.fal, app, outputDir),
@@ -352,6 +370,7 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'dashscopeBaseUrl', label: 'Base URL', placeholder: 'https://dashscope.aliyuncs.com/api/v1', type: 'text' },
 		],
 		isConfigured: (s) => !!s.providers.dashscope,
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		makeVideo: ({ settings, app, outputDir }) =>
 			new DashScopeVideoProvider(settings.providers.dashscope, app, outputDir, settings.providers.dashscopeBaseUrl),
 		makeAudio: ({ settings, app, outputDir }) =>
@@ -403,6 +422,8 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'tokenrouter', label: 'API Key', placeholder: 'sk-...', type: 'password' },
 			{ key: 'tokenrouterModelArkAssetGroupId', label: 'Asset group ID (optional)', placeholder: 'asset_group_id', type: 'text' },
 		],
+		// Relay by default; Seedance overrides to native_asset when ModelArk creds are set.
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.tokenrouter,
 		makeImage: ({ settings, app, outputDir }) =>
 			new TokenRouterImageProvider(settings.providers.tokenrouter, app, outputDir, 'https://api.tokenrouter.com/v1'),
@@ -420,6 +441,8 @@ export const PROVIDERS: ProviderSpec[] = [
 			{ key: 'token360', label: 'API Key', placeholder: 'sk-token360-...', type: 'password' },
 			{ key: 'token360AssetGroupId', label: 'Asset group ID (optional)', placeholder: 'legacy_rf_9032', type: 'text' },
 		],
+		// Relay by default; Seedance overrides to native_asset when an asset group is set.
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.token360,
 		makeVideo: ({ settings, app, outputDir }) =>
 			new Token360VideoProvider(settings.providers.token360, app, outputDir),
@@ -434,6 +457,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'MuleRouter',
 		docUrl: 'https://www.mulerouter.ai/docs/api-reference/endpoint/carrothub/z-image-spicy/generation',
 		fields: [{ key: 'mulerouter', label: 'API Key', placeholder: 'sk-mr-...', type: 'password' }],
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.mulerouter,
 		makeImage: ({ settings, app, outputDir }) =>
 			new MuleRouterImageProvider(settings.providers.mulerouter, app, outputDir),
@@ -446,6 +470,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'APIMart',
 		docUrl: 'https://docs.apimart.ai/en/api-reference/videos/omni-flash-ext/generation',
 		fields: [{ key: 'apimart', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
+		defaultRefDelivery: { image: 'relay', video: 'relay' },
 		isConfigured: (s) => !!s.providers.apimart,
 		makeImage: ({ settings, app, outputDir }) =>
 			new APIMartProvider(settings.providers.apimart, app, outputDir),
@@ -460,6 +485,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'SuChuang',
 		docUrl: 'https://api.wuyinkeji.com/doc/72',
 		fields: [{ key: 'suchuang', label: 'API Key', placeholder: 'API key', type: 'password' }],
+		defaultRefDelivery: { image: 'relay' },
 		isConfigured: (s) => !!s.providers.suchuang,
 		makeVideo: ({ settings, app, outputDir }) =>
 			new SuchuangVideoProvider(settings.providers.suchuang, app, outputDir),
@@ -470,6 +496,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'xAI',
 		docUrl: 'https://console.x.ai',
 		fields: [{ key: 'xai', label: 'API Key', placeholder: 'xai-...', type: 'password' }],
+		defaultRefDelivery: { image: 'relay', video: 'relay' },
 		isConfigured: (s) => !!s.providers.xai,
 		makeImage: ({ settings, app, outputDir }) =>
 			new XAIImageProvider(settings.providers.xai, app, outputDir),
@@ -487,6 +514,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		fields: [
 			{ key: 'lumaToken', label: 'API Key', placeholder: 'API Key', type: 'password' },
 		],
+		defaultRefDelivery: { image: 'relay' },
 		isConfigured: (s) => !!s.providers.lumaToken,
 		makeImage: ({ settings, app, outputDir }) =>
 			new LumaProvider(LUMA_ENDPOINT, settings.providers.lumaToken, app, outputDir),

@@ -5,7 +5,7 @@ import { Modal, TFile, type App } from 'obsidian'
 import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
 import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './types/canvas-internal'
 import type { PanelResult } from './panel'
-import { getModelById, getActiveProvider, getEnabledModels } from './models/index'
+import { getModelById, getActiveProvider, getEnabledModels, getProviderModes } from './models/index'
 import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputLabels } from './models/text-input-capabilities'
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import type { GenerationType, Mode, ModelParam } from './models/types'
@@ -476,12 +476,12 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 							name: m.name,
 							type: m.type,
 							provider,
-							modes: m.modes,
+							modes: getProviderModes(m, provider),
 							...(capability ? {
 								supportedInputs: listSupportedInputLabels(capability),
 								unsupportedInputs: listUnsupportedInputLabels(capability),
 							} : {}),
-							params: m.params.map(param => {
+							params: m.params.filter(param => !param.providerOverrides?.[provider]?.hidden).map(param => {
 								const p = applyProviderOverride(param, provider)
 								return {
 									id: p.id,
@@ -563,11 +563,20 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				}
 				if (!prompt) throw new Error('Node contains no prompt text')
 
-				const selectedMode = (mode as Mode) || model.modes[0] || null
+				const providerModes = getProviderModes(model, provider)
+				if (mode && !providerModes.includes(mode as Mode)) {
+					throw new Error(`Mode "${mode}" is not supported by ${provider} for ${modelId}. Supported modes: ${providerModes.join(', ')}`)
+				}
+				const selectedMode = (mode as Mode) || providerModes[0] || null
 
-				// Resolve params with defaults, but only for params visible in this mode.
+				// Resolve params with defaults, but only for params visible in this mode
+				// and not hidden for the active provider.
 				const resolvedParams: Record<string, string | number> = { ...(params || {}) }
 				for (const baseParam of model.params) {
+					if (baseParam.providerOverrides?.[provider]?.hidden) {
+						delete resolvedParams[baseParam.id]
+						continue
+					}
 					if (baseParam.modes && (!selectedMode || !baseParam.modes.includes(selectedMode))) continue
 					const p = applyProviderOverride(baseParam, provider)
 					const value = resolvedParams[p.id] ?? p.default

@@ -6,10 +6,10 @@ export const seedance2: ModelConfig = {
 	type: 'video',
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-260128' },
-		byteplus: { apiModelId: 'dreamina-seedance-2-0-260128' },
+		byteplus: { apiModelId: 'dreamina-seedance-2-0-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
 		fal: { apiModelId: 'bytedance/seedance-2.0' },
-		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-260128' },
-		token360: { apiModelId: 'seedance-2.0' },
+		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'tokenrouter' } },
+		token360: { apiModelId: 'seedance-2.0', refDelivery: { image: 'native_asset', nativeAssetProvider: 'token360' } },
 	},
 	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-ref'],
 	params: [
@@ -77,9 +77,9 @@ export const seedance2Fast: ModelConfig = {
 	type: 'video',
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-fast-260128' },
-		byteplus: { apiModelId: 'dreamina-seedance-2-0-fast-260128' },
-		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-fast-260128' },
-		token360: { apiModelId: 'seedance-2.0-fast' },
+		byteplus: { apiModelId: 'dreamina-seedance-2-0-fast-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
+		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-fast-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'tokenrouter' } },
+		token360: { apiModelId: 'seedance-2.0-fast', refDelivery: { image: 'native_asset', nativeAssetProvider: 'token360' } },
 	},
 	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-ref'],
 	params: [

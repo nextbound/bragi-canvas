@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, ModelParam, VoiceSourceMode } from './models/types'
-import { getEnabledModels, getActiveProvider } from './models/index'
+import { getEnabledModels, getActiveProvider, getProviderModes } from './models/index'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import { getUpstreamInputs } from './edge-parser'
@@ -108,8 +108,12 @@ function paramVisibleForMode(param: ModelParam, mode: Mode | null): boolean {
 	return !param.modes || (!!mode && param.modes.includes(mode))
 }
 
-function paramsVisibleForMode(model: ModelConfig, mode: Mode | null): ModelParam[] {
-	return model.params.filter(param => paramVisibleForMode(param, mode))
+function paramHiddenForProvider(param: ModelParam, provider: string | null | undefined): boolean {
+	return !!(provider && param.providerOverrides?.[provider]?.hidden)
+}
+
+function paramsVisibleForMode(model: ModelConfig, mode: Mode | null, provider?: string | null): ModelParam[] {
+	return model.params.filter(param => paramVisibleForMode(param, mode) && !paramHiddenForProvider(param, provider))
 }
 
 function renderRangeParamDropdown(
@@ -523,16 +527,18 @@ export function showGenerateBar(
 
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
-		if (!selectedModel || selectedModel.modes.length <= 1) {
+		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
+		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
+		if (!selectedModel || modes.length <= 1) {
 			modeSelect.classList.add('bragi-hidden')
-			selectedMode = selectedModel?.modes[0] || null
+			selectedMode = modes[0] || null
 			return
 		}
 
 		modeSelect.classList.remove('bragi-hidden')
-		const inferred = inferMode(selectedModel.modes, upstreamImageCount, upstreamVideoCount)
+		const inferred = inferMode(modes, upstreamImageCount, upstreamVideoCount)
 
-		for (const mode of selectedModel.modes) {
+		for (const mode of modes) {
 			const opt = createEl('option')
 			opt.value = mode
 			opt.textContent = MODE_LABELS[mode] || mode
@@ -550,6 +556,7 @@ export function showGenerateBar(
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
 		for (const baseParam of selectedModel.params) {
+			if (paramHiddenForProvider(baseParam, provider)) continue
 			const p = applyProviderOverride(baseParam, provider)
 			// Keep current value if same param exists and value is valid in new model
 			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
@@ -692,7 +699,7 @@ export function showGenerateBar(
 		paramsEl.innerHTML = ''
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
-		for (const baseParam of paramsVisibleForMode(selectedModel, selectedMode)) {
+		for (const baseParam of paramsVisibleForMode(selectedModel, selectedMode, provider)) {
 			const param = applyProviderOverride(baseParam, provider)
 			if (param.type === 'select' && param.options) {
 				// Pick mode-specific options if declared; otherwise the base list.
@@ -801,8 +808,8 @@ export function showGenerateBar(
 
 	function currentVisibleParamValues(): Record<string, string | number> {
 		if (!selectedModel) return {}
-		const visibleIds = new Set(paramsVisibleForMode(selectedModel, selectedMode).map(param => param.id))
 		const { provider } = resolveProvider(selectedModel, settings)
+		const visibleIds = new Set(paramsVisibleForMode(selectedModel, selectedMode, provider).map(param => param.id))
 		const result: Record<string, string | number> = {}
 		for (const [key, value] of Object.entries(paramValues)) {
 			if (visibleIds.has(key) || key === 'voiceLabel' || key === 'voiceMode' || key === 'voiceRefAudioIndex' || key === 'voiceDesignTextIndex') {
@@ -872,25 +879,34 @@ export function showGenerateBar(
 			modelSelect.appendChild(opt)
 			selectedModel = null
 		} else {
-			let firstCompatible: ModelConfig | null = null
-			for (const m of models) {
+			// Hide models that can't handle the current upstream inputs entirely,
+			// rather than showing a disabled "(not supported)" entry that just
+			// makes users wonder why it's there.
+			const compatibleModels = models.filter(m => modelSupportsInputs(m))
+			if (compatibleModels.length === 0) {
+				const opt = createEl('option')
+				opt.textContent = 'No models'
+				opt.disabled = true
+				modelSelect.appendChild(opt)
+				selectedModel = null
+				resizeModel()
+				initDefaults()
+				rebuildModeList()
+				rebuildParams()
+				updateRunState()
+				return
+			}
+			for (const m of compatibleModels) {
 				const opt = createEl('option')
 				opt.value = m.id
-				const compatible = modelSupportsInputs(m)
-				if (!compatible) {
-					opt.textContent = `${m.name} (not supported)`
-					opt.disabled = true
-				} else {
-					opt.textContent = m.name
-					if (!firstCompatible) firstCompatible = m
-				}
+				opt.textContent = m.name
 				modelSelect.appendChild(opt)
 			}
 			// Priority: node metadata > global memory > first compatible
 			const last = lastSelectionForCurrentType()
-			const lastModel = last?.modelId ? models.find(m => m.id === last.modelId && modelSupportsInputs(m)) : null
+			const lastModel = last?.modelId ? compatibleModels.find(m => m.id === last.modelId) : null
 
-			selectedModel = lastModel || firstCompatible || models[0]
+			selectedModel = lastModel || compatibleModels[0]
 			modelSelect.value = selectedModel.id
 			savedParams = (lastModel && last?.params) ? last.params : null
 		}
@@ -1242,19 +1258,21 @@ export function showBatchGenerateBar(
 
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
-		if (!selectedModel || selectedModel.modes.length <= 1) {
+		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
+		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
+		if (!selectedModel || modes.length <= 1) {
 			modeSelect.classList.add('bragi-hidden')
-			selectedMode = selectedModel?.modes[0] || null
+			selectedMode = modes[0] || null
 			return
 		}
 		modeSelect.classList.remove('bragi-hidden')
-		for (const mode of selectedModel.modes) {
+		for (const mode of modes) {
 			const opt = createEl('option')
 			opt.value = mode
 			opt.textContent = MODE_LABELS[mode] || mode
 			modeSelect.appendChild(opt)
 		}
-		selectedMode = selectedModel.modes[0]
+		selectedMode = modes[0]
 		modeSelect.value = selectedMode
 		resizeMode()
 	}
@@ -1265,6 +1283,7 @@ export function showBatchGenerateBar(
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
 		for (const baseParam of selectedModel.params) {
+			if (paramHiddenForProvider(baseParam, provider)) continue
 			const p = applyProviderOverride(baseParam, provider)
 			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
 			if (prev[p.id] !== undefined && (canKeepDynamicVoice || p.options?.some(o => o.value === String(prev[p.id])))) {
@@ -1282,7 +1301,7 @@ export function showBatchGenerateBar(
 		paramsEl.innerHTML = ''
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
-		for (const baseParam of paramsVisibleForMode(selectedModel, selectedMode)) {
+		for (const baseParam of paramsVisibleForMode(selectedModel, selectedMode, provider)) {
 			const param = applyProviderOverride(baseParam, provider)
 			if (param.type === 'select' && param.options) {
 				const effectiveOptions = (selectedMode && param.optionsByMode?.[selectedMode]) || param.options
@@ -1362,8 +1381,8 @@ export function showBatchGenerateBar(
 
 	function currentVisibleParamValues(): Record<string, string | number> {
 		if (!selectedModel) return {}
-		const visibleIds = new Set(paramsVisibleForMode(selectedModel, selectedMode).map(param => param.id))
 		const { provider } = resolveProvider(selectedModel, settings)
+		const visibleIds = new Set(paramsVisibleForMode(selectedModel, selectedMode, provider).map(param => param.id))
 		const result: Record<string, string | number> = {}
 		for (const [key, value] of Object.entries(paramValues)) {
 			if (visibleIds.has(key) || key === 'voiceLabel') {

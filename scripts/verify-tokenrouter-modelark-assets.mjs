@@ -6,6 +6,7 @@ const registrySource = readFileSync('src/providers/registry.ts', 'utf8')
 const assetFlowSource = readFileSync('src/tokenrouter-asset-flow.ts', 'utf8')
 const modelArkAssetSource = readFileSync('src/providers/tokenrouter-modelark-assets.ts', 'utf8')
 const mainSource = readFileSync('src/main.ts', 'utf8')
+const seedanceSource = readFileSync('src/models/seedance.ts', 'utf8')
 
 function assertOrder(source, first, second, message) {
 	const firstIndex = source.indexOf(first)
@@ -39,7 +40,7 @@ assert.match(
 
 assert.match(
 	registrySource,
-	/key: 'byteplusProjectName', label: 'Asset group ID \(optional\)'/,
+	/key: 'byteplusAssetGroupId', label: 'Asset group ID \(optional\)'/,
 	'BytePlus provider settings must use the unified asset group label',
 )
 
@@ -126,10 +127,25 @@ assertOrder(
 	'Token360 image refs must validate cached asset ids through ensureToken360Asset before direct asset:// fallback',
 )
 
+// No-groupId TokenRouter Seedance falls back to relay URLs (not data URIs or asset://).
+// This is now expressed declaratively: the model declares native_asset delivery, and
+// when no ModelArk creds are present the central prepareReferenceMedia uploads via relay.
+assert.match(
+	seedanceSource,
+	/tokenrouter: \{ apiModelId: '[^']*', refDelivery: \{ image: 'native_asset'[\s\S]*nativeAssetProvider: 'tokenrouter' \} \}/,
+	'TokenRouter Seedance must declare native_asset reference delivery routed through tokenrouter',
+)
+
 assert.match(
 	mainSource,
-	/else if \(activeProvider === 'tokenrouter' && isSeedanceModel\) \{[\s\S]*uploadRef\(undefined, binary, `ref\.\$\{ext\}`, imageMimeType\(imgPath\)\)/,
-	'TokenRouter Seedance no-groupId image refs must be uploaded as relay URLs, not data URIs or asset:// refs',
+	/refImages\.push\(await this\.prepareReferenceMedia\(activeProvider, model, 'image', imgPath\)\)/,
+	'Image refs without a native-asset credential path must resolve through the central prepareReferenceMedia',
+)
+
+assert.match(
+	mainSource,
+	/if \(delivery === 'relay' \|\| delivery === 'native_asset'\) \{[\s\S]*return uploadRef\(undefined, binary/,
+	'prepareReferenceMedia must upload relay/native_asset refs as relay URLs (no-groupId TokenRouter Seedance falls back to relay, not data URIs or asset://)',
 )
 
 assert.match(

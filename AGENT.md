@@ -75,6 +75,23 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - When renaming or replacing a model ID, migrate `modelPrefs`, active provider selection, and `providerModelPrefs` in the centralized settings migration pipeline.
 - MCP model exposure must match the settings UI: only explicitly enabled models with a configured active provider connection should be returned.
 
+### Modeling provider differences (do not fork models)
+
+All "this provider differs from the base model" facts live in the model's `supportedProviders[providerId]` entry (`ProviderConfig`) or in a param's `providerOverrides`. Do not create a second model entry for a neutered/variant provider. Full reference and rationale: `docs/model-provider-rules.md`.
+
+- `apiModelId` — upstream model id. The settings id editor is locked (static label) by default.
+- `editableApiModelId?: boolean` — opt-in pencil editor, only for providers that accept arbitrary upstream ids (e.g. BytePlus C-Dance). Ignored when `aggregated`.
+- `aggregated?: boolean` — the provider routes the model's modes to multiple upstream ids internally (DashScope Wan 2.7; DashScope voice). Routing stays hard-coded in the provider; the catalog only marks it. Locks the id editor. Must not also set `editableApiModelId`.
+- `modes?: Mode[]` — restrict a provider to a subset of the model's modes. The mode dropdown and MCP schema show only the active provider's effective modes; unsupported modes are hidden, never shown as disabled/"not supported". Provider resolution is strict-to-active (no mode-based fallback).
+- Param `providerOverrides[providerId]` — narrow a param's `options`/`default`/`min`/`max`/`step`/`unit` for one provider, or set `hidden: true` to drop it entirely for that provider.
+- Extension cost: new instances of existing param types and existing modalities are pure catalog data. A brand-new param `type`, a brand-new `Mode` value, or a 5th `GenerationType` is a one-time, bounded code change (panel render + MCP schema, or the `Mode`/`GenerationType` union + `make*` + panel wiring); after that, instances of that kind are declarative again.
+
+### Catalog checks
+
+- `npm run check:catalog` is a no-network static gate (also part of root `npm run verify`). It fails the build on: unknown provider id in `supportedProviders`; `supportedProviders[p].modes` not a subset of `model.modes`; an orphan mode offered by no provider; `providerOverrides` referencing a provider not in `supportedProviders`; `aggregated` together with `editableApiModelId` or with an empty `apiModelId`; a DashScope voice model with `clone`/`design`/`modelIds` whose DashScope entry is not marked `aggregated`.
+- `npm run audit:catalog` exercises the real panel/MCP logic across every model x provider x mode and reports invalid defaults, empty option lists, missing modality makers, etc. Run it after catalog changes.
+- When you add a model/provider and a check fails, fix the catalog, not the script.
+
 ## Reference Asset Upload Policy
 
 - When a provider needs a publicly fetchable reference asset URL, prefer the built-in Bragi temporary relay path first (`src/providers/upload.ts` + `src/providers/bragi-relay.ts`) and pass the returned public URL into the model request.

@@ -55,7 +55,12 @@ export const wan27: ModelConfig = {
 	name: 'Wan 2.7',
 	type: 'video',
 	supportedProviders: {
-		dashscope: { apiModelId: 'wan-2.7' },
+		// DashScope aggregates Wan 2.7: one umbrella id, routed by mode to multiple
+		// upstream ids (t2v / i2v / r2v / videoedit) inside DashScopeVideoProvider.
+		dashscope: { apiModelId: 'wan-2.7', aggregated: true },
+		// MuleRouter only offers the spicy i2v (first-frame) variant — a subset of
+		// DashScope's modes, with a narrower param set (lowercase resolution, no ratio).
+		mulerouter: { apiModelId: 'wan2.7-i2v-spicy', modes: ['first-frame'] },
 	},
 	modes: [
 		'text-to-video',
@@ -76,6 +81,16 @@ export const wan27: ModelConfig = {
 				{ label: '1080P', value: '1080P' },
 			],
 			default: '720P',
+			providerOverrides: {
+				// MuleRouter's spicy i2v expects lowercase resolutions and defaults to 1080p.
+				mulerouter: {
+					options: [
+						{ label: '720p', value: '720p' },
+						{ label: '1080p', value: '1080p' },
+					],
+					default: '1080p',
+				},
+			},
 		},
 		{
 			id: 'ratio',
@@ -89,6 +104,10 @@ export const wan27: ModelConfig = {
 				{ label: '3:4', value: '3:4' },
 			],
 			default: '16:9',
+			providerOverrides: {
+				// MuleRouter spicy i2v derives ratio from the input image; no ratio control.
+				mulerouter: { hidden: true },
+			},
 		},
 		{
 			id: 'duration',
@@ -120,48 +139,6 @@ export const wan27: ModelConfig = {
 				{ label: 'Original', value: 'origin' },
 			],
 			default: 'auto',
-		},
-	],
-}
-
-export const wan27I2vSpicy: ModelConfig = {
-	id: 'wan-2.7-i2v-spicy',
-	name: 'Wan 2.7 Spicy I2V',
-	type: 'video',
-	supportedProviders: {
-		mulerouter: { apiModelId: 'wan2.7-i2v-spicy' },
-	},
-	modes: ['first-frame'],
-	params: [
-		{
-			id: 'resolution',
-			label: 'Resolution',
-			type: 'select',
-			options: [
-				{ label: '720p', value: '720p' },
-				{ label: '1080p', value: '1080p' },
-			],
-			default: '1080p',
-		},
-		{
-			id: 'duration',
-			label: 'Duration',
-			type: 'range',
-			default: 5,
-			min: 2,
-			max: 15,
-			step: 1,
-			unit: 's',
-		},
-		{
-			id: 'prompt_extend',
-			label: 'Prompt extend',
-			type: 'select',
-			options: [
-				{ label: 'On', value: 'true' },
-				{ label: 'Off', value: 'false' },
-			],
-			default: 'true',
 		},
 	],
 }

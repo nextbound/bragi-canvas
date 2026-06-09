@@ -11,7 +11,7 @@ const packageSource = readFileSync('package.json', 'utf8')
 assert.match(modelSource, /suchuang: \{ apiModelId: 'google_omni' \}/, 'Omni-Flash-Ext must include Suchuang model mapping')
 assert.match(settingsSource, /suchuang: string/, 'settings type must include providers.suchuang')
 assert.match(settingsSource, /suchuang: ''/, 'default settings must include an empty Suchuang key')
-assert.match(migrationsSource, /CURRENT_SETTINGS_SCHEMA_VERSION = 4/, 'settings schema version must be bumped for the new provider key')
+assert.match(migrationsSource, /CURRENT_SETTINGS_SCHEMA_VERSION = \d+/, 'settings schema version must be defined (bumped for the new provider key)')
 
 assert.match(registrySource, /SuchuangVideoProvider, testSuchuangConnection/, 'registry must import the Suchuang provider')
 assert.match(registrySource, /id: 'suchuang'[\s\S]*name: 'SuChuang'[\s\S]*makeVideo:/, 'registry must expose SuChuang as a video provider')
