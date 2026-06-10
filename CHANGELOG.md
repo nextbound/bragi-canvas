@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.24.0
+
+- Added the provider integration standard: provider/model differences are now declared in the catalog, including aggregated providers, editable API model IDs, provider-specific modes, parameter overrides, and reference-media delivery behavior.
+- Added centralized reference-media delivery with relay, inline, native asset, and passthrough strategies, including relay-first defaults where provider APIs accept URLs.
+- Merged Wan 2.7 provider variants into the unified `wan-2.7` model with provider-effective modes and migrated existing settings.
+- Fixed Gemini multimodal text references by uploading video, audio, PDF, and large image inputs through the Gemini Files API instead of passing relay URLs to AI Studio.
+- Added SV NewAPI as a configurable OpenAI-compatible gateway provider for existing text, image, video, and audio catalog models.
+- Added catalog validation and audit tooling for provider/model/mode/reference delivery rules.
+- Bumped the plugin version to `1.24.0`.
+
 ## 1.23.0
 
 - Reworked `.bragi` export/import to use a streaming ZIP package format that avoids large-canvas string and buffer limits while keeping legacy JSON package import compatibility.
