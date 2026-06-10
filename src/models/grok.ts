@@ -50,6 +50,8 @@ export const grokVideo: ModelConfig = {
 	supportedProviders: {
 		xai: { apiModelId: 'grok-imagine-video' },
 		fal: { apiModelId: 'xai/grok-imagine-video' },
+		// Gateway routes to fal grok image-to-video — requires a source image.
+		svnewapi: { apiModelId: 'sv-video-grok-fal', modes: ['first-frame'] },
 	},
 	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-extend'],
 	params: [

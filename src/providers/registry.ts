@@ -23,8 +23,14 @@ import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
 import { Token360VideoProvider } from './token360'
 import { DashScopeAudioProvider, DashScopeVideoProvider, dashScopeUrl } from './dashscope'
+import { SvNewApiImageProvider, SvNewApiVideoProvider, SvNewApiAudioProvider } from './svnewapi'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
+
+/** Normalize a user-entered gateway base URL: trim and drop any trailing slash. */
+function normalizeBaseUrl(value: string | undefined): string {
+	return (value || '').trim().replace(/\/+$/, '')
+}
 import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider, XAITextProvider } from './text-gen'
 import { DashScopeTextProvider } from './dashscope-text'
 import { requestUrl } from 'obsidian'
@@ -546,6 +552,34 @@ export const PROVIDERS: ProviderSpec[] = [
 			} catch (err: unknown) {
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
+		},
+	},
+	{
+		id: 'svnewapi',
+		name: 'SV NewAPI',
+		// Self-hosted new-api / One-API gateway. The base URL is deployment-specific, so it is
+		// a configurable field (no domain is hardcoded); the gateway root has no `/v1` suffix.
+		fields: [
+			{ key: 'svnewapiBaseUrl', label: 'Base URL', placeholder: 'https://your-newapi-host', type: 'text' },
+			{ key: 'svnewapi', label: 'API Key', placeholder: 'sk-...', type: 'password' },
+		],
+		// The gateway forwards reference media as public relay URLs (fal/byteplus upstreams accept URLs).
+		defaultRefDelivery: { image: 'relay', video: 'relay' },
+		isConfigured: (s) => !!(s.providers.svnewapi && s.providers.svnewapiBaseUrl),
+		makeImage: ({ settings, app, outputDir }) =>
+			new SvNewApiImageProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+		makeVideo: ({ settings, app, outputDir }) =>
+			new SvNewApiVideoProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+		makeAudio: ({ settings, app, outputDir }) =>
+			new SvNewApiAudioProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+		// Text is plain OpenAI /v1/chat/completions — reuse the shared OpenAI text client.
+		makeText: ({ settings }) =>
+			new OpenAITextProvider(settings.providers.svnewapi, `${normalizeBaseUrl(settings.providers.svnewapiBaseUrl)}/v1`),
+		testConnection: (d) => {
+			const baseUrl = normalizeBaseUrl(d.svnewapiBaseUrl)
+			if (!baseUrl) return Promise.resolve({ ok: false, message: 'Base URL is empty.' })
+			if (!d.svnewapi) return Promise.resolve({ ok: false, message: 'API key is empty.' })
+			return testListModels(`${baseUrl}/v1/models`, d.svnewapi)
 		},
 	},
 ]

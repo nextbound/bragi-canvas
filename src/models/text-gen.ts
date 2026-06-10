@@ -8,6 +8,7 @@ export const gpt55: ModelConfig = {
 		openai: { apiModelId: 'gpt-5.5' },
 		tokenrouter: { apiModelId: 'openai/gpt-5.5' },
 		apimart: { apiModelId: 'gpt-5.5' },
+		svnewapi: { apiModelId: 'sv-text-pro' },
 	},
 	modes: ['text-to-text'],
 	params: [],

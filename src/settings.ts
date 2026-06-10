@@ -114,6 +114,8 @@ export interface BragiSettings {
 		xai: string
 		dashscope: string
 		dashscopeBaseUrl: string
+		svnewapi: string
+		svnewapiBaseUrl: string
 	}
 
 	// Per-model preferences
@@ -183,6 +185,8 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		xai: '',
 		dashscope: '',
 		dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+		svnewapi: '',
+		svnewapiBaseUrl: '',
 	},
 	modelPrefs: {},
 	providerModelPrefs: {},

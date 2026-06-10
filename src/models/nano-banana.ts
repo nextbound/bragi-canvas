@@ -30,6 +30,7 @@ export const nanoBananaPro: ModelConfig = {
 		fal: { apiModelId: 'fal-ai/nano-banana-pro' },
 		tokenrouter: { apiModelId: 'google/gemini-3-pro-image-preview' },
 		apimart: { apiModelId: 'gemini-3-pro-image-preview' },
+		svnewapi: { apiModelId: 'sv-image-banana-pro' },
 	},
 	modes: ['text-to-image'],
 	params: [

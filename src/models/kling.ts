@@ -42,6 +42,8 @@ export const kling3: ModelConfig = {
 		kling: { apiModelId: 'kling-v3' },
 		fal: { apiModelId: 'fal-ai/kling-video/v3/pro' },
 		tokenrouter: { apiModelId: 'kling-v3' },
+		// Gateway routes to fal kling reference-to-video — requires a reference image.
+		svnewapi: { apiModelId: 'sv-video-kling-fal', modes: ['first-frame'] },
 	},
 	// T2V + first-frame (image→video) + first-last-frame (start+end keyframe)
 	modes: ['text-to-video', 'first-frame', 'first-last-frame'],

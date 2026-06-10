@@ -41,6 +41,7 @@ export const veo31: ModelConfig = {
 	supportedProviders: {
 		gemini: { apiModelId: 'veo-3.1-generate-preview' },
 		fal: { apiModelId: 'fal-ai/veo3.1' },
+		svnewapi: { apiModelId: 'sv-video-veo-fal', modes: ['text-to-video', 'first-frame'] },
 	},
 	modes: ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref'],
 	params: VEO_PARAMS,

@@ -115,6 +115,7 @@ export const elevenLabsTTS: ModelConfig = {
 	supportedProviders: {
 		elevenlabs: { apiModelId: 'eleven_v3' },
 		fal: { apiModelId: 'fal-ai/elevenlabs/tts/eleven-v3' },
+		svnewapi: { apiModelId: 'sv-voice-elevenlabs-fal' },
 	},
 	modes: ['tts'],
 	params: [
@@ -181,6 +182,7 @@ export const minimaxTTS: ModelConfig = {
 	supportedProviders: {
 		fal: { apiModelId: 'fal-ai/minimax/speech-2.8-hd' },
 		minimax: { apiModelId: 'speech-2.8-hd' },
+		svnewapi: { apiModelId: 'sv-voice-minimax-fal' },
 	},
 	modes: ['tts'],
 	params: [
@@ -377,6 +379,7 @@ export const elevenLabsSFX: ModelConfig = {
 	supportedProviders: {
 		elevenlabs: { apiModelId: 'eleven_text_to_sound_v2' },
 		fal: { apiModelId: 'fal-ai/elevenlabs/sound-effects/v2' },
+		svnewapi: { apiModelId: 'sv-sfx-elevenlabs-fal' },
 	},
 	modes: ['sound-effect'],
 	params: [

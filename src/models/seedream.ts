@@ -47,6 +47,7 @@ export const seedream5Lite: ModelConfig = {
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedream-5-0-lite-260128' },
 		byteplus: { apiModelId: 'seedream-5-0-lite-260128' },
+		svnewapi: { apiModelId: 'sv-image-seedream-lite' },
 	},
 	modes: ['text-to-image'],
 	params: [

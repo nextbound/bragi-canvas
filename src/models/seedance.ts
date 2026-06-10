@@ -10,6 +10,8 @@ export const seedance2: ModelConfig = {
 		fal: { apiModelId: 'bytedance/seedance-2.0' },
 		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'tokenrouter' } },
 		token360: { apiModelId: 'seedance-2.0', refDelivery: { image: 'native_asset', nativeAssetProvider: 'token360' } },
+		// Gateway /v1/videos verified for text-to-video only; ref-image routing through `metadata` is unconfirmed.
+		svnewapi: { apiModelId: 'sv-video-seedance', modes: ['text-to-video'] },
 	},
 	modes: ['text-to-video', 'first-frame', 'image-ref', 'video-ref'],
 	params: [
