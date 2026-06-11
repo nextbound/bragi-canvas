@@ -178,6 +178,12 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = stringParam(params?.modelId, DEFAULT_VIDEO_MODEL)
+
+		const genMode = stringParam(params?.genMode, '')
+		if (genMode === 'motion-control' || modelId.includes('motion-control')) {
+			return this.generateMotionControl(prompt, modelId, params)
+		}
+
 		const resolution = stringParam(params?.resolution, '720p').toLowerCase()
 		const aspectRatio = stringParam(params?.aspect_ratio || params?.aspectRatio || params?.ratio, '16:9')
 		const refImages = arrayParam(params?.refImages)
@@ -230,6 +236,52 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		const taskId = first?.task_id || first?.id
 		if (!taskId) {
 			throw new Error(`APIMart: no task_id in video submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
+		}
+		return { done: false, taskId }
+	}
+
+	/**
+	 * Kling Motion Control (kling-v3-motion-control / kling-v2-6-motion-control):
+	 * one character image + one reference motion video. Same async submit/poll flow
+	 * as Omni-Flash-Ext, but a different request schema (singular image_url/video_url).
+	 */
+	private async generateMotionControl(prompt: string, modelId: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+		const refImages = arrayParam(params?.refImages)
+		const refVideos = arrayParam(params?.refVideos)
+		if (refImages.length < 1 || refVideos.length < 1) {
+			throw new Error('APIMart Kling Motion Control needs one reference image and one reference video.')
+		}
+
+		const body: Record<string, unknown> = {
+			model: modelId,
+			prompt,
+			image_url: await this.ensureRelayUrl(refImages[0], 'image'),
+			video_url: await this.ensureRelayUrl(refVideos[0], 'video'),
+			character_orientation: stringParam(params?.character_orientation, 'video'),
+			keep_original_sound: stringParam(params?.keep_original_sound, 'yes'),
+			mode: stringParam(params?.mode, 'std'),
+			watermark_info: { enabled: false },
+		}
+
+		const resp = await requestUrl({
+			url: `${API_BASE}/videos/generations`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			body: JSON.stringify(body),
+			throw: false,
+		})
+
+		if (resp.status === 401 || resp.status === 403) throw new Error('APIMart: invalid API key')
+		if (resp.status >= 400) throw new Error(`APIMart: ${parseApimartError(resp)}`)
+
+		const submitData = resp.json
+		const first = submitData?.data?.[0]
+		const taskId = first?.task_id || first?.id
+		if (!taskId) {
+			throw new Error(`APIMart: no task_id in motion control submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
 		}
 		return { done: false, taskId }
 	}

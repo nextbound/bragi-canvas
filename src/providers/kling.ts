@@ -26,12 +26,28 @@ export class KlingProvider implements VideoProvider {
 		const quality = params?.mode || 'std'
 		const genMode = params?.genMode || null  // user-selected mode from panel
 		const refImages: string[] = params?.refImages || []
+		const refVideos: string[] = params?.refVideos || []
+		const characterOrientation = params?.character_orientation || 'video'
+		const keepOriginalSound = params?.keep_original_sound || 'yes'
 
 		const token = await this.getToken()
 
 		let taskId: string
 
-		if (genMode === 'first-last-frame' && refImages.length >= 2) {
+		if (genMode === 'motion-control' && refImages.length >= 1 && refVideos.length >= 1) {
+			// Motion Control: transfer the reference video's motion onto the character image.
+			// image_url/video_url accept a public URL or base64; refs are relay https URLs
+			// here, and stripDataUriPrefix passes a URL through unchanged.
+			taskId = await this.createMotionControlTask(token, {
+				model_name: modelId,
+				prompt,
+				image_url: stripDataUriPrefix(refImages[0]),
+				video_url: refVideos[0],
+				character_orientation: characterOrientation,
+				keep_original_sound: keepOriginalSound,
+				mode: quality,
+			})
+		} else if (genMode === 'first-last-frame' && refImages.length >= 2) {
 			taskId = await this.createImageToVideoTask(token, {
 				model_name: modelId,
 				prompt,
@@ -67,18 +83,22 @@ export class KlingProvider implements VideoProvider {
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
 		const token = await this.getToken()
 
-		// Try text2video endpoint first, then image2video
+		// The task type isn't tracked, so probe each video endpoint until one resolves.
+		const paths = [
+			`/v1/videos/text2video/${taskId}`,
+			`/v1/videos/image2video/${taskId}`,
+			`/v1/videos/motion-control/${taskId}`,
+		]
 		let data: unknown
-		const t2vResult = await this.pollTask(token, `/v1/videos/text2video/${taskId}`)
-		if (t2vResult?.code === 0) {
-			data = t2vResult
-		} else {
-			const i2vResult = await this.pollTask(token, `/v1/videos/image2video/${taskId}`)
-			if (i2vResult?.code === 0) {
-				data = i2vResult
-			} else {
-				throw new Error(`Kling: Cannot find task ${taskId}`)
+		for (const path of paths) {
+			const result = await this.pollTask(token, path)
+			if (result?.code === 0) {
+				data = result
+				break
 			}
+		}
+		if (!data) {
+			throw new Error(`Kling: Cannot find task ${taskId}`)
 		}
 
 		const status = data?.data?.task_status
@@ -128,6 +148,27 @@ export class KlingProvider implements VideoProvider {
 		const data = response.json
 		if (data.code !== 0) {
 			throw new Error(`Kling: ${data.message || 'Failed to create task'}`)
+		}
+		return data.data.task_id
+	}
+
+	private async createMotionControlTask(token: string, body: unknown): Promise<string> {
+		// throw:false so a 4xx still returns the body — Kling puts the real reason
+		// (e.g. "image orientation requires reference video <= 10s") in `message`.
+		const response = await requestUrl({
+			url: `${BASE_URL}/v1/videos/motion-control`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`,
+			},
+			body: JSON.stringify(body),
+			throw: false,
+		})
+
+		const data = response.json
+		if (response.status >= 400 || data?.code !== 0) {
+			throw new Error(`Kling: ${data?.message || `Motion Control failed (HTTP ${response.status})`}`)
 		}
 		return data.data.task_id
 	}

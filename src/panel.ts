@@ -33,6 +33,7 @@ const MODE_LABELS: Record<string, string> = {
 	'video-ref': 'Ref Video',
 	'video-extend': 'Extend Video',
 	'video-edit': 'Edit Video',
+	'motion-control': 'Motion Control',
 	'text-to-text': 'Text → Text',
 	'tts': 'Text to Speech',
 	'music': 'Music',
@@ -233,6 +234,9 @@ function supportsVoiceSource(model: ModelConfig, source: VoiceMode): boolean {
  * Falls through priorities — if the model doesn't support a mode, skip it.
  */
 function inferMode(modes: Mode[], imageCount: number, videoCount: number): Mode {
+	// Image + video upstream → Kling Motion Control (character image + motion clip)
+	if (imageCount > 0 && videoCount > 0 && modes.includes('motion-control')) return 'motion-control'
+
 	// Video upstream → reference or extend
 	if (videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
 	if (videoCount > 0 && modes.includes('video-extend')) return 'video-extend'
@@ -851,8 +855,10 @@ export function showGenerateBar(
 		if (m.type !== 'video') return true
 		// No special inputs — only text-to-video models can run without refs.
 		if (upstreamImageCount === 0 && upstreamVideoCount === 0) return m.modes.includes('text-to-video')
-		// Has video input — needs a video-input mode
+		// Has video input — needs a video-input mode. Motion Control also qualifies,
+		// but only when an image is present too (it needs both a character + a clip).
 		if (upstreamVideoCount > 0) {
+			if (upstreamImageCount > 0 && m.modes.includes('motion-control')) return true
 			return m.modes.includes('video-ref') || m.modes.includes('video-extend') || m.modes.includes('video-edit')
 		}
 		// Has 2+ images — needs first-last-frame, multi-image-ref, or image-ref
