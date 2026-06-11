@@ -266,7 +266,8 @@ export const PROVIDERS: ProviderSpec[] = [
 		isConfigured: (s) => !!(s.providers.klingAk && s.providers.klingSk),
 		// Kling image2video accepts a public image URL (verified live) — relay avoids
 		// bloating the JSON body with base64. stripDataUriPrefix passes a URL through unchanged.
-		defaultRefDelivery: { image: 'relay' },
+		// Motion Control's reference video also goes through relay so Kling can fetch it by URL.
+		defaultRefDelivery: { image: 'relay', video: 'relay' },
 		makeVideo: ({ settings, app, outputDir }) =>
 			new KlingProvider(settings.providers.klingAk, settings.providers.klingSk, app, outputDir),
 		// Kling uses JWT with HMAC-SHA256; auth is complex. Skip network test for now — Save will fail fast at first use.

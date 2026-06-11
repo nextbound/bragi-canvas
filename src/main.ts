@@ -680,7 +680,7 @@ export default class BragiCanvas extends Plugin {
 				if (isNativeSeedance && activeProvider === 'byteplus' && !bytePlusCreds) {
 					throw new Error('Add BytePlus access key and secret key in settings to use reference videos.')
 				}
-				const shouldUseVideos = supportsSeedanceUrlRefs || isDashScopeWan || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref'
+				const shouldUseVideos = supportsSeedanceUrlRefs || isDashScopeWan || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref' || mode === 'motion-control'
 				if (shouldUseVideos) {
 					for (const videoPath of uniqueVideos) {
 						if (isNativeSeedance && bytePlusCreds) {
