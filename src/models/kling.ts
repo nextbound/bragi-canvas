@@ -68,8 +68,9 @@ export const kling3: ModelConfig = {
 	name: 'Kling 3.0',
 	type: 'video',
 	supportedProviders: {
-		// Motion Control is implemented only against the native Kling API.
 		kling: { apiModelId: 'kling-v3' },
+		// APIMart exposes Kling only via its Motion Control endpoint.
+		apimart: { apiModelId: 'kling-v3-motion-control', modes: ['motion-control'] },
 		fal: { apiModelId: 'fal-ai/kling-video/v3/pro', modes: ['text-to-video', 'first-frame', 'first-last-frame'] },
 		tokenrouter: { apiModelId: 'kling-v3', modes: ['text-to-video', 'first-frame', 'first-last-frame'] },
 		// Gateway routes to fal kling reference-to-video — requires a reference image.
