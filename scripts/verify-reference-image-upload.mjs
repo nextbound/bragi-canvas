@@ -6,6 +6,7 @@ const uploadSource = readFileSync('src/providers/upload.ts', 'utf8')
 const token360FlowSource = readFileSync('src/token360-asset-flow.ts', 'utf8')
 const openaiSource = readFileSync('src/providers/openai.ts', 'utf8')
 const tokenrouterSource = readFileSync('src/providers/tokenrouter.ts', 'utf8')
+const gptImageSource = readFileSync('src/models/gpt-image.ts', 'utf8')
 const agentSource = readFileSync('AGENT.md', 'utf8')
 
 function assertOrder(source, first, second, message) {
@@ -73,8 +74,20 @@ assert.match(
 
 assert.match(
 	tokenrouterSource,
-	/prepareReferenceUpload\([\s\S]*'TokenRouter image edit upload'[\s\S]*appendMultipartFile\(parts, boundary, 'image\[\]', prepared\.fileName, prepared\.contentType/,
+	/private async prepareImageEditUpload\(ref: string, index: number\)[\s\S]*prepareReferenceUpload\([\s\S]*'TokenRouter image edit upload'/,
 	'TokenRouter image edit multipart uploads must use the shared image normalization helper',
+)
+
+assert.match(
+	tokenrouterSource,
+	/appendMultipartFile\(parts, boundary, imageFieldName, prepared\.fileName, prepared\.contentType/,
+	'TokenRouter image edit multipart uploads must append the prepared bytes with the resolved image field name',
+)
+
+assert.match(
+	gptImageSource,
+	/tokenrouter: \{ apiModelId: 'openai\/gpt-5\.4-image-2', refDelivery: \{ image: 'inline' \} \}/,
+	'TokenRouter GPT Image edits must keep reference images inline so /images/edits can upload file bytes',
 )
 
 assert.match(

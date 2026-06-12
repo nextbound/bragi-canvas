@@ -101,6 +101,20 @@ function fileExtFromUrl(url: string): string {
 	return match?.[1] || 'bin'
 }
 
+function headerValue(headers: Record<string, string> | undefined, name: string): string {
+	if (!headers) return ''
+	const target = name.toLowerCase()
+	const key = Object.keys(headers).find(k => k.toLowerCase() === target)
+	return key ? headers[key] : ''
+}
+
+function imageMimeFromUrl(url: string, contentType = ''): string {
+	const normalized = contentType.split(';')[0]?.trim().toLowerCase() || ''
+	if (normalized.startsWith('image/')) return normalized === 'image/jpg' ? 'image/jpeg' : normalized
+	const ext = imageExtFromUrl(url)
+	return ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+}
+
 function pushUnique(target: string[], value: string): void {
 	const text = value.trim()
 	if (text && !target.includes(text)) target.push(text)
@@ -414,15 +428,14 @@ export class TokenRouterImageProvider implements ImageProvider {
 		appendMultipartField(parts, boundary, 'quality', stringParam(params.quality, 'auto'))
 		appendMultipartField(parts, boundary, 'n', '1')
 
+		let uploadCount = 0
+		const imageFieldName = refImages.length === 1 ? 'image' : 'image[]'
 		for (let i = 0; i < refImages.length; i++) {
-			const match = refImages[i].match(/^data:([^;]+);base64,(.+)$/)
-			if (!match) continue
-			const mime = match[1]
-			const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0))
-			const ext = mime.includes('webp') ? 'webp' : mime.includes('png') ? 'png' : 'jpg'
-			const prepared = await prepareReferenceUpload(copyToArrayBuffer(bytes), `ref${i}.${ext}`, mime, 'TokenRouter image edit upload')
-			appendMultipartFile(parts, boundary, 'image[]', prepared.fileName, prepared.contentType, new Uint8Array(prepared.bytes))
+			const prepared = await this.prepareImageEditUpload(refImages[i], i)
+			appendMultipartFile(parts, boundary, imageFieldName, prepared.fileName, prepared.contentType, new Uint8Array(prepared.bytes))
+			uploadCount++
 		}
+		if (uploadCount === 0) throw new Error('TokenRouter image edit: No uploadable reference image was prepared.')
 		parts.push(new TextEncoder().encode(`--${boundary}--\r\n`))
 
 		const resp = await requestUrl({
@@ -438,6 +451,32 @@ export class TokenRouterImageProvider implements ImageProvider {
 
 		if (resp.status >= 400) throw new Error(parseProviderError('TokenRouter image edit', resp))
 		return extractImageSources(resp.json)
+	}
+
+	private async prepareImageEditUpload(ref: string, index: number) {
+		const decoded = dataUriToBytes(ref)
+		if (decoded) {
+			return prepareReferenceUpload(
+				copyToArrayBuffer(decoded.bytes),
+				`ref${index}.${decoded.ext}`,
+				decoded.mimeType,
+				'TokenRouter image edit upload',
+			)
+		}
+
+		if (isHttpUrl(ref)) {
+			const resp = await requestUrl({ url: ref, throw: false })
+			if (resp.status >= 400) throw new Error(parseProviderError('TokenRouter image edit reference download', resp))
+			const contentType = imageMimeFromUrl(ref, headerValue(resp.headers, 'content-type'))
+			return prepareReferenceUpload(
+				resp.arrayBuffer,
+				`ref${index}.${extensionForMime(contentType)}`,
+				contentType,
+				'TokenRouter image edit upload',
+			)
+		}
+
+		throw new Error('TokenRouter image edit: Reference image must be an inline data URI or a fetchable URL.')
 	}
 
 	private async generateViaChat(modelId: string, prompt: string, refImages: string[]): Promise<string[]> {
