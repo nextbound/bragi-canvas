@@ -122,12 +122,16 @@ export default class BragiCanvas extends Plugin {
 		)
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
+				this.refreshActiveCanvasSoon()
 				this.maybeCheckForUpdatesFromActiveCanvas()
 			})
 		)
 		this.registerEvent(
 			this.app.workspace.on('file-open', (file) => {
-				if (file?.path.endsWith('.canvas')) this.maybeCheckForUpdatesFromActiveCanvas()
+				if (file?.path.endsWith('.canvas')) {
+					this.refreshActiveCanvasSoon()
+					this.maybeCheckForUpdatesFromActiveCanvas()
+				}
 			})
 		)
 
@@ -321,6 +325,25 @@ export default class BragiCanvas extends Plugin {
 		void this.saveSettings()
 	}
 
+	private refreshCanvasRefsAfterMutation(canvas: Canvas): void {
+		const refresh = () => {
+			refreshAllThumbnails(canvas, this.app)
+			refreshAllTextRefs(canvas, this.app)
+			refreshAllAudioRefs(canvas, this.app)
+		}
+		window.requestAnimationFrame(() => {
+			refresh()
+			window.requestAnimationFrame(refresh)
+			window.setTimeout(refresh, 150)
+		})
+	}
+
+	private refreshActiveCanvasSoon(): void {
+		this.tryPatchCanvas()
+		window.requestAnimationFrame(() => this.tryPatchCanvas())
+		window.setTimeout(() => this.tryPatchCanvas(), 150)
+	}
+
 	tryPatchCanvas() {
 		const leaf = this.app.workspace.getLeaf(false)
 		if (!leaf) return
@@ -366,14 +389,17 @@ export default class BragiCanvas extends Plugin {
 				(node) => this.openPanel('audio', node),
 				(node) => { void this.handleSTT(node) },
 				(node) => { void this.handleAudioIsolation(node) },
-			(node) => duplicateWithConnections(canvas, node),
+			(node) => {
+				const result = duplicateWithConnections(getCanvasFromNode(node), node)
+				if (result) this.refreshCanvasRefsAfterMutation(result.canvas)
+			},
 			(type, nodes) => this.openBatchPanel(type, nodes),
-			(node) => openPanoramaViewer(this.app, canvas, node, this.getOutputDir(), path => this.rememberGeneratedAsset(path)),
-			(node) => void splitImageNodeIntoTiles(this, canvas, node).catch(err => {
+			(node) => openPanoramaViewer(this.app, getCanvasFromNode(node), node, this.getOutputDir(), path => this.rememberGeneratedAsset(path)),
+			(node) => void splitImageNodeIntoTiles(this, getCanvasFromNode(node), node).catch(err => {
 				console.error('Bragi split grid error:', err)
 				new Notice(`Split failed: ${err.message || err}`)
 			}),
-			(nodes) => void composeSelectedImageNodes(this, canvas, nodes).catch(err => {
+			(nodes) => void composeSelectedImageNodes(this, getCanvasFromNode(nodes[0]), nodes).catch(err => {
 				console.error('Bragi compose images error:', err)
 				new Notice(`Collage failed: ${err.message || err}`)
 			}),

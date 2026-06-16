@@ -23,6 +23,11 @@ export function getCanvasFromNode(node: CanvasNode): Canvas {
 	return node.canvas
 }
 
+export type DuplicateWithConnectionsResult = {
+	canvas: Canvas
+	newNodeId: string
+}
+
 const PLACEMENT_GAP = 20
 const PLACEMENT_RADIUS = 20  // up to (2*R+1)² = 1681 candidate cells
 
@@ -531,8 +536,9 @@ export function markNodeInterrupted(node: CanvasNode): void {
  * Duplicate a node and recreate all its incoming (upstream) edges on the copy.
  * The new node is placed to the right of the original.
  */
-export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void {
+export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): DuplicateWithConnectionsResult | null {
 	try {
+	const targetCanvas = node.canvas || canvas
 	const data = node.getData() as unknown
 	const gap = 50
 
@@ -540,7 +546,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 		const width = data.width || 300
 		const height = data.height || 100
 		const nodeId = generateId()
-		const currentData = canvas.getData()
+		const currentData = targetCanvas.getData()
 		const newNodeData: unknown = {
 			id: nodeId,
 			type: 'text',
@@ -556,7 +562,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 		const lastGen = data.bragiLastGen || data.ovidLastGen
 		if (lastGen) newNodeData.bragiLastGen = { ...lastGen }
 
-		const incomingEdges = getIncomingEdgeData(canvas, node)
+		const incomingEdges = getIncomingEdgeData(targetCanvas, node)
 		const newEdges = incomingEdges.map(e => ({
 			id: generateId(),
 			fromNode: e.fromNode,
@@ -567,13 +573,22 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 			toEnd: e.toEnd,
 		}))
 
-		canvas.importData({
+		targetCanvas.importData({
 			nodes: [...currentData.nodes, newNodeData],
 			edges: [...currentData.edges, ...newEdges],
 		})
+		void targetCanvas.requestSave()
+		// importData mutates the data model but does not repaint on its own; without
+		// a frame request the duplicated node is saved to disk yet never rendered.
+		try {
+			void targetCanvas.requestFrame()
+		} catch (frameErr) {
+			console.debug('Bragi duplicate: canvas frame refresh skipped', frameErr)
+		}
+		return { canvas: targetCanvas, newNodeId: nodeId }
 	} else if (data.type === 'file') {
 		const nodeId = generateId()
-		const currentData = canvas.getData()
+		const currentData = targetCanvas.getData()
 		const newNodeData = {
 			id: nodeId,
 			type: 'file' as const,
@@ -586,7 +601,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 			subpath: data.subpath,
 		}
 
-		const incomingEdges = getIncomingEdgeData(canvas, node)
+		const incomingEdges = getIncomingEdgeData(targetCanvas, node)
 		const newEdges = incomingEdges.map(e => ({
 			id: generateId(),
 			fromNode: e.fromNode,
@@ -597,23 +612,24 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): void
 			toEnd: e.toEnd,
 		}))
 
-		canvas.importData({
+		targetCanvas.importData({
 			nodes: [...currentData.nodes, newNodeData],
 			edges: [...currentData.edges, ...newEdges],
 		})
-	}
-
-	void canvas.requestSave()
-	// importData mutates the data model but does not repaint on its own; without
-	// a frame request the duplicated node is saved to disk yet never rendered.
-	try {
-		void canvas.requestFrame()
-	} catch (frameErr) {
-		console.debug('Bragi duplicate: canvas frame refresh skipped', frameErr)
+		void targetCanvas.requestSave()
+		// importData mutates the data model but does not repaint on its own; without
+		// a frame request the duplicated node is saved to disk yet never rendered.
+		try {
+			void targetCanvas.requestFrame()
+		} catch (frameErr) {
+			console.debug('Bragi duplicate: canvas frame refresh skipped', frameErr)
+		}
+		return { canvas: targetCanvas, newNodeId: nodeId }
 	}
 	} catch (err) {
 		console.error('[Bragi] duplicateWithConnections failed', err)
 	}
+	return null
 }
 
 function getIncomingEdgeData(canvas: Canvas, node: CanvasNode): Array<{
