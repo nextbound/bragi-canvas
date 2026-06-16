@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.26.2
+
+- Fixed TokenRouter GPT Image edit requests so reference images are uploaded and routed correctly.
+- Added verification coverage for TokenRouter reference image upload handling.
+- Bumped the plugin version to `1.26.2`.
+
 ## 1.26.1
 
 - Fixed Obsidian review source warnings by typing the fflate stream callback used during `.bragi` ZIP import.
