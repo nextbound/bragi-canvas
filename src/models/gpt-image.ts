@@ -27,7 +27,7 @@ export const gptImage: ModelConfig = {
 		openai: { apiModelId: 'gpt-image-2' },
 		fal: { apiModelId: 'fal-ai/gpt-image-2' },
 		tokenrouter: { apiModelId: 'openai/gpt-5.4-image-2', refDelivery: { image: 'inline' } },
-		apimart: { apiModelId: 'gpt-image-2' },
+		apimart: { apiModelId: 'gpt-image-2-official' },
 		svnewapi: { apiModelId: 'sv-gpt-image-2' },
 	},
 	modes: ['text-to-image'],
