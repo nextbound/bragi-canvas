@@ -10,8 +10,13 @@ const AUDIO_EXT = /\.(mp3|wav|flac|m4a|ogg|aac|opus)$/i
 const MEDIA_NODE_CLASS = 'bragi-media-node'
 const MEDIA_CONTAINER_CLASS = 'bragi-media-container'
 const META_LABEL_CLASS = 'bragi-media-meta-label'
+const UNVIEWED_VIDEO_CLASS = 'bragi-unviewed-video'
 
 type MediaKind = 'image' | 'video' | 'audio'
+
+interface MediaNodeHoverOptions {
+	isUnviewedVideo?: (filePath: string) => boolean
+}
 
 interface MediaNodeInternals extends CanvasNode {
 	labelEl?: HTMLElement
@@ -22,6 +27,7 @@ interface MediaNodeInternals extends CanvasNode {
 let renderPatchUninstall: (() => void) | null = null
 let refreshInterval: ReturnType<typeof window.setInterval> | null = null
 let activeApp: App | null = null
+let hoverOptions: MediaNodeHoverOptions = {}
 
 function getFilePath(node: CanvasNode): string {
 	const data = node.getData()
@@ -34,6 +40,10 @@ function getMediaKind(filePath: string): MediaKind | null {
 	if (VIDEO_EXT.test(filePath)) return 'video'
 	if (AUDIO_EXT.test(filePath)) return 'audio'
 	return null
+}
+
+export function isVideoMediaPath(filePath: string): boolean {
+	return VIDEO_EXT.test(filePath)
 }
 
 function formatExtensionLabel(filePath: string): string {
@@ -237,11 +247,13 @@ async function syncMediaNode(node: CanvasNode): Promise<void> {
 	const nodeEl = node.nodeEl
 	if (!kind || !nodeEl) {
 		nodeEl?.classList.remove(MEDIA_NODE_CLASS)
+		nodeEl?.classList.remove(UNVIEWED_VIDEO_CLASS)
 		node.containerEl?.classList.remove(MEDIA_CONTAINER_CLASS)
 		return
 	}
 
 	nodeEl.classList.add(MEDIA_NODE_CLASS)
+	nodeEl.classList.toggle(UNVIEWED_VIDEO_CLASS, kind === 'video' && Boolean(hoverOptions.isUnviewedVideo?.(filePath)))
 	if (kind === 'image' || kind === 'video') {
 		node.containerEl?.classList.add(MEDIA_CONTAINER_CLASS)
 	} else {
@@ -323,8 +335,9 @@ function tryInstallRenderPatch(canvas: Canvas): boolean {
 	return true
 }
 
-export function startMediaNodeHover(canvas: Canvas, app: App): void {
+export function startMediaNodeHover(canvas: Canvas, app: App, options: MediaNodeHoverOptions = {}): void {
 	activeApp = app
+	hoverOptions = options
 	tryInstallRenderPatch(canvas)
 	syncAllMediaNodes(canvas)
 
@@ -344,10 +357,14 @@ export function stopMediaNodeHover(): void {
 	renderPatchUninstall?.()
 	renderPatchUninstall = null
 	activeApp = null
+	hoverOptions = {}
 
 	activeDocument.querySelectorAll(`.${META_LABEL_CLASS}`).forEach((el) => el.remove())
 	activeDocument.querySelectorAll(`.${MEDIA_NODE_CLASS}`).forEach((el) => {
 		el.classList.remove(MEDIA_NODE_CLASS)
+	})
+	activeDocument.querySelectorAll(`.${UNVIEWED_VIDEO_CLASS}`).forEach((el) => {
+		el.classList.remove(UNVIEWED_VIDEO_CLASS)
 	})
 	activeDocument.querySelectorAll(`.${MEDIA_CONTAINER_CLASS}`).forEach((el) => {
 		el.classList.remove(MEDIA_CONTAINER_CLASS)

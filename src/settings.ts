@@ -142,6 +142,7 @@ export interface BragiSettings {
 	// MCP canvas listing and generated asset cleanup.
 	knownCanvases: string[]
 	generatedAssets: GeneratedAssetRecord[]
+	unviewedGeneratedVideos: string[]
 	updatePrompt: UpdatePromptState
 
 	// MCP server
@@ -202,6 +203,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 	mcpToken: '',
 	knownCanvases: [],
 	generatedAssets: [],
+	unviewedGeneratedVideos: [],
 	updatePrompt: {},
 }
 
@@ -742,6 +744,8 @@ export class BragiSettingTab extends PluginSettingTab {
 				}
 				this.plugin.settings.generatedAssets = this.plugin.settings.generatedAssets
 					.filter(record => !toDelete.includes(record.path))
+				this.plugin.settings.unviewedGeneratedVideos = this.plugin.settings.unviewedGeneratedVideos
+					.filter(path => !toDelete.includes(path))
 				void this.plugin.saveSettings()
 				new Notice(`Deleted ${deleted} file${deleted === 1 ? '' : 's'} — ${sizeMB} MB freed`)
 			})()

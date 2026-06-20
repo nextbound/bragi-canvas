@@ -19,7 +19,7 @@ import { refreshAllThumbnails, removeAllThumbnails, getOrderedImages, getAssetId
 import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text-refs'
 import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
 import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
-import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
+import { isVideoMediaPath, startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
 import type { AudioProvider, VideoProvider } from './providers/types'
@@ -70,6 +70,7 @@ export default class BragiCanvas extends Plugin {
 	private migrationCheckInFlight = false
 	private updateCheckInFlight = false
 	private updateModalOpen = false
+	private showInFolderUninstall: (() => void) | null = null
 
 	async onload() {
 		// Bragi relies on Obsidian running in English (our UI hooks match the
@@ -87,7 +88,9 @@ export default class BragiCanvas extends Plugin {
 		this.taskQueue.onChange = () => { this.persistPendingTasks() }
 		this.taskQueue.onComplete = (filePath, canvasPath) => {
 			this.rememberGeneratedAsset(filePath, canvasPath)
+			this.markGeneratedVideoUnviewed(filePath)
 		}
+		this.installShowInFolderViewedPatch()
 		this.addSettingTab(new BragiSettingTab(this.app, this))
 
 		// Force all file-opens into new tabs — protects in-flight generation placeholders
@@ -101,6 +104,15 @@ export default class BragiCanvas extends Plugin {
 				const nodeData = node.getData()
 				if (nodeData.type !== 'file') return
 				const filePath = (nodeData as { file?: string }).file || ''
+				if (this.isUnviewedGeneratedVideo(filePath)) {
+					menu.addItem((item) => {
+						item.setTitle('Mark video as viewed')
+							.setIcon('check')
+							.onClick(() => {
+								this.markGeneratedVideoViewed(filePath)
+							})
+					})
+				}
 				if (!/\.(png|jpg|jpeg|webp|bmp|tiff?|gif|heic|heif)$/i.test(filePath)) return
 
 				const assetIds = this.getNodeAssetIdMap(node)
@@ -128,6 +140,7 @@ export default class BragiCanvas extends Plugin {
 		)
 		this.registerEvent(
 			this.app.workspace.on('file-open', (file) => {
+				if (file?.path) this.markGeneratedVideoViewed(file.path)
 				if (file?.path.endsWith('.canvas')) {
 					this.refreshActiveCanvasSoon()
 					this.maybeCheckForUpdatesFromActiveCanvas()
@@ -197,6 +210,8 @@ export default class BragiCanvas extends Plugin {
 		stopMediaNodeHover()
 		this.taskQueue.stop()
 		stopGeneratingTicker()
+		this.showInFolderUninstall?.()
+		this.showInFolderUninstall = null
 		if (this.thumbInterval) window.clearInterval(this.thumbInterval)
 		this.attachmentRedirectStop?.()
 		this.attachmentRedirectStop = null
@@ -325,6 +340,45 @@ export default class BragiCanvas extends Plugin {
 		void this.saveSettings()
 	}
 
+	isUnviewedGeneratedVideo(path: string): boolean {
+		return isVideoMediaPath(path) && this.settings.unviewedGeneratedVideos.includes(path)
+	}
+
+	private markGeneratedVideoUnviewed(path: string): void {
+		if (!isVideoMediaPath(path)) return
+		if (this.settings.unviewedGeneratedVideos.includes(path)) return
+		this.settings.unviewedGeneratedVideos = [
+			path,
+			...this.settings.unviewedGeneratedVideos.filter(existing => existing !== path),
+		].slice(0, 1000)
+		void this.saveSettings()
+		this.refreshActiveCanvasSoon()
+	}
+
+	private markGeneratedVideoViewed(path: string): boolean {
+		if (!this.settings.unviewedGeneratedVideos.includes(path)) return false
+		this.settings.unviewedGeneratedVideos = this.settings.unviewedGeneratedVideos.filter(existing => existing !== path)
+		void this.saveSettings()
+		this.refreshActiveCanvasSoon()
+		return true
+	}
+
+	private installShowInFolderViewedPatch(): void {
+		const appWithReveal = this.app as unknown as { showInFolder?: (path: string, ...args: unknown[]) => unknown }
+		const original = appWithReveal.showInFolder
+		if (typeof original !== 'function') return
+
+		const markViewed = (path: string) => this.markGeneratedVideoViewed(path)
+		const wrapped = function (this: unknown, path: string, ...args: unknown[]) {
+			if (typeof path === 'string') markViewed(path)
+			return original.call(this, path, ...args)
+		}
+		appWithReveal.showInFolder = wrapped
+		this.showInFolderUninstall = () => {
+			if (appWithReveal.showInFolder === wrapped) appWithReveal.showInFolder = original
+		}
+	}
+
 	private refreshCanvasRefsAfterMutation(canvas: Canvas): void {
 		const refresh = () => {
 			refreshAllThumbnails(canvas, this.app)
@@ -422,7 +476,9 @@ export default class BragiCanvas extends Plugin {
 
 		// Highlight connected edges on node selection
 		startEdgeHighlight(canvas)
-		startMediaNodeHover(canvas, this.app)
+		startMediaNodeHover(canvas, this.app, {
+			isUnviewedVideo: (path) => this.isUnviewedGeneratedVideo(path),
+		})
 
 		// Replace right-side canvas control icons + bottom card menu icons
 		const containerEl = (view).containerEl as HTMLElement
@@ -760,6 +816,7 @@ export default class BragiCanvas extends Plugin {
 				if (videoResult.done && videoResult.filePath) {
 					// Rare: synchronous completion
 					this.rememberGeneratedAsset(videoResult.filePath)
+					this.markGeneratedVideoUnviewed(videoResult.filePath)
 					replacePlaceholderWithFile(canvas, placeholder, videoResult.filePath, node)
 					new Notice('Video ready')
 				} else if (videoResult.taskId) {

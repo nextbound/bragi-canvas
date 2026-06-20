@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 8
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 9
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {
@@ -44,6 +44,7 @@ function cloneDefaultSettings(defaults: BragiSettings): BragiSettings {
 		},
 		knownCanvases: [],
 		generatedAssets: [],
+		unviewedGeneratedVideos: [],
 		updatePrompt: {},
 	}
 }
@@ -307,6 +308,7 @@ function readSettings(raw: UnknownRecord, defaults: BragiSettings): { settings: 
 	readOptionalPort(raw, 'mcpPort', target, errors)
 	readOptionalString(raw, 'mcpToken', target, errors)
 	readOptionalStringArray(raw, 'knownCanvases', target, errors)
+	readOptionalStringArray(raw, 'unviewedGeneratedVideos', target, errors)
 	settings.generatedAssets = readGeneratedAssets(raw, errors)
 	settings.updatePrompt = readUpdatePrompt(raw, errors)
 
@@ -529,6 +531,7 @@ const RECOGNIZABLE_KEYS = [
 	'mcpToken',
 	'knownCanvases',
 	'generatedAssets',
+	'unviewedGeneratedVideos',
 	'updatePrompt',
 ]
 

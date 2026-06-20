@@ -39,6 +39,8 @@
 	--bragi-media-label-hover: #737373; /* neutral-500 */
 	--bragi-danger: #e5484d;
 	--bragi-danger-text: #ffffff;
+	--bragi-unviewed-video: #0ea5e9;
+	--bragi-unviewed-video-glow: rgba(14, 165, 233, 0.34);
 	--bragi-canvas-bg: #f5f5f5; /* neutral-100 */
 	--bragi-placeholder-bg: #e5e5e5; /* neutral-200 — visible on neutral-100 canvas */
 	--bragi-shimmer-fg: color-mix(in oklch, var(--bragi-placeholder-bg), white 58%);
@@ -73,6 +75,8 @@
 	--bragi-media-label-hover: #a3a3a3; /* neutral-400 */
 	--bragi-danger: #e5484d;
 	--bragi-danger-text: #ffffff;
+	--bragi-unviewed-video: #38bdf8;
+	--bragi-unviewed-video-glow: rgba(56, 189, 248, 0.42);
 	--bragi-canvas-bg: rgb(25, 25, 25); /* ~neutral-900 #191919 */
 	--bragi-placeholder-bg: #525252; /* surface-muted — visible on dark canvas */
 	--bragi-shimmer-fg: color-mix(in oklch, var(--bragi-placeholder-bg), white 32%);
@@ -160,11 +164,11 @@
 
 /* Hover border — every canvas node type */
 @media (hover: hover) {
-	.canvas-node:not(.is-themed):not(.bragi-generating):not(.bragi-generation-failed):hover .canvas-node-container::before {
+	.canvas-node:not(.is-themed):not(.bragi-generating):not(.bragi-generation-failed):not(.bragi-unviewed-video):hover .canvas-node-container::before {
 		border-color: var(--color-accent);
 	}
 
-	.canvas-node.is-themed:not(.bragi-generating):not(.bragi-generation-failed):hover .canvas-node-container::before {
+	.canvas-node.is-themed:not(.bragi-generating):not(.bragi-generation-failed):not(.bragi-unviewed-video):hover .canvas-node-container::before {
 		border-color: rgb(var(--canvas-color));
 	}
 }
@@ -488,6 +492,15 @@
 .canvas-node-container.bragi-media-container {
 	background-color: transparent;
 	border-radius: 0;
+}
+
+.canvas-node.bragi-unviewed-video .canvas-node-container::before,
+.canvas-node.bragi-unviewed-video.is-selected .canvas-node-container::before,
+.canvas-node.bragi-unviewed-video.is-focused .canvas-node-container::before,
+.canvas-node.bragi-unviewed-video.is-themed .canvas-node-container::before {
+	border-color: var(--bragi-unviewed-video);
+	border-width: 3px;
+	box-shadow: 0 0 0 3px var(--bragi-unviewed-video-glow);
 }
 
 .canvas-node-content.image-embed,
