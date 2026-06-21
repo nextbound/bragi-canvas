@@ -10,6 +10,7 @@ import { AddModelModal } from './ui/add-model-modal'
 import { ProviderModelsModal } from './ui/provider-models-modal'
 import { removeProvider } from './ui/remove-provider-modal'
 import { migrateSettings } from './settings-migrations'
+import { pruneUnviewedGeneratedVideos } from './unviewed-generated-videos'
 
 /** Legacy map kept because `renderModelGroup` looks up display names by id. */
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = (() => {
@@ -744,8 +745,7 @@ export class BragiSettingTab extends PluginSettingTab {
 				}
 				this.plugin.settings.generatedAssets = this.plugin.settings.generatedAssets
 					.filter(record => !toDelete.includes(record.path))
-				this.plugin.settings.unviewedGeneratedVideos = this.plugin.settings.unviewedGeneratedVideos
-					.filter(path => !toDelete.includes(path))
+				this.plugin.settings.unviewedGeneratedVideos = pruneUnviewedGeneratedVideos(this.plugin.settings.unviewedGeneratedVideos, toDelete)
 				void this.plugin.saveSettings()
 				new Notice(`Deleted ${deleted} file${deleted === 1 ? '' : 's'} — ${sizeMB} MB freed`)
 			})()

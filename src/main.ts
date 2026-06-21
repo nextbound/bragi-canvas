@@ -19,7 +19,7 @@ import { refreshAllThumbnails, removeAllThumbnails, getOrderedImages, getAssetId
 import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text-refs'
 import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
 import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
-import { isVideoMediaPath, startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
+import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
 import type { AudioProvider, VideoProvider } from './providers/types'
@@ -42,6 +42,7 @@ import { prepareTextInputs } from './text-input-prep'
 import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
 import { UpdateReminderModal } from './ui/update-modal'
 import { dashScopeRegion } from './providers/dashscope'
+import { isVideoMediaPath, markGeneratedVideoUnviewed, markGeneratedVideoViewed } from './unviewed-generated-videos'
 
 type SeedanceAssetProviderId = 'tokenrouter' | 'byteplus' | 'bytedance'
 
@@ -346,18 +347,16 @@ export default class BragiCanvas extends Plugin {
 
 	private markGeneratedVideoUnviewed(path: string): void {
 		if (!isVideoMediaPath(path)) return
-		if (this.settings.unviewedGeneratedVideos.includes(path)) return
-		this.settings.unviewedGeneratedVideos = [
-			path,
-			...this.settings.unviewedGeneratedVideos.filter(existing => existing !== path),
-		].slice(0, 1000)
+		const next = markGeneratedVideoUnviewed(this.settings.unviewedGeneratedVideos, path)
+		if (next === this.settings.unviewedGeneratedVideos) return
+		this.settings.unviewedGeneratedVideos = next
 		void this.saveSettings()
 		this.refreshActiveCanvasSoon()
 	}
 
 	private markGeneratedVideoViewed(path: string): boolean {
 		if (!this.settings.unviewedGeneratedVideos.includes(path)) return false
-		this.settings.unviewedGeneratedVideos = this.settings.unviewedGeneratedVideos.filter(existing => existing !== path)
+		this.settings.unviewedGeneratedVideos = markGeneratedVideoViewed(this.settings.unviewedGeneratedVideos, path)
 		void this.saveSettings()
 		this.refreshActiveCanvasSoon()
 		return true
@@ -370,8 +369,9 @@ export default class BragiCanvas extends Plugin {
 
 		const markViewed = (path: string) => this.markGeneratedVideoViewed(path)
 		const wrapped = function (this: unknown, path: string, ...args: unknown[]) {
+			const result = original.call(this, path, ...args)
 			if (typeof path === 'string') markViewed(path)
-			return original.call(this, path, ...args)
+			return result
 		}
 		appWithReveal.showInFolder = wrapped
 		this.showInFolderUninstall = () => {

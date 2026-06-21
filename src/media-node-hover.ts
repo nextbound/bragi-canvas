@@ -2,9 +2,9 @@
 import { around } from 'monkey-around'
 import type { App, TFile } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
+import { isVideoMediaPath } from './unviewed-generated-videos'
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i
-const VIDEO_EXT = /\.(mp4|mov|webm|mkv|m4v)$/i
 const AUDIO_EXT = /\.(mp3|wav|flac|m4a|ogg|aac|opus)$/i
 
 const MEDIA_NODE_CLASS = 'bragi-media-node'
@@ -37,13 +37,9 @@ function getFilePath(node: CanvasNode): string {
 
 function getMediaKind(filePath: string): MediaKind | null {
 	if (IMAGE_EXT.test(filePath)) return 'image'
-	if (VIDEO_EXT.test(filePath)) return 'video'
+	if (isVideoMediaPath(filePath)) return 'video'
 	if (AUDIO_EXT.test(filePath)) return 'audio'
 	return null
-}
-
-export function isVideoMediaPath(filePath: string): boolean {
-	return VIDEO_EXT.test(filePath)
 }
 
 function formatExtensionLabel(filePath: string): string {
