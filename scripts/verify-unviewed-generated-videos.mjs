@@ -25,6 +25,7 @@ try {
 		markGeneratedVideoUnviewed,
 		markGeneratedVideoViewed,
 		pruneUnviewedGeneratedVideos,
+		shouldMarkGeneratedVideoViewedFromFileOpen,
 	} = state
 
 	for (const filePath of ['clip.mp4', 'clip.MOV', 'folder/clip.webm', 'folder/clip.mkv', 'folder/clip.m4v']) {
@@ -49,6 +50,10 @@ try {
 
 	assert.deepEqual(markGeneratedVideoViewed(['a.mp4', 'b.mp4', 'c.mp4'], 'b.mp4'), ['a.mp4', 'c.mp4'])
 	assert.deepEqual(markGeneratedVideoViewed(['a.mp4', 'b.mp4'], 'missing.mp4'), ['a.mp4', 'b.mp4'])
+	assert.equal(shouldMarkGeneratedVideoViewedFromFileOpen('a.mp4', 'a.mp4'), true)
+	assert.equal(shouldMarkGeneratedVideoViewedFromFileOpen('a.mp4', 'canvas/test.canvas'), false)
+	assert.equal(shouldMarkGeneratedVideoViewedFromFileOpen('image.png', 'image.png'), false)
+	assert.equal(shouldMarkGeneratedVideoViewedFromFileOpen(undefined, 'a.mp4'), false)
 
 	assert.deepEqual(
 		pruneUnviewedGeneratedVideos(['a.mp4', 'b.mov', 'c.webm'], ['b.mov', 'unused.png']),

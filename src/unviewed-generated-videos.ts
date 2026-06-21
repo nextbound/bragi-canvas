@@ -22,3 +22,10 @@ export function pruneUnviewedGeneratedVideos(paths: string[], deletedPaths: stri
 	const deleted = new Set(deletedPaths)
 	return paths.filter(path => !deleted.has(path))
 }
+
+export function shouldMarkGeneratedVideoViewedFromFileOpen(
+	filePath: string | undefined,
+	activeLeafFilePath: string | undefined,
+): boolean {
+	return !!filePath && filePath === activeLeafFilePath && isVideoMediaPath(filePath)
+}

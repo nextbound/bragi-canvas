@@ -42,7 +42,12 @@ import { prepareTextInputs } from './text-input-prep'
 import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
 import { UpdateReminderModal } from './ui/update-modal'
 import { dashScopeRegion } from './providers/dashscope'
-import { isVideoMediaPath, markGeneratedVideoUnviewed, markGeneratedVideoViewed } from './unviewed-generated-videos'
+import {
+	isVideoMediaPath,
+	markGeneratedVideoUnviewed,
+	markGeneratedVideoViewed,
+	shouldMarkGeneratedVideoViewedFromFileOpen,
+} from './unviewed-generated-videos'
 
 type SeedanceAssetProviderId = 'tokenrouter' | 'byteplus' | 'bytedance'
 
@@ -141,7 +146,14 @@ export default class BragiCanvas extends Plugin {
 		)
 		this.registerEvent(
 			this.app.workspace.on('file-open', (file) => {
-				if (file?.path) this.markGeneratedVideoViewed(file.path)
+				const openedPath = file?.path
+				if (openedPath && isVideoMediaPath(openedPath)) {
+					window.setTimeout(() => {
+						if (shouldMarkGeneratedVideoViewedFromFileOpen(openedPath, this.getActiveLeafFilePath())) {
+							this.markGeneratedVideoViewed(openedPath)
+						}
+					}, 0)
+				}
 				if (file?.path.endsWith('.canvas')) {
 					this.refreshActiveCanvasSoon()
 					this.maybeCheckForUpdatesFromActiveCanvas()
@@ -257,6 +269,13 @@ export default class BragiCanvas extends Plugin {
 		if (view?.getViewType?.() !== 'canvas') return null
 		const path = (view)?.file?.path as string | undefined
 		return typeof path === 'string' && path.endsWith('.canvas') ? path : null
+	}
+
+	private getActiveLeafFilePath(): string | undefined {
+		const leaf = this.app.workspace.getLeaf(false)
+		const view = leaf?.view as unknown
+		const path = (view)?.file?.path as string | undefined
+		return typeof path === 'string' ? path : undefined
 	}
 
 	private maybeCheckForUpdatesFromActiveCanvas(): void {
