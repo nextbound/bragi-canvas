@@ -206,11 +206,14 @@ export class SvNewApiImageProvider implements ImageProvider {
 
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages as string[] : []
 		const body: JsonRecord = { model: modelId, prompt, n: 1 }
-		// Banana Pro (gemini-3-pro-image-preview) maps `size` to its own aspect_ratio and
-		// rejects arbitrary pixel sizes — omit it. Seedream needs its own larger size map
-		// (the Ark upstream rejects the smaller generic sizes). Everything else takes an OpenAI `size`.
+		// Banana Pro (gemini-3-pro-image-preview) expects APIMart's shape:
+		// aspect-ratio `size` plus a 1k/2k/4k `resolution` tier. Seedream needs
+		// its own larger size map (the Ark upstream rejects the smaller generic
+		// sizes). Everything else takes an OpenAI pixel `size`.
 		if (modelId === SV_IMAGE_BANANA_PRO) {
-			// size intentionally omitted
+			body.size = stringParam(params?.aspectRatio, '1:1')
+			const tier = stringParam(params?.imageSize ?? params?.resolution, '1K').toLowerCase()
+			body.resolution = tier === 'auto' ? '1k' : tier
 		} else if (SV_IMAGE_GPT_RE.test(modelId)) {
 			// Both sv-gpt-image-2 and sv-gpt-image-2-official route to the APIMart channel,
 			// which takes an aspect-ratio `size` plus a 1k/2k/4k `resolution` clarity tier

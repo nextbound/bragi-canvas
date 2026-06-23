@@ -27,6 +27,21 @@ assert.match(
 	'SV NewAPI image generation must send reference images as image_urls for seeded APIMart.',
 )
 
+// Banana Pro uses the APIMart image shape: aspect-ratio `size` plus the selected
+// 1k/2k/4k resolution tier.
+assert.match(
+	source,
+	/modelId === SV_IMAGE_BANANA_PRO\)\s*\{\s*\n\s*body\.size = stringParam\(params\?\.aspectRatio, '1:1'\)\s*\n\s*const tier = stringParam\(params\?\.imageSize \?\? params\?\.resolution, '1K'\)\.toLowerCase\(\)\s*\n\s*body\.resolution = tier === 'auto' \? '1k' : tier/,
+	'SV NewAPI Banana Pro must forward aspectRatio as size and imageSize/resolution as body.resolution.',
+)
+const bananaBranch = source.match(/modelId === SV_IMAGE_BANANA_PRO\)\s*\{([\s\S]*?)\}\s*else if \(SV_IMAGE_GPT_RE\.test\(modelId\)\)/)
+assert.ok(bananaBranch, 'SV NewAPI Banana Pro branch must be present.')
+assert.match(
+	bananaBranch[1],
+	/body\.size =/,
+	'SV NewAPI Banana Pro must forward aspect-ratio size.',
+)
+
 // Seedream's Ark upstream rejects the smaller generic OpenAI sizes ("image size must be at
 // least 3686400 pixels"). The gateway path must route Seedream through the Seedream size map.
 assert.match(
