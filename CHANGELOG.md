@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.27.2
+
+- Fixed SV NewAPI Nano Banana Pro requests by forwarding the selected aspect ratio as APIMart-style `size` and the selected image size as `resolution`.
+- Added static verification coverage for the SV NewAPI Nano Banana Pro payload shape.
+- Bumped the plugin version to `1.27.2`.
+
 ## 1.27.1
 
 - Fixed APIMart GPT Image 2 routing by using the official upstream model ID while keeping Bragi's stable `gpt-image-2` model ID.
