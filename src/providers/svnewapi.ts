@@ -376,7 +376,7 @@ function buildVideoBody(
 	if (modelId === SV_VIDEO_SEEDANCE) {
 		const metadata: JsonRecord = { watermark: false }
 		if (ratio) metadata.ratio = ratio
-		if (duration && duration !== '-1') metadata.duration = parseInt(duration, 10)
+		if (duration) metadata.duration = duration === '-1' ? -1 : parseInt(duration, 10)
 		if (resolution) metadata.resolution = resolution
 		if (params.generate_audio !== undefined) metadata.generate_audio = params.generate_audio !== 'false'
 		body.metadata = metadata
