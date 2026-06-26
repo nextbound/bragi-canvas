@@ -14,7 +14,7 @@ import { resolveSeedreamImageSize } from './seedream'
  * virtual model names (mapped to real upstreams via the channel `model_mapping`)
  * over an OpenAI-compatible surface:
  *   - text   → POST /v1/chat/completions   (handled by OpenAITextProvider in the registry)
- *   - image  → POST /v1/images/generations (synchronous; the gateway polls async upstreams internally)
+ *   - image  → POST /v1/images/tasks        (async APIMart tasks; fallback to /images/generations)
  *   - video  → POST /v1/videos             (async task; poll GET /v1/videos/{id})
  *   - audio  → POST /v1/audio/speech       (synchronous binary stream)
  * Auth is a single bearer token. Reference media is delivered as public relay URLs.
@@ -35,6 +35,9 @@ const SV_IMAGE_SEEDREAM_RE = /seedream/i
 
 const DONE_STATUSES = new Set(['SUCCESS', 'SUCCEEDED', 'COMPLETED'])
 const FAILED_STATUSES = new Set(['FAILURE', 'FAILED', 'ERROR', 'CANCELLED', 'CANCELED'])
+const IMAGE_TASK_FIRST_POLL_DELAY_MS = 3000
+const IMAGE_TASK_POLL_INTERVAL_MS = 3000
+const IMAGE_TASK_MAX_WAIT_MS = 300000
 
 type JsonRecord = Record<string, unknown>
 
@@ -114,6 +117,10 @@ function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	return copy.buffer
 }
 
+async function sleep(ms: number): Promise<void> {
+	return new Promise(r => window.setTimeout(r, ms))
+}
+
 function imageExtFromUrl(url: string): string {
 	const clean = url.split('?')[0].toLowerCase()
 	if (clean.endsWith('.webp')) return 'webp'
@@ -173,6 +180,29 @@ function extractFailure(data: unknown, fallback: string): string {
 		if (msg) return msg
 	}
 	return fallback
+}
+
+function extractImageTaskFailure(data: unknown, fallback: string): string {
+	const body = unwrapData(data)
+	const errorValue = body.error
+	if (typeof errorValue === 'string' && errorValue.trim()) return errorValue.trim()
+	const error = asRecord(errorValue)
+	for (const value of [body.fail_reason, body.error_message, error?.message, body.message]) {
+		const msg = stringParam(value, '').trim()
+		if (msg) return msg
+	}
+	return fallback
+}
+
+function shouldFallbackToSyncImage(resp: { status: number; text?: string; json?: unknown }): boolean {
+	if (resp.status === 404 || resp.status === 405) return true
+	if (resp.status !== 400) return false
+	const body = asRecord(resp.json) || (() => {
+		try { return asRecord(JSON.parse(resp.text || '')) } catch { return null }
+	})()
+	const message = stringParam(body?.error || body?.message || resp.text, '').toLowerCase()
+	return message.includes('async image tasks are only supported for apimart channels')
+		|| message.includes('only supported for apimart')
 }
 
 // Reference media is delivered to the gateway as public URLs or provider asset:// ids.
@@ -247,6 +277,30 @@ export class SvNewApiImageProvider implements ImageProvider {
 			body.image_urls = imageUrls
 		}
 
+		return this.generateImageAsync(body)
+	}
+
+	private async generateImageAsync(body: JsonRecord): Promise<GenerateImageResult> {
+		const resp = await requestUrl({
+			url: `${this.baseUrl}/v1/images/tasks`,
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+			throw: false,
+			body: JSON.stringify(body),
+		})
+
+		if (shouldFallbackToSyncImage(resp)) return this.generateImageSync(body)
+		if (resp.status >= 400) throw new Error(parseProviderError('SV NewAPI image task', resp))
+
+		const immediateSource = extractImageSource(resp.json)
+		if (immediateSource) return this.saveImage(immediateSource)
+
+		const taskId = extractTaskId(resp.json)
+		if (!taskId) throw new Error('SV NewAPI image task: task id was not returned')
+		return this.pollImageTask(taskId)
+	}
+
+	private async generateImageSync(body: JsonRecord): Promise<GenerateImageResult> {
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/v1/images/generations`,
 			method: 'POST',
@@ -259,6 +313,34 @@ export class SvNewApiImageProvider implements ImageProvider {
 		const source = extractImageSource(resp.json)
 		if (!source) throw new Error('SV NewAPI image: no image in response')
 		return this.saveImage(source)
+	}
+
+	private async pollImageTask(taskId: string): Promise<GenerateImageResult> {
+		await sleep(IMAGE_TASK_FIRST_POLL_DELAY_MS)
+		const deadline = Date.now() + IMAGE_TASK_MAX_WAIT_MS - IMAGE_TASK_FIRST_POLL_DELAY_MS
+
+		while (Date.now() < deadline) {
+			const resp = await requestUrl({
+				url: `${this.baseUrl}/v1/images/tasks/${encodeURIComponent(taskId)}`,
+				method: 'GET',
+				headers: { 'Authorization': `Bearer ${this.apiKey}` },
+				throw: false,
+			})
+			if (resp.status >= 400) throw new Error(parseProviderError('SV NewAPI image task', resp))
+
+			const status = extractStatus(resp.json).toUpperCase()
+			const source = extractImageSource(resp.json)
+			if (DONE_STATUSES.has(status) || source) {
+				if (!source) throw new Error('SV NewAPI image task: completed task has no image URL')
+				return this.saveImage(source)
+			}
+			if (FAILED_STATUSES.has(status)) {
+				throw new Error(`SV NewAPI image task: ${extractImageTaskFailure(resp.json, 'task failed')}`)
+			}
+
+			await sleep(IMAGE_TASK_POLL_INTERVAL_MS)
+		}
+		throw new Error(`SV NewAPI image task: timed out after ${IMAGE_TASK_MAX_WAIT_MS / 1000}s`)
 	}
 
 	private async saveImage(source: string): Promise<GenerateImageResult> {

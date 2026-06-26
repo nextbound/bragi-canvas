@@ -27,6 +27,30 @@ assert.match(
 	'SV NewAPI image generation must send reference images as image_urls for seeded APIMart.',
 )
 
+assert.match(
+	source,
+	/url: `\$\{this\.baseUrl\}\/v1\/images\/tasks`/,
+	'SV NewAPI image generation must submit via the async image task endpoint.',
+)
+
+assert.match(
+	source,
+	/url: `\$\{this\.baseUrl\}\/v1\/images\/tasks\/\$\{encodeURIComponent\(taskId\)\}`/,
+	'SV NewAPI image generation must poll async image tasks by task id.',
+)
+
+assert.match(
+	source,
+	/if \(shouldFallbackToSyncImage\(resp\)\) return this\.generateImageSync\(body\)/,
+	'SV NewAPI image generation must fall back to the legacy sync endpoint when async tasks are unavailable.',
+)
+
+assert.match(
+	source,
+	/private async generateImageSync\(body: JsonRecord\): Promise<GenerateImageResult>[\s\S]*?\/v1\/images\/generations/,
+	'SV NewAPI legacy sync image path must remain available as a fallback.',
+)
+
 // Banana Pro uses the APIMart image shape: aspect-ratio `size` plus the selected
 // 1k/2k/4k resolution tier.
 assert.match(
