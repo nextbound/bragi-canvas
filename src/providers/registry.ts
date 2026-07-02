@@ -23,14 +23,9 @@ import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
 import { Token360VideoProvider } from './token360'
 import { DashScopeAudioProvider, DashScopeVideoProvider, dashScopeUrl } from './dashscope'
-import { SvNewApiImageProvider, SvNewApiVideoProvider, SvNewApiAudioProvider } from './svnewapi'
+import { SvNewApiImageProvider, SvNewApiVideoProvider, SvNewApiAudioProvider, SVROUTER_BASE_URL } from './svnewapi'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
-
-/** Normalize a user-entered gateway base URL: trim and drop any trailing slash. */
-function normalizeBaseUrl(value: string | undefined): string {
-	return (value || '').trim().replace(/\/+$/, '')
-}
 import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider, XAITextProvider } from './text-gen'
 import { DashScopeTextProvider } from './dashscope-text'
 import { requestUrl } from 'obsidian'
@@ -557,30 +552,26 @@ export const PROVIDERS: ProviderSpec[] = [
 	},
 	{
 		id: 'svnewapi',
-		name: 'SV NewAPI',
-		// Self-hosted new-api / One-API gateway. The base URL is deployment-specific, so it is
-		// a configurable field (no domain is hardcoded); the gateway root has no `/v1` suffix.
+		name: 'SVRouter',
+		// Self-hosted new-api / One-API gateway behind a fixed domain; the gateway root has no `/v1` suffix.
 		fields: [
-			{ key: 'svnewapiBaseUrl', label: 'Base URL', placeholder: 'https://your-newapi-host', type: 'text' },
 			{ key: 'svnewapi', label: 'API Key', placeholder: 'sk-...', type: 'password' },
 		],
 		// The gateway forwards reference media as public relay URLs (fal/byteplus upstreams accept URLs).
 		defaultRefDelivery: { image: 'relay', video: 'relay' },
-		isConfigured: (s) => !!(s.providers.svnewapi && s.providers.svnewapiBaseUrl),
+		isConfigured: (s) => !!s.providers.svnewapi,
 		makeImage: ({ settings, app, outputDir }) =>
-			new SvNewApiImageProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiImageProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		makeVideo: ({ settings, app, outputDir }) =>
-			new SvNewApiVideoProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiVideoProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		makeAudio: ({ settings, app, outputDir }) =>
-			new SvNewApiAudioProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiAudioProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		// Text is plain OpenAI /v1/chat/completions — reuse the shared OpenAI text client.
 		makeText: ({ settings }) =>
-			new OpenAITextProvider(settings.providers.svnewapi, `${normalizeBaseUrl(settings.providers.svnewapiBaseUrl)}/v1`),
+			new OpenAITextProvider(settings.providers.svnewapi, `${SVROUTER_BASE_URL}/v1`),
 		testConnection: (d) => {
-			const baseUrl = normalizeBaseUrl(d.svnewapiBaseUrl)
-			if (!baseUrl) return Promise.resolve({ ok: false, message: 'Base URL is empty.' })
 			if (!d.svnewapi) return Promise.resolve({ ok: false, message: 'API key is empty.' })
-			return testListModels(`${baseUrl}/v1/models`, d.svnewapi)
+			return testListModels(`${SVROUTER_BASE_URL}/v1/models`, d.svnewapi)
 		},
 	},
 ]
