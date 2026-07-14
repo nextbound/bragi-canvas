@@ -6,8 +6,7 @@ import { stringParam } from './params'
 
 const BFL_BASE_URL = 'https://api.bfl.ai/v1'
 const DEFAULT_TARGET_LONG_EDGE = 2048
-const DEFAULT_SEED = 297123813229487
-const DEFAULT_SAFETY_TOLERANCE = 2
+const DEFAULT_SAFETY_TOLERANCE = 5
 const DEFAULT_OUTPUT_FORMAT = 'png'
 
 export const BFL_DENOISE_PROMPT = '加强明暗对比，干净的质感，平滑的阴影，控制的细节，极简的纹理，高清晰度，精细的边缘，平滑的渐变--无噪点、颗粒感、瑕疵、高频细节、脏污的纹理、过度锐化、斑驳、混乱的细节。保持当前所有元素不变，色彩不变'
@@ -65,9 +64,8 @@ export class BflImageProvider implements ImageProvider {
 			? params.refImages.filter((ref): ref is string => typeof ref === 'string')
 			: []
 		const targetLongEdge = positiveIntParam(params?.targetLongEdge, DEFAULT_TARGET_LONG_EDGE)
-		const outputFormat = stringParam(params?.outputFormat || params?.output_format, DEFAULT_OUTPUT_FORMAT)
-		const safetyTolerance = positiveIntParam(params?.safetyTolerance || params?.safety_tolerance, DEFAULT_SAFETY_TOLERANCE)
-		const seed = positiveIntParam(params?.seed, DEFAULT_SEED)
+		const outputFormat = DEFAULT_OUTPUT_FORMAT
+		const seed = randomSeed()
 		const enableColorMatch = booleanParam(params?.enableColorMatch, false)
 		const colorMatchRefImage = stringParam(
 			params?.colorMatchRefImage || params?.colorMatchReferenceImage || params?.colorMatchReference || params?.colorMatchImage,
@@ -77,7 +75,7 @@ export class BflImageProvider implements ImageProvider {
 		const payload: Record<string, unknown> = {
 			prompt,
 			seed,
-			safety_tolerance: safetyTolerance,
+			safety_tolerance: DEFAULT_SAFETY_TOLERANCE,
 			output_format: outputFormat,
 		}
 
@@ -106,7 +104,7 @@ export class BflImageProvider implements ImageProvider {
 
 		const imageResponse = await requestUrl({ url: sampleUrl })
 		let outputBytes = imageResponse.arrayBuffer
-		let extension = outputFormat === 'jpg' || outputFormat === 'jpeg' ? 'jpg' : outputFormat === 'webp' ? 'webp' : 'png'
+		let extension = DEFAULT_OUTPUT_FORMAT
 
 		if (enableColorMatch && referenceForColorMatch) {
 			outputBytes = await colorMatchImage(referenceForColorMatch, outputBytes, mimeForOutputFormat(extension))
@@ -212,6 +210,12 @@ export function positiveIntParam(value: unknown, fallback: number): number {
 			: NaN
 	if (!Number.isFinite(parsed) || parsed <= 0) return fallback
 	return Math.round(parsed)
+}
+
+export function randomSeed(): number {
+	const values = new Uint32Array(1)
+	crypto.getRandomValues(values)
+	return (values[0] % 2147483647) + 1
 }
 
 export function booleanParam(value: unknown, fallback: boolean): boolean {

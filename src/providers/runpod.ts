@@ -10,11 +10,11 @@ import {
 	mimeForOutputFormat,
 	positiveIntParam,
 	prepareReferenceImage,
+	randomSeed,
 } from './bfl'
 
 const RUNPOD_FLUX_KLEIN_BASE_URL = 'https://api.runpod.ai/v2/27z4r9lu1eoimt'
 const DEFAULT_TARGET_LONG_EDGE = 2048
-const DEFAULT_SEED = 297123813229487
 const DEFAULT_STEPS = 12
 const DEFAULT_GUIDANCE_SCALE = 1.0
 const DEFAULT_OUTPUT_FORMAT = 'png'
@@ -57,8 +57,8 @@ export class RunPodFluxImageProvider implements ImageProvider {
 			? params.refImages.filter((ref): ref is string => typeof ref === 'string')
 			: []
 		const targetLongEdge = positiveIntParam(params?.targetLongEdge, DEFAULT_TARGET_LONG_EDGE)
-		const outputFormat = normalizeOutputFormat(params?.outputFormat || params?.output_format)
-		const seed = positiveIntParam(params?.seed, DEFAULT_SEED)
+		const outputFormat = DEFAULT_OUTPUT_FORMAT
+		const seed = randomSeed()
 		const steps = positiveIntParam(params?.steps || params?.step, DEFAULT_STEPS)
 		const guidanceScale = numberParam(params?.guidanceScale || params?.guidance_scale, DEFAULT_GUIDANCE_SCALE)
 		const enableColorMatch = booleanParam(params?.enableColorMatch, false)
@@ -202,7 +202,7 @@ function isFailed(data: RunPodResponse): boolean {
 
 function assertNoWorkerError(data: RunPodResponse): RunPodResponse {
 	if (isRecord(data.output) && data.output.error) {
-		throw new Error(`RunPod worker: ${String(data.output.error)}`)
+		throw new Error(`RunPod worker: ${unknownErrorMessage(data.output.error)}`)
 	}
 	return data
 }
@@ -212,8 +212,19 @@ function providerErrorMessage(status: number, data: RunPodResponse | undefined):
 	if (data.message) return `${status} ${data.message}`
 	if (data.detail) return `${status} ${data.detail}`
 	if (data.error) return `${status} ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error).substring(0, 240)}`
-	if (isRecord(data.output) && data.output.error) return `${status} ${String(data.output.error)}`
+	if (isRecord(data.output) && data.output.error) return `${status} ${unknownErrorMessage(data.output.error)}`
 	return `HTTP ${status}`
+}
+
+function unknownErrorMessage(value: unknown): string {
+	if (typeof value === 'string') return value
+	try {
+		const serialized = JSON.stringify(value)
+		if (serialized) return serialized.substring(0, 240)
+	} catch {
+		// Fall through to the stable generic message.
+	}
+	return 'Unknown worker error'
 }
 
 function extractImageOutput(value: unknown): ExtractedImage | null {
@@ -282,11 +293,6 @@ function base64ToArrayBuffer(value: string): ArrayBuffer {
 	const bytes = new Uint8Array(binary.length)
 	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
 	return bytes.buffer
-}
-
-function normalizeOutputFormat(value: unknown): string {
-	const normalized = stringParam(value, DEFAULT_OUTPUT_FORMAT).trim().toLowerCase()
-	return normalized === 'image/png' ? 'png' : 'png'
 }
 
 function extensionForMime(mime: string): string {

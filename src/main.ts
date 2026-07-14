@@ -522,10 +522,7 @@ export default class BragiCanvas extends Plugin {
 			const denoiseParams: Record<string, unknown> = {
 				modelId: resolveApiModelId(this.settings, activeProvider, model),
 				refImages: [dataUri],
-				seed: 297123813229487,
 				targetLongEdge: 2048,
-				safetyTolerance: 2,
-				outputFormat: 'png',
 				enableColorMatch: Boolean(colorMatchDataUri),
 				colorMatchRefImage: colorMatchDataUri || undefined,
 			}

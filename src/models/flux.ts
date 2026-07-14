@@ -21,6 +21,7 @@ export const flux2Klein9b: ModelConfig = {
 		runpod: { apiModelId: 'flux-2-klein-9b', refDelivery: { image: 'inline' } },
 	},
 	modes: ['text-to-image', 'image-ref-to-image'],
+	inferModeFromInputs: true,
 	params: [
 		{
 			id: 'aspectRatio',
@@ -35,61 +36,19 @@ export const flux2Klein9b: ModelConfig = {
 			label: 'Long Edge',
 			type: 'select',
 			options: [
-				{ label: '1536', value: '1536' },
-				{ label: '2048', value: '2048' },
-				{ label: '3072', value: '3072' },
+				{ label: '1K', value: '1024' },
+				{ label: '2K', value: '2048' },
+				{ label: '3K', value: '3072' },
 			],
-			default: '2048',
-		},
-		{
-			id: 'seed',
-			label: 'Seed',
-			type: 'number',
-			default: 297123813229487,
-			min: 1,
-			step: 1,
-		},
-		{
-			id: 'safetyTolerance',
-			label: 'Safety',
-			type: 'select',
-			options: [
-				{ label: '0', value: '0' },
-				{ label: '1', value: '1' },
-				{ label: '2', value: '2' },
-				{ label: '3', value: '3' },
-				{ label: '4', value: '4' },
-				{ label: '5', value: '5' },
-			],
-			default: '2',
-		},
-		{
-			id: 'outputFormat',
-			label: 'Format',
-			type: 'select',
-				options: [
-					{ label: 'PNG', value: 'png' },
-					{ label: 'JPEG', value: 'jpeg' },
-					{ label: 'WebP', value: 'webp' },
-				],
-				providerOverrides: {
-					runpod: {
-						options: [{ label: 'PNG', value: 'png' }],
-						default: 'png',
-					},
+			providerOverrides: {
+				runpod: {
+					options: [
+						{ label: '1K', value: '1024' },
+						{ label: '2K', value: '2048' },
+					],
 				},
-				default: 'png',
 			},
-		{
-			id: 'enableColorMatch',
-			label: 'Color Match',
-			type: 'select',
-			modes: ['image-ref-to-image'],
-			options: [
-				{ label: 'Off', value: 'false' },
-				{ label: 'On', value: 'true' },
-			],
-			default: 'false',
+			default: '2048',
 		},
 	],
 }

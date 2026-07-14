@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 
 const mainSource = readFileSync('src/main.ts', 'utf8')
+const panelSource = readFileSync('src/panel.ts', 'utf8')
 const toolbarSource = readFileSync('src/toolbar.ts', 'utf8')
 const providerSource = readFileSync('src/providers/bfl.ts', 'utf8')
 const runpodSource = readFileSync('src/providers/runpod.ts', 'utf8')
@@ -40,8 +41,30 @@ assert.match(
 )
 assert.match(
 	modelSource,
-	/id: 'enableColorMatch'[\s\S]*modes: \['image-ref-to-image'\][\s\S]*default: 'false'/,
-	'Color match must be an image-ref-only optional parameter that defaults off.',
+	/inferModeFromInputs: true/,
+	'FLUX.2 Klein 9B must infer text-to-image versus image-ref mode from upstream inputs.',
+)
+assert.match(
+	panelSource,
+	/modes\.length <= 1 \|\| selectedModel\.inferModeFromInputs[\s\S]*inferMode\(modes, upstreamImageCount, upstreamVideoCount\)/,
+	'The generation bar must hide inferred mode selectors while preserving upstream mode inference.',
+)
+assert.match(
+	modelSource,
+	/\{ label: '1K', value: '1024' \}[\s\S]*\{ label: '2K', value: '2048' \}[\s\S]*\{ label: '3K', value: '3072' \}[\s\S]*providerOverrides: \{[\s\S]*runpod: \{[\s\S]*options: \[[\s\S]*\{ label: '1K', value: '1024' \}[\s\S]*\{ label: '2K', value: '2048' \}/,
+	'BFL must expose 1K/2K/3K while RunPod stays within its 1K/2K deployment limit.',
+)
+for (const hiddenParam of ['seed', 'safetyTolerance', 'outputFormat', 'enableColorMatch']) {
+	assert.doesNotMatch(
+		modelSource,
+		new RegExp(`id: '${hiddenParam}'`),
+		`${hiddenParam} must not be exposed in the FLUX.2 Klein generation bar.`,
+	)
+}
+assert.match(
+	modelSource,
+	/params: \[[\s\S]*id: 'aspectRatio'[\s\S]*id: 'targetLongEdge'[\s\S]*\]/,
+	'FLUX.2 Klein generation bar must retain only aspect ratio and long-edge controls.',
 )
 assert.match(
 	modelIndexSource,
@@ -144,8 +167,13 @@ assert.match(
 )
 assert.match(
 	mainSource,
-	/modelId: resolveApiModelId\(this\.settings, activeProvider, model\)[\s\S]*refImages: \[dataUri\][\s\S]*seed: 297123813229487[\s\S]*targetLongEdge: 2048[\s\S]*safetyTolerance: 2[\s\S]*outputFormat: 'png'[\s\S]*enableColorMatch: Boolean\(colorMatchDataUri\)[\s\S]*colorMatchRefImage: colorMatchDataUri \|\| undefined/,
+	/modelId: resolveApiModelId\(this\.settings, activeProvider, model\)[\s\S]*refImages: \[dataUri\][\s\S]*targetLongEdge: 2048[\s\S]*enableColorMatch: Boolean\(colorMatchDataUri\)[\s\S]*colorMatchRefImage: colorMatchDataUri \|\| undefined/,
 	'Denoise action must call the selected provider with the selected image as input and the upstream image as the optional color-match reference.',
+)
+assert.doesNotMatch(
+	mainSource,
+	/seed: 297123813229487|safetyTolerance: 2|outputFormat: 'png'/,
+	'Denoise action must rely on provider-owned random seed, safety, and PNG defaults.',
 )
 assert.match(
 	mainSource,
@@ -172,6 +200,16 @@ assert.match(
 	providerSource,
 	/export function positiveIntParam\(value: unknown, fallback: number\): number/,
 	'Shared FLUX image helpers must expose integer parameter parsing for RunPod.',
+)
+assert.match(
+	providerSource,
+	/const DEFAULT_SAFETY_TOLERANCE = 5[\s\S]*const outputFormat = DEFAULT_OUTPUT_FORMAT[\s\S]*const seed = randomSeed\(\)[\s\S]*safety_tolerance: DEFAULT_SAFETY_TOLERANCE[\s\S]*output_format: outputFormat/,
+	'BFL must use the least restrictive safety tolerance, PNG output, and a fresh seed internally.',
+)
+assert.match(
+	providerSource,
+	/export function randomSeed\(\): number \{[\s\S]*crypto\.getRandomValues\(values\)/,
+	'FLUX providers must generate a fresh random seed for every output.',
 )
 assert.match(
 	providerSource,
@@ -243,6 +281,16 @@ assert.match(
 	runpodSource,
 	/const DEFAULT_STEPS = 12[\s\S]*const steps = positiveIntParam\(params\?\.steps \|\| params\?\.step, DEFAULT_STEPS\)[\s\S]*steps,/,
 	'RunPod provider must send steps=12 by default while accepting a step alias.',
+)
+assert.match(
+	runpodSource,
+	/const outputFormat = DEFAULT_OUTPUT_FORMAT[\s\S]*const seed = randomSeed\(\)[\s\S]*output_format: outputFormat/,
+	'RunPod must always request PNG and generate a fresh seed internally.',
+)
+assert.doesNotMatch(
+	runpodSource,
+	/safetyTolerance|safety_tolerance|normalizeOutputFormat/,
+	'RunPod must not expose or send BFL safety and output-format controls.',
 )
 assert.match(
 	runpodSource,
