@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+## 1.28.0
+
+- Renamed SV NewAPI to SVRouter in provider-facing UI while keeping the same `svnewapi` settings key for compatibility, and fixed SVRouter asset registration to use the centralized gateway URL.
 - Added Kling 3.0 Omni through the native Kling and APIMart providers, including text-to-video, first/last-frame, multi-image reference, feature-video reference, and video-edit flows.
 - Added 3–15 second duration, Standard/Pro/4K quality, optional generated audio, source-audio retention, and advanced multi-shot/subject payload support while keeping the generator bar mode-specific and compact.
 - Exposed intelligent multi-shot generation as the default `Multi shots` control, with `Single shot` as the alternative, and clarified generated-audio choices as `Audio On` / `Audio Off`.
 - Added payload contract verification for both provider request shapes and native Omni task polling.
+- Added FLUX.2 Klein 9B image generation through BFL and Runpod, including reference-image generation, safety tolerance, provider-specific seed handling, denoise defaults, and optional color matching.
+- Fixed BytePlus and SVRouter asset failures so terminal `Result.Error.Message` / `Code` details surface when `FailedReason` is absent.
+- Added regression verification for BFL denoise, Kling Omni payloads, and BytePlus/SVRouter asset failure messages.
+- Bumped the plugin version to `1.28.0`.
 
 ## 1.27.3
 
