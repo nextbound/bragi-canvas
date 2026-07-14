@@ -5,7 +5,7 @@ import { migrateSettings } from './settings-migrations'
 import { uploadRef } from './providers/upload'
 import { prepareReferenceUpload } from './providers/image-upload-prep'
 import { getProvider } from './providers/registry'
-import { getRefDelivery } from './provider-model-prefs'
+import { getConnectedConfiguredProviderIds, getRefDelivery, resolveApiModelId } from './provider-model-prefs'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
 import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
@@ -37,11 +37,13 @@ import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
 import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { VoiceSourceMode, RefModality, ModelConfig } from './models/types'
+import { getActiveProvider, getModelById } from './models'
 import { validateTextInputs } from './models/text-input-capabilities'
 import { prepareTextInputs } from './text-input-prep'
 import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
 import { UpdateReminderModal } from './ui/update-modal'
 import { dashScopeRegion } from './providers/dashscope'
+import { BFL_DENOISE_PROMPT } from './providers/bfl'
 
 type SeedanceAssetProviderId = 'tokenrouter' | 'byteplus' | 'bytedance'
 
@@ -381,9 +383,9 @@ export default class BragiCanvas extends Plugin {
 
 		rehydrateFailedPlaceholders(canvas)
 
-		patchCanvasMenu(
-			canvas,
-			(node) => this.openPanel('image', node),
+			patchCanvasMenu(
+				canvas,
+				(node) => this.openPanel('image', node),
 				(node) => this.openPanel('video', node),
 				(node) => this.openPanel('text', node),
 				(node) => this.openPanel('audio', node),
@@ -405,6 +407,7 @@ export default class BragiCanvas extends Plugin {
 			}),
 			(node, activeCanvas) => openImageAnnotationTool(this, activeCanvas, node, 'box'),
 			(node, activeCanvas) => openVideoEditTool(this, activeCanvas, node),
+			(node, activeCanvas) => this.openDenoiseImage(node, activeCanvas),
 		)
 
 		patchPlaceholderContextMenu(canvas)
@@ -471,6 +474,76 @@ export default class BragiCanvas extends Plugin {
 			await this.executeGeneration(node, { ...result, prompt })
 		})
 		await Promise.allSettled(promises)
+	}
+
+	openDenoiseImage(node: CanvasNode, canvas: Canvas): void {
+		void this.handleImageDenoise(node, canvas)
+	}
+
+	async handleImageDenoise(node: CanvasNode, canvas: Canvas): Promise<void> {
+		const model = getModelById('flux-2-klein-9b')
+		if (!model) {
+			new Notice('FLUX.2 Klein 9B is not available')
+			return
+		}
+		const connectedProviders = getConnectedConfiguredProviderIds(this.settings, model)
+		const activeProvider = getActiveProvider(model, this.settings.modelPrefs[model.id]?.selectedProvider, connectedProviders)
+		if (!activeProvider) {
+			new Notice('Connect BFL or RunPod to FLUX.2 Klein 9B in settings to use denoise')
+			return
+		}
+
+		const nodeData = node.getData() as { file?: string; width?: number; height?: number }
+		const filePath = nodeData.file || ''
+		if (!filePath) {
+			new Notice('No image file found')
+			return
+		}
+
+		const placeholder = createPlaceholderNode(canvas, 'Denoising image…', node, {
+			w: Math.max(120, Math.round(nodeData.width || node.width || 400)),
+			h: Math.max(120, Math.round(nodeData.height || node.height || 300)),
+		})
+		this.syncGenerating.add(placeholder.id)
+		const colorMatchReferencePath = getOrderedImages(canvas, node)[0] || ''
+
+		try {
+			const outputDir = this.getOutputDir()
+			const spec = getProvider(activeProvider)
+			const provider = spec?.makeImage?.({ settings: this.settings, app: this.app, outputDir })
+			if (!provider) throw new Error(`${spec?.name || activeProvider} is not configured for image generation`)
+			const providerName = spec?.name || activeProvider
+			new Notice(colorMatchReferencePath ? `Denoising image with ${providerName} and upstream color match…` : `Denoising image with ${providerName}…`)
+
+			const dataUri = await this.readImageDataUri(filePath)
+			const colorMatchDataUri = colorMatchReferencePath
+				? await this.readImageDataUri(colorMatchReferencePath)
+				: null
+			const denoiseParams: Record<string, unknown> = {
+				modelId: resolveApiModelId(this.settings, activeProvider, model),
+				refImages: [dataUri],
+				targetLongEdge: 2048,
+				enableColorMatch: Boolean(colorMatchDataUri),
+				colorMatchRefImage: colorMatchDataUri || undefined,
+			}
+			if (activeProvider === 'runpod') denoiseParams.steps = 12
+			const genResult = await provider.generateImage(BFL_DENOISE_PROMPT, denoiseParams)
+
+			this.rememberGeneratedAsset(genResult.filePath)
+			replacePlaceholderWithFile(canvas, placeholder, genResult.filePath, node)
+			new Notice(colorMatchDataUri ? 'Denoised image ready with upstream color match' : 'Denoised image ready')
+		} catch (err: unknown) {
+			console.error('Bragi Canvas denoise error:', err)
+			markNodeFailed(placeholder, err instanceof Error ? err.message : 'Denoise failed')
+			new Notice(`Denoise failed: ${err instanceof Error ? err.message : String(err)}`)
+		} finally {
+			this.syncGenerating.delete(placeholder.id)
+		}
+	}
+
+	private async readImageDataUri(filePath: string): Promise<string> {
+		const binary = await this.app.vault.adapter.readBinary(filePath)
+		return `data:${imageMimeType(filePath)};base64,${arrayBufferToBase64(binary)}`
 	}
 
 	// ── Generation logic ────────────────────────────────────────
@@ -621,6 +694,7 @@ export default class BragiCanvas extends Plugin {
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7'
 			const isDashScopeWan = activeProvider === 'dashscope' && model.id === 'wan-2.7'
 			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
+			const supportsKlingOmniVideoRef = model.id === 'kling-3.0-omni' && (activeProvider === 'kling' || activeProvider === 'apimart')
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
 			// BytePlus asset library: run when Seedance has reference media and AK/SK configured.
@@ -694,14 +768,17 @@ export default class BragiCanvas extends Plugin {
 			// Prepare reference videos for models/providers that can consume upstream video inputs.
 			// BytePlus Seedance videos must go through asset:// so face-containing clips are reviewed first.
 			if (model.type === 'video' && uniqueVideos.length > 0) {
-				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !isDashScopeWan) {
-					throw new Error('Reference video is only available with Volcengine, BytePlus, TokenRouter, or Token360 Seedance, APIMart Omni-Flash-Ext, or DashScope Wan 2.7.')
+				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsKlingOmniVideoRef && !isDashScopeWan) {
+					throw new Error('Reference video is not available for the active model and provider.')
 				}
 				if (supportsSeedanceUrlRefs && uniqueVideos.length > 3) {
 					throw new Error('Seedance supports up to 3 reference videos.')
 				}
 				if (supportsApimartVideoRef && uniqueVideos.length > 1) {
 					throw new Error('APIMart Omni-Flash-Ext supports at most 1 reference video.')
+				}
+				if (supportsKlingOmniVideoRef && uniqueVideos.length > 1) {
+					throw new Error('Kling 3.0 Omni supports at most 1 reference video.')
 				}
 				if (isNativeSeedance && activeProvider === 'byteplus' && !bytePlusCreds) {
 					throw new Error('Add BytePlus access key and secret key in settings to use reference videos.')

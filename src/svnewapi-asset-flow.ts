@@ -2,6 +2,7 @@ import type BragiCanvas from './main'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './providers/upload'
+import { SVROUTER_BASE_URL } from './providers/svnewapi'
 
 // SV NewAPI (new-api gateway) asset-library flow. Unlike the direct byteplus /
 // tokenrouter / token360 flows which call the provider's asset API themselves, this
@@ -64,17 +65,10 @@ function assetFailedReason(body: JsonRecord | null): string {
 	)
 }
 
-function normalizeBaseUrl(value: string | undefined): string {
-	const s = (value || '').trim()
-	return s.endsWith('/') ? s.slice(0, -1) : s
-}
-
 export function getSvNewApiAssetCreds(plugin: BragiCanvas): SvNewApiAssetCreds | null {
-	const p = plugin.settings.providers
-	const apiKey = (p.svnewapi || '').trim()
-	const baseUrl = normalizeBaseUrl(p.svnewapiBaseUrl)
-	if (!apiKey || !baseUrl) return null
-	return { baseUrl, apiKey }
+	const apiKey = (plugin.settings.providers.svnewapi || '').trim()
+	if (!apiKey) return null
+	return { baseUrl: SVROUTER_BASE_URL, apiKey }
 }
 
 function assetFileInfo(filePath: string): { assetType: AssetType; ext: string; mime: string } {

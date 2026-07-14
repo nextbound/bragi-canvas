@@ -5,6 +5,7 @@ import { requestUrl } from 'obsidian'
 import { stringParam } from './params'
 import { BUILTIN_BRAGI_RELAY } from './bragi-relay'
 import { uploadRef } from './upload'
+import { buildApimartKlingOmniRequest, KLING_OMNI_MODEL_ID } from './kling-omni-payload'
 
 /**
  * APIMart provider.
@@ -183,6 +184,9 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		if (genMode === 'motion-control' || modelId.includes('motion-control')) {
 			return this.generateMotionControl(prompt, modelId, params)
 		}
+		if (modelId === KLING_OMNI_MODEL_ID) {
+			return this.generateKlingOmni(prompt, params)
+		}
 
 		const resolution = stringParam(params?.resolution, '720p').toLowerCase()
 		const aspectRatio = stringParam(params?.aspect_ratio || params?.aspectRatio || params?.ratio, '16:9')
@@ -236,6 +240,34 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		const taskId = first?.task_id || first?.id
 		if (!taskId) {
 			throw new Error(`APIMart: no task_id in video submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
+		}
+		return { done: false, taskId }
+	}
+
+	private async generateKlingOmni(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+		const refImages = await Promise.all(arrayParam(params?.refImages).map(ref => this.ensureRelayUrl(ref, 'image')))
+		const refVideos = await Promise.all(arrayParam(params?.refVideos).map(ref => this.ensureRelayUrl(ref, 'video')))
+		const body = buildApimartKlingOmniRequest(prompt, { ...(params || {}), refImages, refVideos })
+
+		const resp = await requestUrl({
+			url: `${API_BASE}/videos/generations`,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			body: JSON.stringify(body),
+			throw: false,
+		})
+
+		if (resp.status === 401 || resp.status === 403) throw new Error('APIMart: invalid API key')
+		if (resp.status >= 400) throw new Error(`APIMart Kling Omni: ${parseApimartError(resp)}`)
+
+		const submitData = resp.json
+		const first = submitData?.data?.[0]
+		const taskId = first?.task_id || first?.id
+		if (!taskId) {
+			throw new Error(`APIMart Kling Omni: no task_id in submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
 		}
 		return { done: false, taskId }
 	}

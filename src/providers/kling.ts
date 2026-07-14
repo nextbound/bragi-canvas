@@ -2,8 +2,10 @@
 import type { VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
+import { buildOfficialKlingOmniRequest, KLING_OMNI_MODEL_ID } from './kling-omni-payload'
 
 const BASE_URL = 'https://api.klingai.com'
+const OMNI_BASE_URLS = [BASE_URL, 'https://api-beijing.klingai.com'] as const
 
 export class KlingProvider implements VideoProvider {
 	name = 'Kling'
@@ -34,7 +36,9 @@ export class KlingProvider implements VideoProvider {
 
 		let taskId: string
 
-		if (genMode === 'motion-control' && refImages.length >= 1 && refVideos.length >= 1) {
+		if (modelId === KLING_OMNI_MODEL_ID) {
+			taskId = await this.createOmniVideoTask(token, buildOfficialKlingOmniRequest(prompt, params || {}))
+		} else if (genMode === 'motion-control' && refImages.length >= 1 && refVideos.length >= 1) {
 			// Motion Control: transfer the reference video's motion onto the character image.
 			// image_url/video_url accept a public URL or base64; refs are relay https URLs
 			// here, and stripDataUriPrefix passes a URL through unchanged.
@@ -84,14 +88,15 @@ export class KlingProvider implements VideoProvider {
 		const token = await this.getToken()
 
 		// The task type isn't tracked, so probe each video endpoint until one resolves.
-		const paths = [
-			`/v1/videos/text2video/${taskId}`,
-			`/v1/videos/image2video/${taskId}`,
-			`/v1/videos/motion-control/${taskId}`,
+		const urls = [
+			...OMNI_BASE_URLS.map(baseUrl => `${baseUrl}/v1/videos/omni-video/${taskId}`),
+			`${BASE_URL}/v1/videos/text2video/${taskId}`,
+			`${BASE_URL}/v1/videos/image2video/${taskId}`,
+			`${BASE_URL}/v1/videos/motion-control/${taskId}`,
 		]
 		let data: unknown
-		for (const path of paths) {
-			const result = await this.pollTask(token, path)
+		for (const url of urls) {
+			const result = await this.pollTask(token, url)
 			if (result?.code === 0) {
 				data = result
 				break
@@ -173,11 +178,41 @@ export class KlingProvider implements VideoProvider {
 		return data.data.task_id
 	}
 
-	private async pollTask(token: string, path: string): Promise<unknown> {
+	private async createOmniVideoTask(token: string, body: unknown): Promise<string> {
+		let lastError = 'Task creation failed'
+		for (const baseUrl of OMNI_BASE_URLS) {
+			const response = await requestUrl({
+				url: `${baseUrl}/v1/videos/omni-video`,
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`,
+				},
+				body: JSON.stringify(body),
+				throw: false,
+			})
+
+			const data = response.json
+			if (response.status < 400 && data?.code === 0) {
+				const taskId = data?.data?.task_id
+				if (!taskId) throw new Error('Kling Omni: no task_id in create response')
+				return taskId
+			}
+			lastError = data?.message || `Task creation failed (HTTP ${response.status})`
+			const shouldTryNextRegion = response.status === 401
+				|| response.status === 404
+				|| /access key not found/i.test(lastError)
+			if (!shouldTryNextRegion) break
+		}
+		throw new Error(`Kling Omni: ${lastError}`)
+	}
+
+	private async pollTask(token: string, url: string): Promise<unknown> {
 		const response = await requestUrl({
-			url: `${BASE_URL}${path}`,
+			url,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${token}` },
+			throw: false,
 		})
 		return response.json
 	}

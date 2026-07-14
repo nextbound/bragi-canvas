@@ -1,9 +1,10 @@
 import type { ModelConfig, GenerationType, Mode } from './types'
 import { gptImage, gptImageOfficial } from './gpt-image'
+import { flux2Klein9b } from './flux'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
 import { seedream5, seedream5Lite, seedream45 } from './seedream'
 import { seedance2, seedance2Fast } from './seedance'
-import { kling3, kling26 } from './kling'
+import { kling3, klingOmni3, kling26 } from './kling'
 import { happyHorseT2V, happyHorseI2V } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
 import { zImageSpicy, qwenImageEditSpicy, wan27 } from './wan'
@@ -27,6 +28,7 @@ import {
 // All registered models (default order within each type)
 export const ALL_MODELS: ModelConfig[] = [
 	// Image
+	flux2Klein9b,
 	nanoBananaPro,
 	nanoBanana2,
 	gptImage,
@@ -44,6 +46,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	seedance2,
 	seedance2Fast,
 	kling3,
+	klingOmni3,
 	kling26,
 	happyHorseT2V,
 	happyHorseI2V,

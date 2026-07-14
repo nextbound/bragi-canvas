@@ -12,6 +12,8 @@ import { KlingProvider } from './kling'
 import { VeoProvider } from './veo'
 import { FalImageProvider, FalVideoProvider } from './fal'
 import { FalAudioProvider } from './fal-audio'
+import { BflImageProvider, testBflConnection } from './bfl'
+import { RunPodFluxImageProvider, testRunPodConnection } from './runpod'
 import { ElevenLabsProvider } from './elevenlabs'
 import { MiniMaxProvider } from './minimax'
 import { LegnextProvider } from './legnext'
@@ -23,14 +25,9 @@ import { XAIImageProvider, XAIVideoProvider, XAIAudioProvider } from './xai'
 import { TokenRouterImageProvider, TokenRouterTextProvider, TokenRouterVideoProvider } from './tokenrouter'
 import { Token360VideoProvider } from './token360'
 import { DashScopeAudioProvider, DashScopeVideoProvider, dashScopeUrl } from './dashscope'
-import { SvNewApiImageProvider, SvNewApiVideoProvider, SvNewApiAudioProvider } from './svnewapi'
+import { SvNewApiImageProvider, SvNewApiVideoProvider, SvNewApiAudioProvider, SVROUTER_BASE_URL } from './svnewapi'
 
 const LUMA_ENDPOINT = 'https://luma.bragi.now'
-
-/** Normalize a user-entered gateway base URL: trim and drop any trailing slash. */
-function normalizeBaseUrl(value: string | undefined): string {
-	return (value || '').trim().replace(/\/+$/, '')
-}
 import { OpenAITextProvider, APIMartTextProvider, GeminiTextProvider, AnthropicTextProvider, BedrockClaudeTextProvider, XAITextProvider } from './text-gen'
 import { DashScopeTextProvider } from './dashscope-text'
 import { requestUrl } from 'obsidian'
@@ -258,7 +255,7 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'kling',
 		name: 'Kling',
-		docUrl: 'https://app.klingai.com/global/dev/document-api/',
+		docUrl: 'https://klingai.com/document-api/api/video/3-0-omni/video-omni',
 		fields: [
 			{ key: 'klingAk', label: 'Access Key', placeholder: 'AK', type: 'password' },
 			{ key: 'klingSk', label: 'Secret Key', placeholder: 'SK', type: 'password' },
@@ -338,6 +335,28 @@ export const PROVIDERS: ProviderSpec[] = [
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
+	},
+	{
+		id: 'bfl',
+		name: 'BFL',
+		docUrl: 'https://docs.bfl.ai/',
+		fields: [{ key: 'bfl', label: 'API Key', placeholder: 'bfl_...', type: 'password' }],
+		defaultRefDelivery: { image: 'inline' },
+		isConfigured: (s) => !!s.providers.bfl,
+		makeImage: ({ settings, app, outputDir }) =>
+			new BflImageProvider(settings.providers.bfl, app, outputDir),
+		testConnection: (d) => testBflConnection(d.bfl || ''),
+	},
+	{
+		id: 'runpod',
+		name: 'RunPod',
+		docUrl: 'https://www.runpod.io/serverless',
+		fields: [{ key: 'runpod', label: 'API Key', placeholder: 'rpa_...', type: 'password' }],
+		defaultRefDelivery: { image: 'inline' },
+		isConfigured: (s) => !!s.providers.runpod,
+		makeImage: ({ settings, app, outputDir }) =>
+			new RunPodFluxImageProvider(settings.providers.runpod, app, outputDir),
+		testConnection: (d) => testRunPodConnection(d.runpod || ''),
 	},
 	{
 		id: 'minimax',
@@ -475,7 +494,7 @@ export const PROVIDERS: ProviderSpec[] = [
 	{
 		id: 'apimart',
 		name: 'APIMart',
-		docUrl: 'https://docs.apimart.ai/en/api-reference/videos/omni-flash-ext/generation',
+		docUrl: 'https://docs.apimart.ai/en/api-reference/videos/kling-v3-omni/generation',
 		fields: [{ key: 'apimart', label: 'API Key', placeholder: 'sk-...', type: 'password' }],
 		defaultRefDelivery: { image: 'relay', video: 'relay' },
 		isConfigured: (s) => !!s.providers.apimart,
@@ -557,30 +576,26 @@ export const PROVIDERS: ProviderSpec[] = [
 	},
 	{
 		id: 'svnewapi',
-		name: 'SV NewAPI',
-		// Self-hosted new-api / One-API gateway. The base URL is deployment-specific, so it is
-		// a configurable field (no domain is hardcoded); the gateway root has no `/v1` suffix.
+		name: 'SVRouter',
+		// Self-hosted new-api / One-API gateway behind a fixed domain; the gateway root has no `/v1` suffix.
 		fields: [
-			{ key: 'svnewapiBaseUrl', label: 'Base URL', placeholder: 'https://your-newapi-host', type: 'text' },
 			{ key: 'svnewapi', label: 'API Key', placeholder: 'sk-...', type: 'password' },
 		],
 		// The gateway forwards reference media as public relay URLs (fal/byteplus upstreams accept URLs).
 		defaultRefDelivery: { image: 'relay', video: 'relay' },
-		isConfigured: (s) => !!(s.providers.svnewapi && s.providers.svnewapiBaseUrl),
+		isConfigured: (s) => !!s.providers.svnewapi,
 		makeImage: ({ settings, app, outputDir }) =>
-			new SvNewApiImageProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiImageProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		makeVideo: ({ settings, app, outputDir }) =>
-			new SvNewApiVideoProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiVideoProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		makeAudio: ({ settings, app, outputDir }) =>
-			new SvNewApiAudioProvider(settings.providers.svnewapi, app, outputDir, normalizeBaseUrl(settings.providers.svnewapiBaseUrl)),
+			new SvNewApiAudioProvider(settings.providers.svnewapi, app, outputDir, SVROUTER_BASE_URL),
 		// Text is plain OpenAI /v1/chat/completions — reuse the shared OpenAI text client.
 		makeText: ({ settings }) =>
-			new OpenAITextProvider(settings.providers.svnewapi, `${normalizeBaseUrl(settings.providers.svnewapiBaseUrl)}/v1`),
+			new OpenAITextProvider(settings.providers.svnewapi, `${SVROUTER_BASE_URL}/v1`),
 		testConnection: (d) => {
-			const baseUrl = normalizeBaseUrl(d.svnewapiBaseUrl)
-			if (!baseUrl) return Promise.resolve({ ok: false, message: 'Base URL is empty.' })
 			if (!d.svnewapi) return Promise.resolve({ ok: false, message: 'API key is empty.' })
-			return testListModels(`${baseUrl}/v1/models`, d.svnewapi)
+			return testListModels(`${SVROUTER_BASE_URL}/v1/models`, d.svnewapi)
 		},
 	},
 ]

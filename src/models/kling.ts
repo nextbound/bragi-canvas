@@ -63,6 +63,79 @@ const KLING_PARAMS: ModelParam[] = [
 	},
 ]
 
+const KLING_OMNI_TIMED_MODES = ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'video-ref'] as const
+const KLING_OMNI_RATIO_MODES = ['text-to-video', 'image-ref', 'video-ref'] as const
+
+const KLING_OMNI_PARAMS: ModelParam[] = [
+	{
+		id: 'duration',
+		label: 'Duration',
+		type: 'range',
+		modes: [...KLING_OMNI_TIMED_MODES],
+		default: 5,
+		min: 3,
+		max: 15,
+		step: 1,
+		unit: 's',
+	},
+	{
+		id: 'aspect_ratio',
+		label: 'Ratio',
+		type: 'select',
+		modes: [...KLING_OMNI_RATIO_MODES],
+		options: [
+			{ label: '16:9', value: '16:9' },
+			{ label: '9:16', value: '9:16' },
+			{ label: '1:1', value: '1:1' },
+		],
+		default: '16:9',
+	},
+	{
+		id: 'mode',
+		label: 'Quality',
+		type: 'select',
+		options: [
+			{ label: 'Standard', value: 'std' },
+			{ label: 'Pro', value: 'pro' },
+			{ label: '4K', value: '4k' },
+		],
+		default: 'std',
+	},
+	{
+		id: 'sound',
+		label: 'Audio',
+		type: 'select',
+		modes: ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref'],
+		options: [
+			{ label: 'Audio Off', value: 'off' },
+			{ label: 'Audio On', value: 'on' },
+		],
+		default: 'off',
+	},
+	{
+		id: 'multi_shot',
+		label: 'Shots',
+		type: 'select',
+		modes: [...KLING_OMNI_TIMED_MODES],
+		options: [
+			{ label: 'Multi shots', value: 'true' },
+			{ label: 'Single shot', value: 'false' },
+		],
+		default: 'true',
+	},
+	{
+		id: 'keep_original_sound',
+		label: 'Source Audio',
+		type: 'select',
+		modes: ['video-ref', 'video-edit'],
+		options: [
+			{ label: 'Mute', value: 'no' },
+			{ label: 'Keep', value: 'yes' },
+		],
+		default: 'no',
+	},
+]
+
 export const kling3: ModelConfig = {
 	id: 'kling-3.0',
 	name: 'Kling 3.0',
@@ -80,6 +153,18 @@ export const kling3: ModelConfig = {
 	// + motion-control (character image + reference motion video, V3.0 only)
 	modes: ['text-to-video', 'first-frame', 'first-last-frame', 'motion-control'],
 	params: KLING_PARAMS,
+}
+
+export const klingOmni3: ModelConfig = {
+	id: 'kling-3.0-omni',
+	name: 'Kling 3.0 Omni',
+	type: 'video',
+	supportedProviders: {
+		kling: { apiModelId: 'kling-v3-omni' },
+		apimart: { apiModelId: 'kling-v3-omni' },
+	},
+	modes: ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'video-ref', 'video-edit'],
+	params: KLING_OMNI_PARAMS,
 }
 
 export const kling26: ModelConfig = {

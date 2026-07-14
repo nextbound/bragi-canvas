@@ -46,6 +46,18 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Supported duration values are 4, 6, 8, and 10 seconds.
 - Supported resolution values are `720p`, `1080p`, and `4k`.
 
+## Kling 3.0 Omni
+
+- Bragi model ID: `kling-3.0-omni`; upstream model ID on both providers: `kling-v3-omni`.
+- Native Kling endpoint: `POST /v1/videos/omni-video`; Bragi tries the existing global `https://api.klingai.com` region first and falls back to the documented Beijing host when the AK is not registered globally. Task polling probes both regional hosts.
+- APIMart endpoint: `POST https://api.apimart.ai/v1/videos/generations`; task status uses `GET /v1/tasks/{task_id}`.
+- Supported modes are text-to-video, first-frame, first-last-frame, image reference, feature-video reference, and base-video edit.
+- Native Kling uses `image_list` entries with `first_frame` / `end_frame`; APIMart uses `image_with_roles` with `first_frame` / `last_frame`.
+- Reference-image mode adds missing `<<<image_N>>>` tokens so every ordered canvas image participates. Native Kling accepts up to 7 images without a video and 4 with a feature video; APIMart feature-video mode accepts at most one first-frame image.
+- Video reference maps to `video_list.refer_type = feature`; video edit maps to `base`, omits duration/aspect ratio, disables generated audio, and follows the source clip duration.
+- Duration is an integer from 3 through 15. Quality values are `std`, `pro`, and `4k`. Generated audio is unavailable when `video_list` is present.
+- Keep the generator bar compact: expose duration, ratio, quality, the mode-relevant audio control, and a `Multi shots` / `Single shot` toggle. `Multi shots` is the default and maps to intelligent splitting (`multi_shot = true`, `shot_type = intelligence`). Advanced callers may still pass custom `multi_prompt` shot lists and `element_list` directly.
+
 ## SuChuang Gemini Omni
 
 - Endpoint: `POST https://api.wuyinkeji.com/api/async/video_google_omni`.

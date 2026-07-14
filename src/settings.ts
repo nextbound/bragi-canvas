@@ -94,12 +94,14 @@ export interface BragiSettings {
 		bedrockRegion: string
 		bytedance: string
 		byteplus: string
-		byteplusAccessKey: string
-		byteplusSecretKey: string
-		byteplusAssetGroupId: string
-		klingAk: string
-		klingSk: string
-		fal: string
+			byteplusAccessKey: string
+			byteplusSecretKey: string
+			byteplusAssetGroupId: string
+			klingAk: string
+			klingSk: string
+			bfl: string
+			runpod: string
+			fal: string
 		minimax: string
 		elevenlabs: string
 		legnext: string
@@ -165,12 +167,14 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		bedrockRegion: 'us-east-1',
 		bytedance: '',
 		byteplus: '',
-		byteplusAccessKey: '',
-		byteplusSecretKey: '',
-		byteplusAssetGroupId: '',
-		klingAk: '',
-		klingSk: '',
-		fal: '',
+			byteplusAccessKey: '',
+			byteplusSecretKey: '',
+			byteplusAssetGroupId: '',
+			klingAk: '',
+			klingSk: '',
+			bfl: '',
+			runpod: '',
+			fal: '',
 		minimax: '',
 		elevenlabs: '',
 		legnext: '',

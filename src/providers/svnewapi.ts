@@ -9,8 +9,11 @@ import { uploadRef } from './upload'
 import { resolveOpenAIImageSize } from './openai-image-size'
 import { resolveSeedreamImageSize } from './seedream'
 
+// Fixed SVRouter gateway root (OpenAI-compatible; requests append `/v1/...`).
+export const SVROUTER_BASE_URL = 'https://gateway.storyverseai.art'
+
 /**
- * SV NewAPI — our self-hosted new-api / One-API gateway. It exposes stable `sv-*`
+ * SVRouter — our self-hosted new-api / One-API gateway. It exposes stable `sv-*`
  * virtual model names (mapped to real upstreams via the channel `model_mapping`)
  * over an OpenAI-compatible surface:
  *   - text   → POST /v1/chat/completions   (handled by OpenAITextProvider in the registry)
@@ -187,7 +190,7 @@ async function uploadRefMedia(label: string, ref: string): Promise<string> {
 }
 
 export class SvNewApiImageProvider implements ImageProvider {
-	name = 'SV NewAPI'
+	name = 'SVRouter'
 	private apiKey: string
 	private app: App
 	private outputDir: string
@@ -282,7 +285,7 @@ export class SvNewApiImageProvider implements ImageProvider {
 }
 
 export class SvNewApiVideoProvider implements VideoProvider {
-	name = 'SV NewAPI'
+	name = 'SVRouter'
 	private apiKey: string
 	private app: App
 	private outputDir: string
@@ -399,7 +402,7 @@ function buildVideoBody(
 }
 
 export class SvNewApiAudioProvider implements AudioProvider {
-	name = 'SV NewAPI'
+	name = 'SVRouter'
 	private apiKey: string
 	private app: App
 	private outputDir: string
