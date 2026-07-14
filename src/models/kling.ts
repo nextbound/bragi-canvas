@@ -107,10 +107,21 @@ const KLING_OMNI_PARAMS: ModelParam[] = [
 		type: 'select',
 		modes: ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref'],
 		options: [
-			{ label: 'Off', value: 'off' },
-			{ label: 'On', value: 'on' },
+			{ label: 'Audio Off', value: 'off' },
+			{ label: 'Audio On', value: 'on' },
 		],
 		default: 'off',
+	},
+	{
+		id: 'multi_shot',
+		label: 'Shots',
+		type: 'select',
+		modes: [...KLING_OMNI_TIMED_MODES],
+		options: [
+			{ label: 'Multi shots', value: 'true' },
+			{ label: 'Single shot', value: 'false' },
+		],
+		default: 'true',
 	},
 	{
 		id: 'keep_original_sound',

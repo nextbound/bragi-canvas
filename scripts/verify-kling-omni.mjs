@@ -162,6 +162,9 @@ try {
 	assert.match(modelCatalog, /id: 'kling-3\.0-omni'/)
 	assert.match(modelCatalog, /kling: \{ apiModelId: 'kling-v3-omni' \}/)
 	assert.match(modelCatalog, /apimart: \{ apiModelId: 'kling-v3-omni' \}/)
+	assert.match(modelCatalog, /id: 'multi_shot'[\s\S]*?label: 'Shots'[\s\S]*?label: 'Multi shots', value: 'true'[\s\S]*?default: 'true'/)
+	assert.match(modelCatalog, /label: 'Audio Off', value: 'off'/)
+	assert.match(modelCatalog, /label: 'Audio On', value: 'on'/)
 	assert.match(mainSource, /supportsKlingOmniVideoRef/)
 
 	console.log('Kling 3.0 Omni payload and provider wiring checks passed.')

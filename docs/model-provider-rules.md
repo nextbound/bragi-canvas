@@ -56,7 +56,7 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Reference-image mode adds missing `<<<image_N>>>` tokens so every ordered canvas image participates. Native Kling accepts up to 7 images without a video and 4 with a feature video; APIMart feature-video mode accepts at most one first-frame image.
 - Video reference maps to `video_list.refer_type = feature`; video edit maps to `base`, omits duration/aspect ratio, disables generated audio, and follows the source clip duration.
 - Duration is an integer from 3 through 15. Quality values are `std`, `pro`, and `4k`. Generated audio is unavailable when `video_list` is present.
-- Keep the generator bar compact: expose only duration, ratio, quality, and the audio control relevant to the selected mode. Advanced callers may pass `multi_shot`, `shot_type`, `multi_prompt`, and `element_list` directly.
+- Keep the generator bar compact: expose duration, ratio, quality, the mode-relevant audio control, and a `Multi shots` / `Single shot` toggle. `Multi shots` is the default and maps to intelligent splitting (`multi_shot = true`, `shot_type = intelligence`). Advanced callers may still pass custom `multi_prompt` shot lists and `element_list` directly.
 
 ## SuChuang Gemini Omni
 
