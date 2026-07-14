@@ -539,9 +539,11 @@ export function showGenerateBar(
 		modeSelect.innerHTML = ''
 		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
 		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
-		if (!selectedModel || modes.length <= 1) {
+		if (!selectedModel || modes.length <= 1 || selectedModel.inferModeFromInputs) {
 			modeSelect.classList.add('bragi-hidden')
-			selectedMode = modes[0] || null
+			selectedMode = selectedModel?.inferModeFromInputs
+				? inferMode(modes, upstreamImageCount, upstreamVideoCount)
+				: modes[0] || null
 			return
 		}
 

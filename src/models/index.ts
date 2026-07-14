@@ -1,5 +1,6 @@
 import type { ModelConfig, GenerationType, Mode } from './types'
 import { gptImage, gptImageOfficial } from './gpt-image'
+import { flux2Klein9b } from './flux'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
 import { seedream5, seedream5Lite, seedream45 } from './seedream'
 import { seedance2, seedance2Fast } from './seedance'
@@ -27,6 +28,7 @@ import {
 // All registered models (default order within each type)
 export const ALL_MODELS: ModelConfig[] = [
 	// Image
+	flux2Klein9b,
 	nanoBananaPro,
 	nanoBanana2,
 	gptImage,

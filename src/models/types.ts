@@ -116,6 +116,8 @@ export interface ModelConfig {
 	type: GenerationType
 	supportedProviders: Record<string, ProviderConfig>  // provider name → config
 	modes: Mode[]
+	/** Infer the mode from connected upstream media instead of showing a mode selector. */
+	inferModeFromInputs?: boolean
 	params: ModelParam[]
 	voiceConfig?: {
 		builtin: boolean

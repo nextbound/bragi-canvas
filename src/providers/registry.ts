@@ -12,6 +12,8 @@ import { KlingProvider } from './kling'
 import { VeoProvider } from './veo'
 import { FalImageProvider, FalVideoProvider } from './fal'
 import { FalAudioProvider } from './fal-audio'
+import { BflImageProvider, testBflConnection } from './bfl'
+import { RunPodFluxImageProvider, testRunPodConnection } from './runpod'
 import { ElevenLabsProvider } from './elevenlabs'
 import { MiniMaxProvider } from './minimax'
 import { LegnextProvider } from './legnext'
@@ -333,6 +335,28 @@ export const PROVIDERS: ProviderSpec[] = [
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
+	},
+	{
+		id: 'bfl',
+		name: 'BFL',
+		docUrl: 'https://docs.bfl.ai/',
+		fields: [{ key: 'bfl', label: 'API Key', placeholder: 'bfl_...', type: 'password' }],
+		defaultRefDelivery: { image: 'inline' },
+		isConfigured: (s) => !!s.providers.bfl,
+		makeImage: ({ settings, app, outputDir }) =>
+			new BflImageProvider(settings.providers.bfl, app, outputDir),
+		testConnection: (d) => testBflConnection(d.bfl || ''),
+	},
+	{
+		id: 'runpod',
+		name: 'RunPod',
+		docUrl: 'https://www.runpod.io/serverless',
+		fields: [{ key: 'runpod', label: 'API Key', placeholder: 'rpa_...', type: 'password' }],
+		defaultRefDelivery: { image: 'inline' },
+		isConfigured: (s) => !!s.providers.runpod,
+		makeImage: ({ settings, app, outputDir }) =>
+			new RunPodFluxImageProvider(settings.providers.runpod, app, outputDir),
+		testConnection: (d) => testRunPodConnection(d.runpod || ''),
 	},
 	{
 		id: 'minimax',

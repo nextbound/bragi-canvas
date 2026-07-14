@@ -15,6 +15,7 @@
 		"lint:obsidian": "eslint .",
     "test:update-check": "node scripts/verify-update-check.mjs",
     "test:gemini-video-text": "node scripts/verify-gemini-video-text.mjs",
+    "test:bfl-denoise": "node scripts/verify-bfl-denoise.mjs",
     "test:mulerouter-carrothub": "node scripts/verify-mulerouter-carrothub-images.mjs",
     "test:reference-image-upload": "node scripts/verify-reference-image-upload.mjs",
     "test:kling-omni": "node scripts/verify-kling-omni.mjs",
