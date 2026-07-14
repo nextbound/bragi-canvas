@@ -47,6 +47,24 @@ function gatewayErrorMessage(json: unknown, text: string, fallback: string): str
 	return stringValue(error?.message || body?.error || body?.message || text.substring(0, 200), fallback)
 }
 
+function assetFailedReason(body: JsonRecord | null): string {
+	const result = asRecord(body?.Result) || asRecord(body?.result)
+	const error = asRecord(result?.Error) || asRecord(result?.error) || asRecord(body?.Error) || asRecord(body?.error)
+	return stringValue(
+		body?.failed_reason ||
+		body?.failedReason ||
+		body?.FailedReason ||
+		result?.FailedReason ||
+		result?.failed_reason ||
+		result?.failedReason ||
+		error?.Message ||
+		error?.message ||
+		error?.Code ||
+		error?.code,
+		'',
+	)
+}
+
 export function getSvNewApiAssetCreds(plugin: BragiCanvas): SvNewApiAssetCreds | null {
 	const apiKey = (plugin.settings.providers.svnewapi || '').trim()
 	if (!apiKey) return null
@@ -134,7 +152,7 @@ async function getGatewayAssetStatus(creds: SvNewApiAssetCreds, model: string, i
 		throw new Error(`SV NewAPI asset status failed: ${gatewayErrorMessage(r.json, r.text, `HTTP ${r.status}`)}`)
 	}
 	const body = asRecord(r.json)
-	const failedReason = stringValue(body?.failed_reason, '')
+	const failedReason = assetFailedReason(body)
 	return { status: stringValue(body?.status, 'Unknown'), failedReason: failedReason || undefined }
 }
 

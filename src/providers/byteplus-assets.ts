@@ -25,6 +25,31 @@ export interface AssetGetResult {
 	raw: unknown
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown, fallback = ''): string {
+	if (typeof value === 'string') return value
+	if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+	return fallback
+}
+
+function failureReason(raw: unknown): string {
+	const result = asRecord(raw)
+	const error = asRecord(result?.Error) || asRecord(result?.error)
+	return stringValue(
+		result?.FailedReason ||
+		result?.failed_reason ||
+		result?.failedReason ||
+		error?.Message ||
+		error?.message ||
+		error?.Code ||
+		error?.code,
+		'',
+	)
+}
+
 function randomHex(n: number): string {
 	const bytes = new Uint8Array(n)
 	crypto.getRandomValues(bytes)
@@ -116,10 +141,10 @@ export async function waitForActive(creds: BytePlusAssetCreds, assetId: string):
 		const { status, raw } = await getAsset(creds, assetId)
 		if (status === 'Active') return
 		if (status === 'Rejected') {
-			throw new Error(`BytePlus asset rejected (content moderation). ${raw?.FailedReason || ''}`.trim())
+			throw new Error(`BytePlus asset rejected (content moderation). ${failureReason(raw)}`.trim())
 		}
 		if (status === 'Failed') {
-			throw new Error(`BytePlus asset failed. ${raw?.FailedReason || ''}`.trim())
+			throw new Error(`BytePlus asset failed. ${failureReason(raw)}`.trim())
 		}
 		await new Promise(r => window.setTimeout(r, POLL_INTERVAL_MS))
 	}
