@@ -623,6 +623,7 @@ export function patchCanvasMenu(
 	onAnnotateImage?: (node: CanvasNode, canvas: Canvas) => void,
 	onEditVideo?: (node: CanvasNode, canvas: Canvas) => void,
 	onDenoiseImage?: (node: CanvasNode, canvas: Canvas) => void,
+	canDenoiseImage?: () => boolean,
 ): void {
 	if (menuUninstaller) return
 
@@ -833,7 +834,7 @@ export function patchCanvasMenu(
 			}
 
 			if (isImageNode) {
-				if (onDenoiseImage) {
+				if (onDenoiseImage && (!canDenoiseImage || canDenoiseImage())) {
 					const denoiseBtn = createMenuButton('bragi-denoise', 'bragi-denoise', 'Denoise', () => {
 						onDenoiseImage(selectedNode, canvas)
 					})

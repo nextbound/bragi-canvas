@@ -112,8 +112,13 @@ assert.match(
 )
 assert.match(
 	toolbarSource,
-	/if \(isImageNode\) \{[\s\S]*createMenuButton\('bragi-denoise', 'bragi-denoise', 'Denoise'/,
-	'Denoise button must be injected in the image-node toolbar branch.',
+	/canDenoiseImage\?: \(\) => boolean/,
+	'Canvas menu patch must accept a dynamic denoise availability predicate.',
+)
+assert.match(
+	toolbarSource,
+	/if \(isImageNode\) \{[\s\S]*if \(onDenoiseImage && \(!canDenoiseImage \|\| canDenoiseImage\(\)\)\)[\s\S]*createMenuButton\('bragi-denoise', 'bragi-denoise', 'Denoise'/,
+	'Denoise button must only be injected when the dynamic availability predicate passes.',
 )
 assert.match(
 	toolbarSource,
@@ -133,8 +138,13 @@ assert.doesNotMatch(
 )
 assert.match(
 	mainSource,
-	/\(node, activeCanvas\) => this\.openDenoiseImage\(node, activeCanvas\)/,
-	'Canvas menu denoise callback must enter the one-click denoise flow.',
+	/\(node, activeCanvas\) => this\.openDenoiseImage\(node, activeCanvas\),\s*\n\s*\(\) => this\.canDenoiseImage\(\)/,
+	'Canvas menu must pair the denoise callback with its dynamic availability predicate.',
+)
+assert.match(
+	mainSource,
+	/private canDenoiseImage\(\): boolean \{[\s\S]*if \(!pref\?\.enabled\) return false[\s\S]*getConnectedConfiguredProviderIds\(this\.settings, model\)[\s\S]*getActiveProvider\(model, pref\.selectedProvider, connectedProviders\) !== null/,
+	'Denoise availability must require the FLUX model to be enabled with an active configured provider.',
 )
 assert.match(
 	mainSource,
@@ -148,8 +158,8 @@ assert.doesNotMatch(
 )
 assert.match(
 	mainSource,
-	/getConnectedConfiguredProviderIds\(this\.settings, model\)[\s\S]*getActiveProvider\(model, this\.settings\.modelPrefs\[model\.id\]\?\.selectedProvider, connectedProviders\)/,
-	'Denoise action must resolve the current FLUX.2 Klein provider from model preferences.',
+	/if \(!pref\?\.enabled\) \{[\s\S]*Add FLUX\.2 Klein 9B in settings to use denoise[\s\S]*getConnectedConfiguredProviderIds\(this\.settings, model\)[\s\S]*getActiveProvider\(model, pref\.selectedProvider, connectedProviders\)/,
+	'Denoise action must require the enabled FLUX model and resolve its current configured provider.',
 )
 assert.ok(
 	mainSource.includes("createPlaceholderNode(canvas, 'Denoising image…'"),

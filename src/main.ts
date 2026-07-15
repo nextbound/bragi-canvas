@@ -408,6 +408,7 @@ export default class BragiCanvas extends Plugin {
 			(node, activeCanvas) => openImageAnnotationTool(this, activeCanvas, node, 'box'),
 			(node, activeCanvas) => openVideoEditTool(this, activeCanvas, node),
 			(node, activeCanvas) => this.openDenoiseImage(node, activeCanvas),
+			() => this.canDenoiseImage(),
 		)
 
 		patchPlaceholderContextMenu(canvas)
@@ -480,14 +481,28 @@ export default class BragiCanvas extends Plugin {
 		void this.handleImageDenoise(node, canvas)
 	}
 
+	private canDenoiseImage(): boolean {
+		const model = getModelById('flux-2-klein-9b')
+		if (!model) return false
+		const pref = this.settings.modelPrefs[model.id]
+		if (!pref?.enabled) return false
+		const connectedProviders = getConnectedConfiguredProviderIds(this.settings, model)
+		return getActiveProvider(model, pref.selectedProvider, connectedProviders) !== null
+	}
+
 	async handleImageDenoise(node: CanvasNode, canvas: Canvas): Promise<void> {
 		const model = getModelById('flux-2-klein-9b')
 		if (!model) {
 			new Notice('FLUX.2 Klein 9B is not available')
 			return
 		}
+		const pref = this.settings.modelPrefs[model.id]
+		if (!pref?.enabled) {
+			new Notice('Add FLUX.2 Klein 9B in settings to use denoise')
+			return
+		}
 		const connectedProviders = getConnectedConfiguredProviderIds(this.settings, model)
-		const activeProvider = getActiveProvider(model, this.settings.modelPrefs[model.id]?.selectedProvider, connectedProviders)
+		const activeProvider = getActiveProvider(model, pref.selectedProvider, connectedProviders)
 		if (!activeProvider) {
 			new Notice('Connect BFL, RunPod, or fal.ai to FLUX.2 Klein 9B in settings to use denoise')
 			return
