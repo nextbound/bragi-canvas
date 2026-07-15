@@ -8,38 +8,48 @@ const packageSource = readFileSync('package.json', 'utf8')
 
 assert.match(
 	modelSource,
-	/fal: \{ apiModelId: 'fal-ai\/flux-2\/klein\/9b', refDelivery: \{ image: 'inline' \} \}/,
-	'FLUX.2 Klein 9B must connect to the fal distilled model with inline image references.',
+	/fal: \{ apiModelId: 'fal-ai\/flux-2\/klein\/9b\/base', refDelivery: \{ image: 'inline' \} \}/,
+	'FLUX.2 Klein 9B must connect to the fal base model with inline image references.',
 )
 
 assert.match(
 	providerSource,
-	/const FAL_FLUX_KLEIN_9B = 'fal-ai\/flux-2\/klein\/9b'/,
-	'fal FLUX Klein must use the 9B distilled text-to-image endpoint.',
+	/const FAL_FLUX_KLEIN_9B_BASE = 'fal-ai\/flux-2\/klein\/9b\/base'/,
+	'fal FLUX Klein must use the 9B base text-to-image endpoint.',
 )
 assert.match(
 	providerSource,
-	/const FAL_FLUX_KLEIN_9B_EDIT = .*FAL_FLUX_KLEIN_9B.*\/edit/,
-	'fal FLUX Klein must use the paired distilled edit endpoint for image inputs.',
+	/const FAL_FLUX_KLEIN_9B_BASE_EDIT = .*FAL_FLUX_KLEIN_9B_BASE.*\/edit/,
+	'fal FLUX Klein must use the paired base edit endpoint for image inputs.',
 )
-assert.doesNotMatch(
+assert.match(
 	providerSource,
 	/fal-ai\/flux-2\/klein\/9b\/base/,
-	'fal FLUX Klein must not route this test integration to the base model.',
+	'fal FLUX Klein must route this integration to the base model.',
 )
 assert.match(
 	providerSource,
-	/const FAL_FLUX_KLEIN_STEPS = 4[\s\S]*input\.num_inference_steps = FAL_FLUX_KLEIN_STEPS/,
-	'fal FLUX Klein distilled generation must use its native four inference steps.',
+	/const FAL_FLUX_KLEIN_STEPS = 5[\s\S]*input\.num_inference_steps = FAL_FLUX_KLEIN_STEPS/,
+	'fal FLUX Klein base generation must use five inference steps.',
 )
 assert.match(
 	providerSource,
-	/if \(refImages\.length > 0\) \{[\s\S]*modelId = FAL_FLUX_KLEIN_9B_EDIT[\s\S]*input\.image_urls = await Promise\.all\(refImages\.slice\(0, 4\)\.map\(uploadFalImageRef\)\)/,
-	'fal FLUX Klein must route up to four original upstream images to distilled edit.',
+	/const FAL_FLUX_KLEIN_GUIDANCE_SCALE = 1[\s\S]*input\.guidance_scale = FAL_FLUX_KLEIN_GUIDANCE_SCALE/,
+	'fal FLUX Klein base generation must use guidance scale 1.',
 )
 assert.match(
 	providerSource,
-	/modelId = FAL_FLUX_KLEIN_9B[\s\S]*input\.image_size = dimensionsFromParams\(params, targetLongEdge\)/,
+	/const FAL_FLUX_KLEIN_ENABLE_SAFETY_CHECKER = false[\s\S]*input\.enable_safety_checker = FAL_FLUX_KLEIN_ENABLE_SAFETY_CHECKER/,
+	'fal FLUX Klein base generation must disable the fal safety checker.',
+)
+assert.match(
+	providerSource,
+	/if \(refImages\.length > 0\) \{[\s\S]*modelId = FAL_FLUX_KLEIN_9B_BASE_EDIT[\s\S]*input\.image_urls = await Promise\.all\(refImages\.slice\(0, 4\)\.map\(uploadFalImageRef\)\)/,
+	'fal FLUX Klein must route up to four original upstream images to base edit.',
+)
+assert.match(
+	providerSource,
+	/modelId = FAL_FLUX_KLEIN_9B_BASE[\s\S]*input\.image_size = dimensionsFromParams\(params, targetLongEdge\)/,
 	'fal FLUX Klein text-to-image must honor the configured long-edge size.',
 )
 assert.match(
