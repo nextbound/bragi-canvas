@@ -489,7 +489,7 @@ export default class BragiCanvas extends Plugin {
 		const connectedProviders = getConnectedConfiguredProviderIds(this.settings, model)
 		const activeProvider = getActiveProvider(model, this.settings.modelPrefs[model.id]?.selectedProvider, connectedProviders)
 		if (!activeProvider) {
-			new Notice('Connect BFL or RunPod to FLUX.2 Klein 9B in settings to use denoise')
+			new Notice('Connect BFL, RunPod, or fal.ai to FLUX.2 Klein 9B in settings to use denoise')
 			return
 		}
 

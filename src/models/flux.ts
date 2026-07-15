@@ -19,6 +19,7 @@ export const flux2Klein9b: ModelConfig = {
 	supportedProviders: {
 		bfl: { apiModelId: 'flux-2-klein-9b', refDelivery: { image: 'inline' } },
 		runpod: { apiModelId: 'flux-2-klein-9b', refDelivery: { image: 'inline' } },
+		fal: { apiModelId: 'fal-ai/flux-2/klein/9b', refDelivery: { image: 'inline' } },
 	},
 	modes: ['text-to-image', 'image-ref-to-image'],
 	inferModeFromInputs: true,

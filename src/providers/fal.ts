@@ -4,9 +4,35 @@ import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './upload'
 import { stringParam } from './params'
+import {
+	booleanParam,
+	colorMatchImage,
+	dimensionsFromParams,
+	mimeForOutputFormat,
+	positiveIntParam,
+	prepareReferenceImage,
+} from './bfl'
 
 const FAL_RUN = 'https://fal.run'
 const FAL_QUEUE = 'https://queue.fal.run'
+const FAL_FLUX_KLEIN_9B = 'fal-ai/flux-2/klein/9b'
+const FAL_FLUX_KLEIN_9B_EDIT = `${FAL_FLUX_KLEIN_9B}/edit`
+const FAL_FLUX_KLEIN_STEPS = 4
+const DEFAULT_FLUX_TARGET_LONG_EDGE = 2048
+
+function imageRefArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((ref): ref is string => typeof ref === 'string' && ref.length > 0)
+		: []
+}
+
+async function uploadFalImageRef(ref: string): Promise<string> {
+	const match = ref.match(/^data:([^;]+);base64,(.+)$/)
+	if (!match) return ref
+	const binary = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0))
+	const ext = match[1].includes('png') ? 'png' : 'jpg'
+	return uploadRef(undefined, binary.buffer, `ref.${ext}`, match[1])
+}
 
 /**
  * Unified fal.ai provider for image and video generation.
@@ -25,32 +51,38 @@ export class FalImageProvider implements ImageProvider {
 	}
 
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
-		const modelId = stringParam(params?.modelId, 'xai/grok-imagine-image')
-		const refImages: string[] = params?.refImages || []
+		let modelId = stringParam(params?.modelId, 'xai/grok-imagine-image')
+		const refImages = imageRefArray(params?.refImages)
+		const isFluxKlein = modelId === FAL_FLUX_KLEIN_9B || modelId === FAL_FLUX_KLEIN_9B_EDIT
 
 		// Build input based on model
-		const input: unknown = { prompt }
+		const input: Record<string, unknown> = { prompt }
+		let colorMatchReference: string | null = null
 
-		if (params?.aspectRatio) input.aspect_ratio = params.aspectRatio
-		if (params?.resolution) input.resolution = params.resolution
-		if (params?.imageSize) input.image_size = params.imageSize
-		if (params?.size) input.size = params.size
+		if (isFluxKlein) {
+			const targetLongEdge = positiveIntParam(params?.targetLongEdge, DEFAULT_FLUX_TARGET_LONG_EDGE)
+			input.num_inference_steps = FAL_FLUX_KLEIN_STEPS
+			input.output_format = 'png'
+			input.num_images = 1
 
-		// Reference images — upload data URIs to R2 first
-		if (refImages.length > 0) {
-			const uploadedUrls: string[] = []
-			for (const dataUri of refImages) {
-				const match = dataUri.match(/^data:([^;]+);base64,(.+)$/)
-				if (match) {
-					const binary = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0))
-					const ext = match[1].includes('png') ? 'png' : 'jpg'
-					const url = await uploadRef(undefined, binary.buffer, `ref.${ext}`, match[1])
-					uploadedUrls.push(url)
-				} else {
-					uploadedUrls.push(dataUri)
-				}
+			if (refImages.length > 0) {
+				modelId = FAL_FLUX_KLEIN_9B_EDIT
+				const preparedReference = await prepareReferenceImage(refImages[0], targetLongEdge)
+				input.image_urls = await Promise.all(refImages.slice(0, 4).map(uploadFalImageRef))
+				input.image_size = { width: preparedReference.width, height: preparedReference.height }
+				colorMatchReference = preparedReference.dataUri
+			} else {
+				modelId = FAL_FLUX_KLEIN_9B
+				input.image_size = dimensionsFromParams(params, targetLongEdge)
 			}
-			input.image_urls = uploadedUrls
+		} else {
+			if (params?.aspectRatio) input.aspect_ratio = params.aspectRatio
+			if (params?.resolution) input.resolution = params.resolution
+			if (params?.imageSize) input.image_size = params.imageSize
+			if (params?.size) input.size = params.size
+			if (refImages.length > 0) {
+				input.image_urls = await Promise.all(refImages.map(uploadFalImageRef))
+			}
 		}
 
 		const response = await requestUrl({
@@ -73,8 +105,20 @@ export class FalImageProvider implements ImageProvider {
 
 		// Download image to vault
 		const imgResponse = await requestUrl({ url: imageUrl })
+		let outputBytes = imgResponse.arrayBuffer
 		const timestamp = Date.now()
-		const ext = imageUrl.includes('.png') ? 'png' : 'jpg'
+		let ext = isFluxKlein || imageUrl.includes('.png') ? 'png' : 'jpg'
+		const enableColorMatch = isFluxKlein && booleanParam(params?.enableColorMatch, false)
+		const explicitColorMatchRef = stringParam(params?.colorMatchRefImage, '')
+		if (enableColorMatch) {
+			const reference = explicitColorMatchRef
+				? (await prepareReferenceImage(explicitColorMatchRef, positiveIntParam(params?.targetLongEdge, DEFAULT_FLUX_TARGET_LONG_EDGE))).dataUri
+				: colorMatchReference
+			if (reference) {
+				outputBytes = await colorMatchImage(reference, outputBytes, mimeForOutputFormat(ext))
+				ext = 'png'
+			}
+		}
 		const fileName = `img_${timestamp}.${ext}`
 		const filePath = `${this.outputDir}/${fileName}`
 
@@ -83,7 +127,7 @@ export class FalImageProvider implements ImageProvider {
 			await adapter.mkdir(this.outputDir)
 		}
 
-		await adapter.writeBinary(filePath, imgResponse.arrayBuffer)
+		await adapter.writeBinary(filePath, outputBytes)
 		return { filePath }
 	}
 }
