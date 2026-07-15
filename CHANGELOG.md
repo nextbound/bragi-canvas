@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.29.0
+
+- Added fal.ai as a provider for FLUX.2 Klein 9B image generation, alongside BFL and Runpod.
+- Added static verification for fal FLUX Klein payload routing.
+- Fixed the Denoise toolbar action so it is hidden when no available provider supports the action.
+- Bumped the plugin version to `1.29.0`.
+
 ## 1.28.0
 
 - Renamed SV NewAPI to SVRouter in provider-facing UI while keeping the same `svnewapi` settings key for compatibility, and fixed SVRouter asset registration to use the centralized gateway URL.
