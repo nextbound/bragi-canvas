@@ -15,9 +15,11 @@ import {
 
 const FAL_RUN = 'https://fal.run'
 const FAL_QUEUE = 'https://queue.fal.run'
-const FAL_FLUX_KLEIN_9B = 'fal-ai/flux-2/klein/9b'
-const FAL_FLUX_KLEIN_9B_EDIT = `${FAL_FLUX_KLEIN_9B}/edit`
-const FAL_FLUX_KLEIN_STEPS = 4
+const FAL_FLUX_KLEIN_9B_BASE = 'fal-ai/flux-2/klein/9b/base'
+const FAL_FLUX_KLEIN_9B_BASE_EDIT = `${FAL_FLUX_KLEIN_9B_BASE}/edit`
+const FAL_FLUX_KLEIN_STEPS = 5
+const FAL_FLUX_KLEIN_GUIDANCE_SCALE = 1
+const FAL_FLUX_KLEIN_ENABLE_SAFETY_CHECKER = false
 const DEFAULT_FLUX_TARGET_LONG_EDGE = 2048
 
 function imageRefArray(value: unknown): string[] {
@@ -53,7 +55,7 @@ export class FalImageProvider implements ImageProvider {
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
 		let modelId = stringParam(params?.modelId, 'xai/grok-imagine-image')
 		const refImages = imageRefArray(params?.refImages)
-		const isFluxKlein = modelId === FAL_FLUX_KLEIN_9B || modelId === FAL_FLUX_KLEIN_9B_EDIT
+		const isFluxKlein = modelId === FAL_FLUX_KLEIN_9B_BASE || modelId === FAL_FLUX_KLEIN_9B_BASE_EDIT
 
 		// Build input based on model
 		const input: Record<string, unknown> = { prompt }
@@ -62,17 +64,19 @@ export class FalImageProvider implements ImageProvider {
 		if (isFluxKlein) {
 			const targetLongEdge = positiveIntParam(params?.targetLongEdge, DEFAULT_FLUX_TARGET_LONG_EDGE)
 			input.num_inference_steps = FAL_FLUX_KLEIN_STEPS
+			input.guidance_scale = FAL_FLUX_KLEIN_GUIDANCE_SCALE
+			input.enable_safety_checker = FAL_FLUX_KLEIN_ENABLE_SAFETY_CHECKER
 			input.output_format = 'png'
 			input.num_images = 1
 
 			if (refImages.length > 0) {
-				modelId = FAL_FLUX_KLEIN_9B_EDIT
+				modelId = FAL_FLUX_KLEIN_9B_BASE_EDIT
 				const preparedReference = await prepareReferenceImage(refImages[0], targetLongEdge)
 				input.image_urls = await Promise.all(refImages.slice(0, 4).map(uploadFalImageRef))
 				input.image_size = { width: preparedReference.width, height: preparedReference.height }
 				colorMatchReference = preparedReference.dataUri
 			} else {
-				modelId = FAL_FLUX_KLEIN_9B
+				modelId = FAL_FLUX_KLEIN_9B_BASE
 				input.image_size = dimensionsFromParams(params, targetLongEdge)
 			}
 		} else {
