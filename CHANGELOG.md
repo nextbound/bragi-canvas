@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.29.1
+
+- Tuned fal.ai FLUX.2 Klein 9B base inference and request shaping.
+- Expanded static verification coverage for fal FLUX Klein routing.
+- Bumped the plugin version to `1.29.1`.
+
 ## 1.29.0
 
 - Added fal.ai as a provider for FLUX.2 Klein 9B image generation, alongside BFL and Runpod.
