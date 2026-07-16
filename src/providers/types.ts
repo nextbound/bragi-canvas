@@ -75,10 +75,20 @@ export interface VoiceDesignResult {
 	previewUrl?: string
 }
 
+export interface VoiceChangeOptions {
+	voiceId: string
+	modelId?: string
+	audioBytes: ArrayBuffer
+	filename?: string
+	mimeType?: string
+	outputFormat?: string
+}
+
 export interface AudioProvider {
 	name: string
 	generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, [k: string]: unknown }): Promise<GenerateAudioResult>
 	listVoices?(options?: ListVoicesOptions): Promise<VoiceOption[]>
 	cloneVoice?(options: VoiceCloneOptions): Promise<VoiceCloneResult>
 	designVoice?(options: VoiceDesignOptions): Promise<VoiceDesignResult>
+	changeVoice?(options: VoiceChangeOptions): Promise<GenerateAudioResult>
 }

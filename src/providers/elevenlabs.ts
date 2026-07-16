@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- ElevenLabs API responses arrive as runtime-shaped JSON narrowed at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
-import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceCloneOptions, VoiceCloneResult, VoiceOption } from './types'
+import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceChangeOptions, VoiceCloneOptions, VoiceCloneResult, VoiceOption } from './types'
 import { optionalStringParam, stringParam } from './params'
 
 const BASE_URL = 'https://api.elevenlabs.io'
@@ -203,6 +203,53 @@ export class ElevenLabsProvider implements AudioProvider {
 			name: voiceName,
 			requiresVerification: typeof payload.requires_verification === 'boolean' ? payload.requires_verification : undefined,
 		}
+	}
+
+	/**
+	 * Voice Changer: POST /v1/speech-to-speech/{voice_id}
+	 * The source audio supplies content, timing, and emotion; voice_id supplies
+	 * the target voice created from the incoming reference audio.
+	 */
+	async changeVoice(options: VoiceChangeOptions): Promise<GenerateAudioResult> {
+		if (!options.audioBytes) {
+			throw new Error('ElevenLabs Voice Changer needs source audio bytes.')
+		}
+
+		const modelId = options.modelId || 'eleven_multilingual_sts_v2'
+		const outputFormat = options.outputFormat || DEFAULT_OUTPUT_FORMAT
+		const boundary = '----BragiElevenLabsBoundary' + Math.random().toString(36).slice(2)
+		const parts: Uint8Array[] = []
+
+		appendMultipartFile(
+			parts,
+			boundary,
+			'audio',
+			options.filename || 'source.mp3',
+			options.mimeType || 'audio/mpeg',
+			new Uint8Array(options.audioBytes),
+		)
+		appendMultipartField(parts, boundary, 'model_id', modelId)
+		parts.push(new TextEncoder().encode(`--${boundary}--\r\n`))
+
+		const response = await requestUrl({
+			url: `${BASE_URL}/v1/speech-to-speech/${encodeURIComponent(options.voiceId)}?output_format=${encodeURIComponent(outputFormat)}`,
+			method: 'POST',
+			headers: {
+				'Content-Type': `multipart/form-data; boundary=${boundary}`,
+				'xi-api-key': this.apiKey,
+			},
+			body: concatBytes(parts),
+			throw: false,
+		})
+
+		if (response.status === 401 || response.status === 403) {
+			throw new Error(`ElevenLabs Voice Changer auth: ${parseErr(response)}`)
+		}
+		if (response.status >= 400) {
+			throw new Error(`ElevenLabs Voice Changer: ${parseErr(response)}`)
+		}
+
+		return this.saveAudio(response.arrayBuffer, 'voice_changer')
 	}
 
 	/**

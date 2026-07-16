@@ -636,6 +636,17 @@
 	--icon-size: 20px;
 }
 
+.bragi-canvas-menu .bragi-voice-changer.is-disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.bragi-canvas-menu .bragi-voice-changer.is-disabled:hover,
+.bragi-canvas-menu .bragi-voice-changer.is-disabled:active {
+	background: transparent;
+	color: var(--bragi-text);
+}
+
 .bragi-canvas-menu .bragi-labeled-menu-button {
 	display: inline-flex;
 	align-items: center;
