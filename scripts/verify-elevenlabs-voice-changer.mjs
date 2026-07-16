@@ -58,7 +58,7 @@ assert.match(
 )
 assert.match(
 	toolbarSource,
-	/enabled \? 'Voice Changer' : 'Requires ElevenLabs and 1 incoming audio'/,
+	/enabled \? 'Voice changer' : 'Set up voice changer and connect one incoming audio'/,
 	'The toolbar must use the approved active and disabled tooltip copy.',
 )
 assert.match(
@@ -79,12 +79,12 @@ assert.match(
 )
 assert.match(
 	mainSource,
-	/createPlaceholderNode\(canvas, 'Voice Changer', node, computeOutputSize\('audio'\)\)/,
+	/createPlaceholderNode\(canvas, 'Voice changer', node, computeOutputSize\('audio'\)\)/,
 	'Every click must immediately create a normal audio generation placeholder from the selected source node.',
 )
 assertOrder(
 	voiceChangerHandler,
-	"createPlaceholderNode(canvas, 'Voice Changer', node, computeOutputSize('audio'))",
+	"createPlaceholderNode(canvas, 'Voice changer', node, computeOutputSize('audio'))",
 	'await applyUpstreamVoiceReference(',
 	'The output placeholder must exist before voice cloning or conversion begins.',
 )

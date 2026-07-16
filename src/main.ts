@@ -988,8 +988,7 @@ export default class BragiCanvas extends Plugin {
 		const canvas = getCanvasFromNode(node)
 		const incomingAudios = getUpstreamInputs(canvas, node).audios
 		if (!this.settings.providers.elevenlabs || incomingAudios.length !== 1) {
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Approved requirement copy preserves the ElevenLabs brand name.
-			new Notice('Requires ElevenLabs and 1 incoming audio')
+			new Notice('Set up voice changer and connect one incoming audio')
 			return
 		}
 
@@ -1007,12 +1006,11 @@ export default class BragiCanvas extends Plugin {
 			outputDir: this.getOutputDir(),
 		})
 		if (!provider || !providerSupportsVoiceChange(provider)) {
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Preserve the ElevenLabs brand name.
-			new Notice('ElevenLabs voice changer is not available')
+			new Notice('Voice changer is not available')
 			return
 		}
 
-		const placeholder = createPlaceholderNode(canvas, 'Voice Changer', node, computeOutputSize('audio'))
+		const placeholder = createPlaceholderNode(canvas, 'Voice changer', node, computeOutputSize('audio'))
 		this.syncGenerating.add(placeholder.id)
 
 		try {
@@ -1048,10 +1046,10 @@ export default class BragiCanvas extends Plugin {
 			}
 			new Notice('Voice changed')
 		} catch (err: unknown) {
-			console.error('Bragi Canvas Voice Changer error:', err)
+			console.error('Bragi Canvas voice changer error:', err)
 			const message = err instanceof Error ? err.message : String(err)
-			markNodeFailed(placeholder, message || 'Voice Changer failed')
-			new Notice(`Voice Changer failed: ${message}`)
+			markNodeFailed(placeholder, message || 'Voice changer failed')
+			new Notice(`Voice changer failed: ${message}`)
 		} finally {
 			this.syncGenerating.delete(placeholder.id)
 		}

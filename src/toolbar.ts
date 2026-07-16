@@ -897,7 +897,7 @@ export function patchCanvasMenu(
 					const voiceChangerBtn = createMenuButton(
 						'bragi-voice-changer',
 						'bragi-gen-audio',
-						enabled ? 'Voice Changer' : 'Requires ElevenLabs and 1 incoming audio',
+						enabled ? 'Voice changer' : 'Set up voice changer and connect one incoming audio',
 						() => {
 							if (enabled) onVoiceChanger(selectedNode)
 						},
