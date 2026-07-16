@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.30.1
+
+- Removed forbidden `obsidianmd/ui/sentence-case` disable comments from Voice Changer UI copy.
+- Changed Voice Changer notices and tooltips to sentence case for Obsidian community review.
+- Bumped the plugin version to `1.30.1`.
+
 ## 1.30.0
 
 - Added ElevenLabs Voice Changer for audio nodes using `eleven_multilingual_sts_v2`: the selected audio supplies content and emotion, one incoming audio supplies the target voice, and every click creates an independent parallel output node.
