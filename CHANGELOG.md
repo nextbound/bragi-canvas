@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.29.2
+
+- Fixed Legnext image result selection so single-image outputs prefer the first individual image instead of the composite preview grid.
+- Added static verification coverage for Legnext image result parsing.
+- Bumped the plugin version to `1.29.2`.
+
 ## 1.29.1
 
 - Tuned fal.ai FLUX.2 Klein 9B base inference and request shaping.
