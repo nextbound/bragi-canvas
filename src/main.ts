@@ -22,7 +22,7 @@ import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
 import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
-import type { AudioProvider, VideoProvider } from './providers/types'
+import type { AudioProvider, VideoProvider, VoiceOption } from './providers/types'
 import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
 import { startAttachmentRedirect } from './attachment-redirect'
@@ -34,6 +34,7 @@ import { ensureTokenRouterModelArkAsset, getTokenRouterModelArkCreds } from './t
 import { ensureToken360Asset, getToken360AssetCreds } from './token360-asset-flow'
 import { splitImageNodeIntoTiles } from './grid-split-flow'
 import { isSupportedLanguage, LanguageGateModal } from './ui/language-gate'
+import { VoicePickerModal } from './ui/voice-picker-modal'
 import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { VoiceSourceMode, RefModality, ModelConfig } from './models/types'
@@ -391,6 +392,7 @@ export default class BragiCanvas extends Plugin {
 				(node) => this.openPanel('audio', node),
 				(node) => { void this.handleSTT(node) },
 				(node) => { void this.handleAudioIsolation(node) },
+				(node) => this.openVoiceChanger(node),
 			(node) => {
 				const result = duplicateWithConnections(getCanvasFromNode(node), node)
 				if (result) this.refreshCanvasRefsAfterMutation(result.canvas)
@@ -1103,6 +1105,75 @@ export default class BragiCanvas extends Plugin {
 		}
 	}
 
+	openVoiceChanger(node: CanvasNode) {
+		if (!this.settings.providers.elevenlabs) {
+			new Notice('Add your provider key in settings to use voice changer')
+			return
+		}
+		const model = getModelById('elevenlabs-tts-v3')
+		if (!model) {
+			new Notice('Voices are not available')
+			return
+		}
+		const voiceParam = model.params.find(param => param.id === 'voice')
+		new VoicePickerModal(this.app, {
+			settings: this.settings,
+			model,
+			activeProvider: 'elevenlabs',
+			catalogProvider: 'elevenlabs',
+			apiModelId: 'eleven_multilingual_sts_v2',
+			staticOptions: voiceParam?.options || [],
+			voiceSource: 'builtin',
+			onSelect: (voice) => {
+				void this.handleVoiceChanger(node, voice)
+			},
+		}).open()
+	}
+
+	/**
+	 * Voice changer: audio file node -> transformed audio file node.
+	 */
+	async handleVoiceChanger(node: CanvasNode, voice: VoiceOption) {
+		const nodeData = node.getData() as unknown
+		const filePath = nodeData.file
+		if (!filePath) return
+
+		const spec = getProvider('elevenlabs')
+		const provider = spec?.makeAudio?.({
+			settings: this.settings,
+			app: this.app,
+			outputDir: this.getOutputDir(),
+		})
+		if (!provider || !providerSupportsVoiceChange(provider)) {
+			new Notice('Voice changer is not available')
+			return
+		}
+
+		const canvas = getCanvasFromNode(node)
+		const placeholder = createPlaceholderNode(canvas, `Changing voice to ${voice.name || 'target voice'}…`, node, computeOutputSize('audio'))
+		new Notice(`Changing voice to ${voice.name || 'target voice'}…`)
+
+		try {
+			const binary = await this.app.vault.adapter.readBinary(filePath)
+			const ext = getFileExtension(filePath, 'mp3')
+			const result = await provider.changeVoice({
+				voiceId: voice.id,
+				modelId: 'eleven_multilingual_sts_v2',
+				audioBytes: binary,
+				filename: `audio.${ext}`,
+				mimeType: audioMimeType(filePath),
+				outputFormat: 'mp3_44100_128',
+			})
+			this.rememberGeneratedAsset(result.filePath)
+			replacePlaceholderWithFile(canvas, placeholder, result.filePath, node)
+			new Notice('Voice changed')
+		} catch (err: unknown) {
+			console.error('Bragi Canvas voice changer error:', err)
+			markNodeFailed(placeholder, err.message || 'Voice changer failed')
+			new Notice(`Voice changer failed: ${err.message}`)
+		}
+	}
+
 	private getNodeAssetIdMap(node: CanvasNode): Record<string, string> {
 		const data = node.getData() as { bragiAssetId?: string; bragiAssetIds?: Record<string, string> }
 		const ids = { ...(data.bragiAssetIds || {}) }
@@ -1350,6 +1421,10 @@ function isCustomVoiceRecord(value: unknown): value is CustomVoiceRecord {
 
 function providerSupportsVoiceClone(provider: AudioProvider): provider is AudioProvider & { cloneVoice: NonNullable<AudioProvider['cloneVoice']> } {
 	return typeof provider.cloneVoice === 'function'
+}
+
+function providerSupportsVoiceChange(provider: AudioProvider): provider is AudioProvider & { changeVoice: NonNullable<AudioProvider['changeVoice']> } {
+	return typeof provider.changeVoice === 'function'
 }
 
 function providerSupportsVoiceDesign(provider: AudioProvider): provider is AudioProvider & { designVoice: NonNullable<AudioProvider['designVoice']> } {
