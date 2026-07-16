@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+## 1.30.0
+
 - Added ElevenLabs Voice Changer for audio nodes using `eleven_multilingual_sts_v2`: the selected audio supplies content and emotion, one incoming audio supplies the target voice, and every click creates an independent parallel output node.
 - Reused cached ElevenLabs custom voices across TTS and Voice Changer, with in-flight clone deduplication for parallel conversions.
 - Fixed Kling 3.0 Omni video editing so native Kling and APIMart requests can combine one base video with reference images.
 - Added payload regression coverage for Kling 3.0 Omni base-video edits with multiple image references.
+- Bumped the plugin version to `1.30.0`.
 
 ## 1.29.2
 
