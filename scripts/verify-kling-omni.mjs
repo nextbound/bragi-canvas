@@ -70,12 +70,18 @@ try {
 		keep_original_sound: 'yes',
 	}])
 
-	const officialEdit = buildOfficialKlingOmniRequest('Replace the sky', {
+	const officialEdit = buildOfficialKlingOmniRequest('Replace the sky using the references', {
 		genMode: 'video-edit',
+		refImages: ['https://refs/sky.png', 'https://refs/palette.png'],
 		refVideos: ['https://refs/base.mp4'],
 		keep_original_sound: 'yes',
 		duration: 12,
 	})
+	assert.match(officialEdit.prompt, /<<<image_1>>> <<<image_2>>>/)
+	assert.deepEqual(officialEdit.image_list, [
+		{ image_url: 'https://refs/sky.png' },
+		{ image_url: 'https://refs/palette.png' },
+	])
 	assert.equal(officialEdit.duration, undefined)
 	assert.equal(officialEdit.aspect_ratio, undefined)
 	assert.equal(officialEdit.sound, 'off')
@@ -129,10 +135,13 @@ try {
 	assert.equal(apimartAdvanced.multi_prompt.length, 2)
 	assert.equal(apimartAdvanced.element_list.length, 1)
 
-	const apimartEdit = buildApimartKlingOmniRequest('Remove the sign', {
+	const apimartEdit = buildApimartKlingOmniRequest('Replace the sign using the references', {
 		genMode: 'video-edit',
+		refImages: ['https://refs/sign.png', 'https://refs/type.png'],
 		refVideos: ['https://refs/base.mp4'],
 	})
+	assert.match(apimartEdit.prompt, /<<<image_1>>> <<<image_2>>>/)
+	assert.deepEqual(apimartEdit.image_urls, ['https://refs/sign.png', 'https://refs/type.png'])
 	assert.equal(apimartEdit.duration, undefined)
 	assert.equal(apimartEdit.audio, undefined)
 	assert.deepEqual(apimartEdit.video_list, [{

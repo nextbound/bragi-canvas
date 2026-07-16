@@ -73,9 +73,6 @@ function validateInputs(genMode: string, refImages: string[], refVideos: string[
 	if ((genMode === 'video-ref' || genMode === 'video-edit') && refVideos.length !== 1) {
 		throw new Error(`${provider} Kling Omni ${genMode} mode requires exactly one reference video.`)
 	}
-	if (genMode === 'video-edit' && refImages.length > 0) {
-		throw new Error(`${provider} Kling Omni video edit cannot be combined with image references.`)
-	}
 	if (!['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'multi-image-ref', 'video-ref', 'video-edit'].includes(genMode)) {
 		throw new Error(`${provider} Kling Omni does not support ${genMode} mode.`)
 	}
@@ -146,6 +143,10 @@ export function buildOfficialKlingOmniRequest(prompt: string, params: JsonObject
 			refer_type: 'base',
 			keep_original_sound: stringValue(params.keep_original_sound, 'no'),
 		}]
+		if (refImages.length > 0) {
+			body.image_list = refImages.map(imageUrl => ({ image_url: imageUrl }))
+			finalPrompt = withMissingReferences(finalPrompt, 'image', refImages.length)
+		}
 	}
 
 	body.prompt = finalPrompt
@@ -202,6 +203,10 @@ export function buildApimartKlingOmniRequest(prompt: string, params: JsonObject 
 			refer_type: 'base',
 			keep_original_sound: stringValue(params.keep_original_sound, 'no'),
 		}]
+		if (refImages.length > 0) {
+			body.image_urls = refImages
+			finalPrompt = withMissingReferences(finalPrompt, 'image', refImages.length)
+		}
 	}
 
 	body.prompt = finalPrompt

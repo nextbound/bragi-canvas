@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed Kling 3.0 Omni video editing so native Kling and APIMart requests can combine one base video with reference images.
+- Added payload regression coverage for Kling 3.0 Omni base-video edits with multiple image references.
+
 ## 1.29.2
 
 - Fixed Legnext image result selection so single-image outputs prefer the first individual image instead of the composite preview grid.
