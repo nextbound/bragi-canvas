@@ -6,6 +6,23 @@ import { optionalStringParam, stringParam } from './params'
 
 const BASE_URL = 'https://api.legnext.ai/api'
 
+interface LegnextImageOutput {
+	image_url?: unknown
+	image_urls?: unknown
+}
+
+export function selectLegnextImageUrl(output: LegnextImageOutput | null | undefined): string | undefined {
+	// Legnext returns split images in image_urls and the four-image preview grid in image_url.
+	const individualUrl = Array.isArray(output?.image_urls)
+		? output.image_urls.find((url): url is string => typeof url === 'string' && url.length > 0)
+		: undefined
+	if (individualUrl) return individualUrl
+
+	return typeof output?.image_url === 'string' && output.image_url.length > 0
+		? output.image_url
+		: undefined
+}
+
 /**
  * Legnext AI provider for Midjourney image generation.
  * Async: POST /v1/diffusion → poll GET /v1/job/{id} → download image.
@@ -107,7 +124,7 @@ export class LegnextProvider implements ImageProvider {
 
 			const data = response.json
 			if (data.status === 'completed') {
-				const url = data.output?.image_url || data.output?.image_urls?.[0]
+				const url = selectLegnextImageUrl(data.output)
 				if (!url) throw new Error('Legnext: No image URL in completed job')
 				return url
 			}
