@@ -22,7 +22,7 @@ import { startEdgeHighlight, stopEdgeHighlight } from './edge-highlight'
 import { startMediaNodeHover, stopMediaNodeHover } from './media-node-hover'
 import { exportCanvas, importCanvas } from './import-export'
 import type { PanelResult } from './panel'
-import type { AudioProvider, VideoProvider } from './providers/types'
+import type { AudioProvider, VideoProvider, VoiceCloneResult } from './providers/types'
 import { BragiMcpServer } from './mcp-server'
 import { checkMigration } from './migrate-assets'
 import { startAttachmentRedirect } from './attachment-redirect'
@@ -52,6 +52,8 @@ const SEEDANCE_ASSET_PROVIDER_LABELS: Record<SeedanceAssetProviderId, string> = 
 	byteplus: 'BytePlus',
 	bytedance: 'Volcengine',
 }
+
+const ELEVENLABS_VOICE_CHANGER_MODEL_ID = 'eleven_multilingual_sts_v2'
 
 export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
@@ -389,6 +391,8 @@ export default class BragiCanvas extends Plugin {
 				(node) => this.openPanel('video', node),
 				(node) => this.openPanel('text', node),
 				(node) => this.openPanel('audio', node),
+				(node) => { void this.handleVoiceChanger(node) },
+				(node) => this.canVoiceChanger(node),
 				(node) => { void this.handleSTT(node) },
 				(node) => { void this.handleAudioIsolation(node) },
 			(node) => {
@@ -559,6 +563,11 @@ export default class BragiCanvas extends Plugin {
 	private async readImageDataUri(filePath: string): Promise<string> {
 		const binary = await this.app.vault.adapter.readBinary(filePath)
 		return `data:${imageMimeType(filePath)};base64,${arrayBufferToBase64(binary)}`
+	}
+
+	private canVoiceChanger(node: CanvasNode): boolean {
+		if (!this.settings.providers.elevenlabs) return false
+		return getUpstreamInputs(getCanvasFromNode(node), node).audios.length === 1
 	}
 
 	// ── Generation logic ────────────────────────────────────────
@@ -972,6 +981,83 @@ export default class BragiCanvas extends Plugin {
 	}
 
 	/**
+	 * Voice Changer: selected audio supplies content/timing; exactly one incoming
+	 * audio supplies the target voice reference.
+	 */
+	async handleVoiceChanger(node: CanvasNode): Promise<void> {
+		const canvas = getCanvasFromNode(node)
+		const incomingAudios = getUpstreamInputs(canvas, node).audios
+		if (!this.settings.providers.elevenlabs || incomingAudios.length !== 1) {
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Approved requirement copy preserves the ElevenLabs brand name.
+			new Notice('Requires ElevenLabs and 1 incoming audio')
+			return
+		}
+
+		const nodeData = node.getData() as { file?: string }
+		const sourcePath = nodeData.file || ''
+		if (!sourcePath) {
+			new Notice('Voice changer could not find the source audio file')
+			return
+		}
+
+		const spec = getProvider('elevenlabs')
+		const provider = spec?.makeAudio?.({
+			settings: this.settings,
+			app: this.app,
+			outputDir: this.getOutputDir(),
+		})
+		if (!provider || !providerSupportsVoiceChange(provider)) {
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Preserve the ElevenLabs brand name.
+			new Notice('ElevenLabs voice changer is not available')
+			return
+		}
+
+		const placeholder = createPlaceholderNode(canvas, 'Voice Changer', node, computeOutputSize('audio'))
+		this.syncGenerating.add(placeholder.id)
+
+		try {
+			const voiceParams: Record<string, unknown> = {}
+			const voiceRecord = await applyUpstreamVoiceReference(
+				this.app,
+				canvas,
+				provider,
+				'elevenlabs',
+				this.settings,
+				ELEVENLABS_VOICE_CHANGER_MODEL_ID,
+				incomingAudios,
+				0,
+				voiceParams,
+			)
+			const voiceId = typeof voiceParams.voice === 'string' ? voiceParams.voice : voiceRecord.voiceId
+			const sourceBytes = await this.app.vault.adapter.readBinary(sourcePath)
+			const extension = getFileExtension(sourcePath, 'mp3')
+			const result = await provider.changeVoice({
+				voiceId,
+				modelId: ELEVENLABS_VOICE_CHANGER_MODEL_ID,
+				audioBytes: sourceBytes,
+				filename: `source.${extension}`,
+				mimeType: audioMimeType(sourcePath),
+			})
+
+			this.rememberGeneratedAsset(result.filePath)
+			replacePlaceholderWithFile(canvas, placeholder, result.filePath, node)
+			const outputNode = findFileNodeByPath(canvas, result.filePath)
+			if (outputNode) {
+				upsertCustomVoiceRecord(outputNode, await customVoiceRecordForOutput(this.app, result.filePath, voiceRecord))
+				await canvas.requestSave?.()
+			}
+			new Notice('Voice changed')
+		} catch (err: unknown) {
+			console.error('Bragi Canvas Voice Changer error:', err)
+			const message = err instanceof Error ? err.message : String(err)
+			markNodeFailed(placeholder, message || 'Voice Changer failed')
+			new Notice(`Voice Changer failed: ${message}`)
+		} finally {
+			this.syncGenerating.delete(placeholder.id)
+		}
+	}
+
+	/**
 	 * Speech to Text: audio file node → text node
 	 */
 	async handleSTT(node: CanvasNode) {
@@ -1356,6 +1442,10 @@ function providerSupportsVoiceDesign(provider: AudioProvider): provider is Audio
 	return typeof provider.designVoice === 'function'
 }
 
+function providerSupportsVoiceChange(provider: AudioProvider): provider is AudioProvider & { changeVoice: NonNullable<AudioProvider['changeVoice']> } {
+	return typeof provider.changeVoice === 'function'
+}
+
 function findFileNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 	for (const node of canvas.nodes.values()) {
 		const data = node.getData() as Record<string, unknown>
@@ -1422,10 +1512,12 @@ function reusableVoiceRecord(
 		record.kind === 'clone'
 		&& record.provider === activeProvider
 		&& record.region === region
-		&& record.modelId === modelId
+		&& (activeProvider === 'elevenlabs' || record.modelId === modelId)
 		&& record.sourceHash === sourceHash
 	) || null
 }
+
+const voiceCloneInFlight = new Map<string, Promise<VoiceCloneResult>>()
 
 async function customVoiceRecordForOutput(
 	app: BragiCanvas['app'],
@@ -1480,22 +1572,41 @@ async function applyUpstreamVoiceReference(
 		return existing
 	}
 
-	new Notice('Creating voice reference...')
-	const ext = getFileExtension(sourcePath, 'mp3')
-	const mimeType = audioMimeType(sourcePath)
-	const filename = `voice.${ext}`
-	const audioUrl = activeProvider === 'dashscope'
-		? await uploadRef(undefined, binary, filename, mimeType)
-		: undefined
-	const clone = await provider.cloneVoice({
-		modelId,
-		audioUrl,
-		audioBytes: binary,
-		filename,
-		mimeType,
+	const cloneKey = [
+		activeProvider,
+		region,
+		activeProvider === 'elevenlabs' ? 'global-voice' : modelId,
 		sourceHash,
-		sourcePath,
-	})
+	].join(':')
+	let clonePromise = voiceCloneInFlight.get(cloneKey)
+	if (!clonePromise) {
+		new Notice('Creating voice reference...')
+		clonePromise = (async () => {
+			const ext = getFileExtension(sourcePath, 'mp3')
+			const mimeType = audioMimeType(sourcePath)
+			const filename = `voice.${ext}`
+			const audioUrl = activeProvider === 'dashscope'
+				? await uploadRef(undefined, binary, filename, mimeType)
+				: undefined
+			return provider.cloneVoice({
+				modelId,
+				audioUrl,
+				audioBytes: binary,
+				filename,
+				mimeType,
+				sourceHash,
+				sourcePath,
+			})
+		})()
+		voiceCloneInFlight.set(cloneKey, clonePromise)
+	}
+
+	let clone: VoiceCloneResult
+	try {
+		clone = await clonePromise
+	} finally {
+		if (voiceCloneInFlight.get(cloneKey) === clonePromise) voiceCloneInFlight.delete(cloneKey)
+	}
 
 	const record: CustomVoiceRecord = {
 		kind: 'clone',

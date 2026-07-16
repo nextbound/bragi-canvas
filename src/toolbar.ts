@@ -360,7 +360,7 @@ function clearMenuInjection(menuEl: HTMLElement): void {
 	menuEl.classList.remove('bragi-annotation-menu-split')
 	menuEl.classList.remove('bragi-annotation-menu-inline')
 	menuEl
-		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-denoise, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more, .bragi-actions-separator')
+		.querySelectorAll('.bragi-menu-injected, .bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-voice-changer, .bragi-stt, .bragi-isolate, .bragi-denoise, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-more, .bragi-actions-separator')
 		.forEach((el) => el.remove())
 
 	for (const btn of getNativeMenuButtons(menuEl)) {
@@ -613,6 +613,8 @@ export function patchCanvasMenu(
 	onGenerateVideo: (node: CanvasNode) => void,
 	onGenerateText?: (node: CanvasNode) => void,
 	onGenerateAudio?: (node: CanvasNode) => void,
+	onVoiceChanger?: (node: CanvasNode) => void,
+	canVoiceChanger?: (node: CanvasNode) => boolean,
 	onSTT?: (node: CanvasNode) => void,
 	onIsolateAudio?: (node: CanvasNode) => void,
 	onDuplicate?: (node: CanvasNode) => void,
@@ -890,6 +892,22 @@ export function patchCanvasMenu(
 			}
 
 			if (isAudioNode) {
+				if (onVoiceChanger) {
+					const enabled = canVoiceChanger?.(selectedNode) ?? true
+					const voiceChangerBtn = createMenuButton(
+						'bragi-voice-changer',
+						'bragi-gen-audio',
+						enabled ? 'Voice Changer' : 'Requires ElevenLabs and 1 incoming audio',
+						() => {
+							if (enabled) onVoiceChanger(selectedNode)
+						},
+					)
+					if (!enabled) {
+						voiceChangerBtn.classList.add('is-disabled')
+						voiceChangerBtn.setAttribute('aria-disabled', 'true')
+					}
+					menuEl.appendChild(voiceChangerBtn)
+				}
 				if (onSTT) {
 					const sttBtn = createMenuButton('bragi-stt', 'bragi-stt', 'Speech to text', () => {
 						onSTT(selectedNode)
@@ -1258,7 +1276,7 @@ export function unpatchCanvasMenu(): void {
 
 export function removeToolbarButtons(): void {
 	activeDocument.querySelectorAll('.bragi-inline-tool-bottom-bar, .bragi-video-edit-bar, .bragi-video-edit-offscreen').forEach(el => el.remove())
-	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-stt, .bragi-isolate, .bragi-denoise, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-annotate, .bragi-annotation-tool, .bragi-annotation-control, .bragi-annotation-color-button, .bragi-annotation-toolstrip, .bragi-annotation-separator, .bragi-annotation-undo, .bragi-annotation-redo, .bragi-annotation-exit, .bragi-annotation-save, .bragi-video-edit-open, .bragi-video-edit-exit, .bragi-more').forEach(el => {
+	activeDocument.querySelectorAll('.bragi-gen-image, .bragi-gen-video, .bragi-gen-text, .bragi-gen-audio, .bragi-voice-changer, .bragi-stt, .bragi-isolate, .bragi-denoise, .bragi-download, .bragi-asset-btn, .bragi-duplicate, .bragi-pin, .bragi-pano, .bragi-split, .bragi-grid, .bragi-compose, .bragi-annotate, .bragi-annotation-tool, .bragi-annotation-control, .bragi-annotation-color-button, .bragi-annotation-toolstrip, .bragi-annotation-separator, .bragi-annotation-undo, .bragi-annotation-redo, .bragi-annotation-exit, .bragi-annotation-save, .bragi-video-edit-open, .bragi-video-edit-exit, .bragi-more').forEach(el => {
 		if (el.previousElementSibling?.classList.contains('canvas-menu-separator')) {
 			el.previousElementSibling.remove()
 		}

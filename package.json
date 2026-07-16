@@ -23,6 +23,7 @@
     "test:kling-omni": "node scripts/verify-kling-omni.mjs",
     "test:suchuang-gemini-omni": "node scripts/verify-suchuang-gemini-omni.mjs",
     "test:svnewapi-audio-params": "node scripts/verify-svnewapi-audio-params.mjs",
+    "test:elevenlabs-voice-changer": "node scripts/verify-elevenlabs-voice-changer.mjs",
     "test:byteplus-asset-error-reason": "node scripts/verify-byteplus-asset-error-reason.mjs",
     "test:svnewapi-image-refs": "node scripts/verify-svnewapi-image-refs.mjs",
     "test:svnewapi-video-params": "node scripts/verify-svnewapi-video-params.mjs",
