@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- ElevenLabs API responses arrive as runtime-shaped JSON narrowed at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
-import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceCloneOptions, VoiceCloneResult, VoiceOption } from './types'
+import type { AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceChangeOptions, VoiceCloneOptions, VoiceCloneResult, VoiceOption } from './types'
 import { optionalStringParam, stringParam } from './params'
 
 const BASE_URL = 'https://api.elevenlabs.io'
@@ -156,6 +156,47 @@ export class ElevenLabsProvider implements AudioProvider {
 				voice.category,
 			].some(value => String(value || '').toLowerCase().includes(query))
 		})
+	}
+
+	async changeVoice(options: VoiceChangeOptions): Promise<GenerateAudioResult> {
+		if (!options.voiceId) throw new Error('ElevenLabs voice changer needs a target voice.')
+		if (!options.audioBytes) throw new Error('ElevenLabs voice changer needs audio bytes from a source file.')
+
+		const modelId = options.modelId || 'eleven_multilingual_sts_v2'
+		const outputFormat = options.outputFormat || DEFAULT_OUTPUT_FORMAT
+		const boundary = '----BragiElevenLabsBoundary' + Math.random().toString(36).slice(2)
+		const parts: Uint8Array[] = []
+
+		appendMultipartFile(
+			parts,
+			boundary,
+			'audio',
+			options.filename || 'audio.mp3',
+			options.mimeType || 'audio/mpeg',
+			new Uint8Array(options.audioBytes),
+		)
+		appendMultipartField(parts, boundary, 'model_id', modelId)
+		if (options.removeBackgroundNoise === true) appendMultipartField(parts, boundary, 'remove_background_noise', 'true')
+		if (typeof options.seed === 'number' && Number.isSafeInteger(options.seed)) {
+			appendMultipartField(parts, boundary, 'seed', String(options.seed))
+		}
+		parts.push(new TextEncoder().encode(`--${boundary}--\r\n`))
+
+		const response = await requestUrl({
+			url: `${BASE_URL}/v1/speech-to-speech/${encodeURIComponent(options.voiceId)}?output_format=${encodeURIComponent(outputFormat)}`,
+			method: 'POST',
+			headers: {
+				'Content-Type': `multipart/form-data; boundary=${boundary}`,
+				'xi-api-key': this.apiKey,
+			},
+			body: concatBytes(parts),
+			throw: false,
+		})
+
+		if (response.status === 401 || response.status === 403) throw new Error(`ElevenLabs auth: ${parseErr(response)}`)
+		if (response.status >= 400) throw new Error(`ElevenLabs voice changer: ${parseErr(response)}`)
+
+		return this.saveAudio(response.arrayBuffer, 'voice_change')
 	}
 
 	async cloneVoice(options: VoiceCloneOptions): Promise<VoiceCloneResult> {
