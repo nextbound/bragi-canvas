@@ -268,11 +268,14 @@ export class MiniMaxProvider implements AudioProvider {
 	async generateMusic(prompt: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
 		const modelId = params?.modelId || 'music-2.6'
 		const isInstrumental = params?.instrumental === 'true'
-		const lyrics = params?.lyrics || ''
+		const nodePrompt = typeof params?.nodePrompt === 'string' ? params.nodePrompt : prompt
+		const lyrics = Array.isArray(params?.upstreamPrompts)
+			? params.upstreamPrompts.filter((value): value is string => typeof value === 'string' && !!value.trim()).join('\n')
+			: typeof params?.lyrics === 'string' ? params.lyrics : ''
 
 		const body: unknown = {
 			model: modelId,
-			prompt,
+			prompt: nodePrompt,
 			is_instrumental: isInstrumental,
 			output_format: 'url',
 		}

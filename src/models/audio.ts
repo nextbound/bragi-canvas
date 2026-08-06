@@ -370,6 +370,29 @@ export const minimaxMusic: ModelConfig = {
 	],
 }
 
+export const murekaMusic: ModelConfig = {
+	id: 'mureka-music',
+	name: 'Mureka Music',
+	type: 'audio',
+	supportedProviders: {
+		mureka: { apiModelId: 'auto' },
+	},
+	modes: ['music'],
+	params: [
+		{
+			id: 'generation_mode',
+			label: 'Style',
+			type: 'select',
+			options: [
+				{ label: 'Prompt', value: 'prompt' },
+				{ label: 'With lyrics', value: 'lyrics' },
+				{ label: 'Instrumental', value: 'instrumental' },
+			],
+			default: 'prompt',
+		},
+	],
+}
+
 // ── Sound Effect Models ──
 
 export const elevenLabsSFX: ModelConfig = {

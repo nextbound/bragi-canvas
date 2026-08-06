@@ -221,6 +221,11 @@ function supportsAudioIntent(model: ModelConfig, intent: AudioIntent): boolean {
 	return model.modes.includes('music') || model.modes.includes('sound-effect')
 }
 
+function musicSelectionNeedsLyrics(model: ModelConfig | null, params: Record<string, string | number>): boolean {
+	return (model?.id === 'minimax-music' && params.instrumental === 'false')
+		|| (model?.id === 'mureka-music' && params.generation_mode === 'lyrics')
+}
+
 function supportsVoiceSource(model: ModelConfig, source: VoiceMode): boolean {
 	const config = voiceConfigFor(model)
 	if (!model.modes.includes('tts')) return false
@@ -980,19 +985,12 @@ export function showGenerateBar(
 		let disabled = false
 		let title = ''
 
-		// MiniMax Music "With Lyrics" needs upstream text node
-		if (selectedModel?.id === 'minimax-music' && paramValues.instrumental === 'false') {
-			if (upstreamImageCount === 0 && upstreamVideoCount === 0) {
-				// Check if there are upstream text prompts (we stored count earlier)
-				// Actually we need to check upstream text — use the canvas
-				const canvas = node.canvas
-				if (canvas) {
-					const upstream = getUpstreamInputs(canvas, node)
-					if (upstream.prompts.length === 0) {
-						disabled = true
-						title = 'Connect a lyrics text node'
-					}
-				}
+		// Lyrics modes consume ordered upstream text while the target node stays the style prompt.
+		if (musicSelectionNeedsLyrics(selectedModel, paramValues)) {
+			const canvas = node.canvas
+			if (canvas && getUpstreamInputs(canvas, node).prompts.length === 0) {
+				disabled = true
+				title = 'Connect a lyrics text node'
 			}
 		}
 

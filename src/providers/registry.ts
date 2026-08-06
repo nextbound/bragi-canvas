@@ -17,6 +17,7 @@ import { BflImageProvider, testBflConnection } from './bfl'
 import { RunPodFluxImageProvider, testRunPodConnection } from './runpod'
 import { ElevenLabsProvider } from './elevenlabs'
 import { MiniMaxProvider } from './minimax'
+import { MurekaProvider, testMurekaConnection } from './mureka'
 import { LegnextProvider } from './legnext'
 import { APIMartProvider } from './apimart'
 import { SuchuangVideoProvider, testSuchuangConnection } from './suchuang'
@@ -398,6 +399,16 @@ export const PROVIDERS: ProviderSpec[] = [
 				return { ok: false, message: `Network error: ${err?.message || err}` }
 			}
 		},
+	},
+	{
+		id: 'mureka',
+		name: 'Mureka',
+		docUrl: 'https://platform.mureka.ai/docs/en/quickstart.html',
+		fields: [{ key: 'mureka', label: 'API Key', placeholder: 'Mureka API key', type: 'password' }],
+		isConfigured: (s) => !!s.providers.mureka,
+		makeAudio: ({ settings, app, outputDir }) =>
+			new MurekaProvider(settings.providers.mureka, app, outputDir),
+		testConnection: (d) => testMurekaConnection(d.mureka || ''),
 	},
 	{
 		id: 'dashscope',

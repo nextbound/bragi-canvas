@@ -22,6 +22,7 @@ import {
 	grokTTS,
 	elevenLabsMusic,
 	minimaxMusic,
+	murekaMusic,
 	elevenLabsSFX,
 } from './audio'
 
@@ -75,6 +76,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	grokTTS,
 	elevenLabsMusic,
 	minimaxMusic,
+	murekaMusic,
 	elevenLabsSFX,
 ]
 

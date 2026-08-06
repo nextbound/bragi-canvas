@@ -683,7 +683,7 @@ export default class BragiCanvas extends Plugin {
 				new Notice(`Generation failed: ${err?.message || 'Unknown error'}`)
 			})
 			.finally(() => {
-				// Video placeholders are tracked by TaskQueue, not syncGenerating, so
+				// Async placeholders are tracked by TaskQueue, not syncGenerating, so
 				// deleting here is safe either way.
 				this.syncGenerating.delete(placeholder.id)
 			})
@@ -932,6 +932,7 @@ export default class BragiCanvas extends Plugin {
 							placeholderNodeId: placeholder.id,
 							outputDir,
 							startedAt: Date.now(),
+							outputType: 'video',
 						},
 						provider,
 						canvas,
@@ -1015,18 +1016,44 @@ export default class BragiCanvas extends Plugin {
 					mode: mode as 'tts' | 'music' | 'sound-effect',
 					modelId: audioModelId,
 					upstreamPrompts,
+					nodePrompt: result.prompt,
 					...audioParams,
 				})
-				this.rememberGeneratedAsset(audioResult.filePath)
-				replacePlaceholderWithFile(canvas, placeholder, audioResult.filePath, node)
-				if (customVoiceRecord) {
-					const outputNode = findFileNodeByPath(canvas, audioResult.filePath)
-					if (outputNode) {
-						upsertCustomVoiceRecord(outputNode, await customVoiceRecordForOutput(this.app, audioResult.filePath, customVoiceRecord))
-						await canvas.requestSave?.()
+				if (audioResult.filePath) {
+					this.rememberGeneratedAsset(audioResult.filePath)
+					replacePlaceholderWithFile(canvas, placeholder, audioResult.filePath, node)
+					if (customVoiceRecord) {
+						const outputNode = findFileNodeByPath(canvas, audioResult.filePath)
+						if (outputNode) {
+							upsertCustomVoiceRecord(outputNode, await customVoiceRecordForOutput(this.app, audioResult.filePath, customVoiceRecord))
+							await canvas.requestSave?.()
+						}
 					}
+					new Notice('Audio ready')
+				} else if (audioResult.taskId && provider.checkStatus) {
+					const canvasPath = (this.app.workspace.getLeaf(false)?.view as unknown)?.file?.path as string | undefined
+					this.taskQueue.addTask({
+						snapshot: {
+							taskId: audioResult.taskId,
+							providerName: activeProvider,
+							apiModelId: audioModelId,
+							modelName: model.name,
+							canvasPath: canvasPath || '',
+							sourceNodeId: node.id,
+							placeholderNodeId: placeholder.id,
+							outputDir,
+							startedAt: Date.now(),
+							outputType: 'audio',
+						},
+						provider,
+						canvas,
+						placeholder,
+						sourceNode: node,
+					})
+					new Notice(`Audio queued — you'll get a notice when it's ready`)
+				} else {
+					throw new Error(`${model.name} returned neither an audio file nor a task ID`)
 				}
-				new Notice('Audio ready')
 			}
 		} catch (err: unknown) {
 			console.error('Bragi Canvas generation error:', err)
@@ -1350,10 +1377,13 @@ export default class BragiCanvas extends Plugin {
 			})
 	}
 
-	// Rebuild a VideoProvider from a snapshot (provider name + settings)
-	private buildVideoProvider(providerName: string, outputDir: string): VideoProvider | null {
-		const spec = getProvider(providerName)
-		return spec?.makeVideo?.({ settings: this.settings, app: this.app, outputDir }) ?? null
+	// Rebuild the correct async provider from a persisted snapshot.
+	private buildTaskProvider(snapshot: TaskSnapshot): VideoProvider | AudioProvider | null {
+		const spec = getProvider(snapshot.providerName)
+		const ctx = { settings: this.settings, app: this.app, outputDir: snapshot.outputDir }
+		return snapshot.outputType === 'audio'
+			? spec?.makeAudio?.(ctx) ?? null
+			: spec?.makeVideo?.(ctx) ?? null
 	}
 
 	// Try to resume pending tasks whose canvas is now open.
@@ -1383,7 +1413,7 @@ export default class BragiCanvas extends Plugin {
 				continue
 			}
 
-			const provider = this.buildVideoProvider(snap.providerName, snap.outputDir)
+			const provider = this.buildTaskProvider(snap)
 			if (!provider || !provider.checkStatus) {
 				dropped++
 				continue
@@ -1407,7 +1437,7 @@ export default class BragiCanvas extends Plugin {
 		this.pendingTaskSnapshots = this.pendingTaskSnapshots.filter(s => s.canvasPath !== canvasPath)
 		this.persistPendingTasks()
 
-		if (resumed > 0) new Notice(`Resumed ${resumed} video generation${resumed > 1 ? 's' : ''}`)
+		if (resumed > 0) new Notice(`Resumed ${resumed} generation task${resumed > 1 ? 's' : ''}`)
 		if (dropped > 0) console.warn(`Bragi Canvas: Dropped ${dropped} pending task(s) — nodes or provider no longer available`)
 	}
 }

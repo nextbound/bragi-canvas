@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added Mureka Music under Audio → Music with prompt-to-song, upstream-lyrics-to-song, and instrumental generation.
+- Generalized the persistent async task queue to track and resume both audio and video tasks while preserving older video-only snapshots.
+- Unified native MiniMax and Mureka lyrics generation around ordered upstream text nodes, with the target node kept as the music/style prompt.
+- Added offline request, polling, download, lyrics guard, batching-contract, and async audio queue regression coverage.
+
 ## 1.31.3
 
 - Updated the fixed SVRouter gateway base URL to `https://gateway.one-take-ai.com`.

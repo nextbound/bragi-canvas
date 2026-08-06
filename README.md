@@ -54,6 +54,8 @@ Incoming directed edges are treated as upstream references. Text nodes contribut
 
 On an audio file node, **Voice Changer** uses the selected audio for content, timing, and emotion, and exactly one incoming audio node as the target voice reference. The action requires a configured ElevenLabs provider and creates a new audio node for every click, so multiple conversions can run in parallel.
 
+Under **Audio → Music**, Mureka Music supports prompt-to-song, lyrics-to-song, and instrumental generation. The selected target node is the music/style prompt; in **With lyrics** mode, ordered incoming text nodes supply the lyrics. Bragi keeps its own `x1`–`x4` batching, submits one Mureka result per task, and replaces each placeholder when the asynchronous task finishes.
+
 Image and audio file nodes can store provider-scoped Seedance Asset IDs. Right-click the file node, choose **Set Seedance asset ID**, select TokenRouter, BytePlus, or Volcengine, then save or clear the ID. When that file is connected as a Seedance reference, Bragi passes the saved value as an `asset://` reference for the matching provider.
 
 ## MCP server
@@ -64,7 +66,7 @@ Use the MCP server only for trusted local clients that you want to let read or m
 
 ## Providers
 
-Bragi Canvas supports multiple provider integrations, including OpenAI, Anthropic, AWS Bedrock, Google Gemini (Gemini, Imagen, and Veo), Volcengine, BytePlus, Kling, fal.ai, ElevenLabs, MiniMax, Legnext, TokenRouter (`https://api.tokenrouter.com/v1`), APIMart, SuChuang, xAI, and Luma. Availability depends on the models and credentials configured in plugin settings.
+Bragi Canvas supports multiple provider integrations, including OpenAI, Anthropic, AWS Bedrock, Google Gemini (Gemini, Imagen, and Veo), Volcengine, BytePlus, Kling, fal.ai, ElevenLabs, MiniMax, Mureka, Legnext, TokenRouter (`https://api.tokenrouter.com/v1`), APIMart, SuChuang, xAI, and Luma. Availability depends on the models and credentials configured in plugin settings.
 
 Provider credentials are stored by Obsidian in this plugin's local settings data. They are used only to make the provider requests selected by the user.
 

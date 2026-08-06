@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Notice } from 'obsidian'
-import type { VideoProvider } from './providers/types'
+import type { AudioProvider, VideoProvider } from './providers/types'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { replacePlaceholderWithFile, markNodeFailed } from './canvas-ops'
 
@@ -14,11 +14,13 @@ export interface TaskSnapshot {
 	placeholderNodeId: string
 	outputDir: string
 	startedAt: number
+	/** Missing on snapshots persisted before async audio support; those are videos. */
+	outputType?: 'video' | 'audio'
 }
 
 interface PendingTask {
 	snapshot: TaskSnapshot
-	provider: VideoProvider
+	provider: VideoProvider | AudioProvider
 	canvas: Canvas
 	placeholder: CanvasNode
 	sourceNode: CanvasNode
@@ -85,7 +87,8 @@ export class TaskQueue {
 				if (result.done && result.filePath) {
 					this.onComplete?.(result.filePath, task.snapshot.canvasPath)
 					replacePlaceholderWithFile(task.canvas, task.placeholder, result.filePath, task.sourceNode)
-					new Notice(`Video ready (${task.snapshot.modelName})`)
+					const label = task.snapshot.outputType === 'audio' ? 'Audio' : 'Video'
+					new Notice(`${label} ready (${task.snapshot.modelName})`)
 					completedIds.add(id)
 				}
 			} catch (err: unknown) {

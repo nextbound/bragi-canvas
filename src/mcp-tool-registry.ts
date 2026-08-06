@@ -603,8 +603,8 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					mode: selectedMode,
 					placeholderIds,
 					expectedOutputType,
-					hint: expectedOutputType === 'video'
-						? 'Video generation is async. Use list_pending_tasks / get_task_status to track progress.'
+					hint: expectedOutputType === 'video' || expectedOutputType === 'audio'
+						? 'Video and some audio providers are async. Use list_pending_tasks / get_task_status when a task appears; otherwise inspect the placeholder.'
 						: 'Generation runs in the background. Re-read the placeholder node to see when it is replaced with the result.',
 				})
 			},
@@ -613,7 +613,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		{
 			category: 'Task tracking',
 			name: 'list_pending_tasks',
-			description: 'List all pending async generation tasks (currently only video tasks are tracked). Empty array means no in-flight async work.',
+			description: 'List all pending async audio and video generation tasks. Empty array means no tracked in-flight async work.',
 			inputSchema: {},
 			handler: () => {
 				if (!ctx.taskQueue) return ok([])
@@ -623,6 +623,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					taskId: s.taskId,
 					modelName: s.modelName,
 					providerName: s.providerName,
+					outputType: s.outputType || 'video',
 					sourceNodeId: s.sourceNodeId,
 					placeholderNodeId: s.placeholderNodeId,
 					canvasPath: s.canvasPath,
@@ -996,6 +997,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					taskId: snap.taskId,
 					modelName: snap.modelName,
 					providerName: snap.providerName,
+					outputType: snap.outputType || 'video',
 					sourceNodeId: snap.sourceNodeId,
 					placeholderNodeId: snap.placeholderNodeId,
 					canvasPath: snap.canvasPath,
