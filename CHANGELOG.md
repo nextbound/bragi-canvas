@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.39.0
+
 - Added GPT Image 2.5 on APIMart as one aggregated `gpt-image-2.5` model whose `variant` param picks the `flare` (faster, default) or `sunburst` (editing precision) upstream build, with the extended `xhigh` / `max` quality tiers and up to 16 reference images.
 - Extended the APIMart `quality` gate from the official GPT Image 2 channel to every `gpt-image-2.5*` route.
 - Widened the `aggregated` provider flag to cover param-keyed upstream routing, not just mode-keyed.
@@ -11,6 +13,7 @@
 - Restored the API-model-id pencil editor, which had been unreachable since the provider-integration refactor introduced `editableApiModelId` without opting any catalog entry in. All four BytePlus entries (Seedance 2.5 / 2.0 / 2.0 Fast, Seedream 5.0 Lite) now set it, so a custom `ep-...` inference endpoint can be entered again.
 - Added `pruneApiModelIdOverrides()`, run on every load: stored API-model-id overrides are dropped when the model leaves the catalog, the provider drops the model, or the pairing is not editable. `resolveApiModelId` applies overrides unconditionally, so an unreachable one silently rewrote every request with no pencil and no "Modified" badge in the UI.
 - Moved the id-editability rule into one exported `isApiModelIdEditable()`; the settings pencil, the override pruning, and `audit:catalog` had (or would have had) three separate copies.
+- Bumped the plugin version to `1.39.0`.
 
 ## 1.38.0
 
