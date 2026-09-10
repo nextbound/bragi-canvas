@@ -1,6 +1,6 @@
 import { Modal, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
-import { ALL_MODELS, getActiveProvider, type GenerationType, type ModelConfig } from '../models'
+import { ALL_MODELS, getActiveProvider, isApiModelIdEditable, type GenerationType, type ModelConfig } from '../models'
 import {
 	applyProviderCredentialDraft,
 	disableModel,
@@ -217,14 +217,6 @@ export class ProviderModelsModal extends Modal {
 		return !!this.plugin.settings.apiModelIdOverrides?.[this.opts.providerId]?.[model.id]
 	}
 
-	/** Whether the API model id is user-editable for this provider×model. */
-	private isApiModelIdEditable(model: ModelConfig): boolean {
-		const cfg = model.supportedProviders[this.opts.providerId]
-		// Aggregated models route modes to multiple upstream ids internally; a single
-		// editable id is meaningless and could corrupt routing, so it's always locked.
-		if (!cfg || cfg.aggregated) return false
-		return cfg.editableApiModelId === true
-	}
 
 	/** Display mode: effective api model id + (when editable) "Modified" badge + a pencil to edit. */
 	private renderIdDisplay(idLine: HTMLElement, model: ModelConfig) {
@@ -233,7 +225,7 @@ export class ProviderModelsModal extends Modal {
 		idLine.createSpan({ cls: 'bragi-provider-models-id', text: effective })
 
 		// Locked id: static label only, no badge/pencil.
-		if (!this.isApiModelIdEditable(model)) return
+		if (!isApiModelIdEditable(model, this.opts.providerId)) return
 
 		if (this.isOverridden(model)) {
 			idLine.createSpan({ cls: 'bragi-model-id-badge', text: 'Modified' })

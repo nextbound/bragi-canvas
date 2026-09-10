@@ -26,6 +26,12 @@ const WAN27_I2V = 'wan2.7-i2v-2026-04-25'
 const WAN27_R2V = 'wan2.7-r2v'
 const WAN27_VIDEOEDIT = 'wan2.7-videoedit'
 const WAN30_VIDEO = 'wan3.0-video'
+const HAPPYHORSE_T2V = 'happyhorse-1.1-t2v'
+const HAPPYHORSE_I2V = 'happyhorse-1.1-i2v'
+const HAPPYHORSE_R2V = 'happyhorse-1.1-r2v'
+// Alibaba ships no 1.1 build of the editing model; 1.0 is its latest version.
+const HAPPYHORSE_VIDEO_EDIT = 'happyhorse-1.0-video-edit'
+const HAPPYHORSE_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4', '4:5', '5:4', '21:9', '9:21']
 const VIDEO_DONE_STATUSES = new Set(['SUCCEEDED', 'SUCCESS', 'COMPLETED'])
 const VIDEO_FAILED_STATUSES = new Set(['FAILED', 'FAILURE', 'ERROR', 'CANCELED', 'CANCELLED', 'UNKNOWN'])
 
@@ -213,9 +219,21 @@ function normalizeResolution(value: unknown): string {
 	return text === '1080P' ? '1080P' : '720P'
 }
 
-function normalizeWan30Resolution(value: unknown): string {
+/** 480P / 720P / 1080P tier, shared by Wan 3.0 and HappyHorse. */
+function normalizeResolutionTier(value: unknown): string {
 	const text = stringParam(value, '1080P').trim().toUpperCase()
 	return ['480P', '720P', '1080P'].includes(text) ? text : '1080P'
+}
+
+/** HappyHorse video editing accepts 720P / 1080P only. */
+function normalizeHappyHorseEditResolution(value: unknown): string {
+	const text = stringParam(value, '1080P').trim().toUpperCase()
+	return text === '720P' ? '720P' : '1080P'
+}
+
+function normalizeHappyHorseRatio(value: unknown): string {
+	const ratio = stringParam(value, '16:9').trim()
+	return HAPPYHORSE_RATIOS.includes(ratio) ? ratio : '16:9'
 }
 
 function normalizeRatio(value: unknown): string | undefined {
@@ -232,6 +250,12 @@ function normalizeWan30Duration(value: unknown): number {
 	const parsed = optionalNumberParam(value)
 	if (parsed !== undefined && Math.round(parsed) === -1) return -1
 	return boundedInt(value, 5, 2, 30)
+}
+
+function applyHappyHorseSeed(parameters: UnknownRecord, params: Record<string, unknown>): void {
+	const seed = optionalNumberParam(params.seed)
+	if (seed === undefined) return
+	parameters.seed = Math.min(Math.max(Math.round(seed), 0), 2147483647)
 }
 
 function isHttpUrl(value: string): boolean {
@@ -471,9 +495,12 @@ export class DashScopeVideoProvider implements VideoProvider {
 
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const options = params || {}
-		const route = stringParam(options.modelId, 'wan-2.7') === WAN30_VIDEO
-			? await this.buildWan30Route(prompt, options)
-			: await this.buildWan27Route(prompt, options)
+		const modelId = stringParam(options.modelId, 'wan-2.7')
+		const route = modelId.startsWith('happyhorse')
+			? await this.buildHappyHorseRoute(prompt, options)
+			: modelId === WAN30_VIDEO
+				? await this.buildWan30Route(prompt, options)
+				: await this.buildWan27Route(prompt, options)
 		const resp = await requestUrl({
 			url: dashScopeUrl(this.baseUrl, VIDEO_SYNTHESIS_PATH),
 			method: 'POST',
@@ -522,6 +549,68 @@ export class DashScopeVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
+	/**
+	 * HappyHorse 1.1 is aggregated: the canvas mode picks one of four upstream
+	 * ids. All four post to the same async video-synthesis endpoint and poll
+	 * through the shared `checkStatus`.
+	 */
+	private async buildHappyHorseRoute(prompt: string, params: Record<string, unknown>): Promise<WanVideoRoute> {
+		const genMode = stringParam(params.genMode, 'text-to-video')
+		const refImages = stringList(params.refImages)
+		const refVideos = stringList(params.refVideos)
+		const supportedModes = new Set(['text-to-video', 'first-frame', 'image-ref', 'video-edit'])
+		if (!supportedModes.has(genMode)) throw new Error(`HappyHorse 1.1 does not support ${genMode} mode.`)
+
+		if (genMode === 'video-edit') {
+			if (!refVideos[0]) throw new Error('HappyHorse video editing requires one upstream video.')
+			if (refImages.length > 5) throw new Error('HappyHorse video editing supports at most 5 reference images.')
+			const media: UnknownRecord[] = [{ type: 'video', url: await this.ensureUrl(refVideos[0], 'video') }]
+			for (const ref of refImages) {
+				media.push({ type: 'reference_image', url: await this.ensureUrl(ref, 'image') })
+			}
+			// Duration and ratio follow the source clip.
+			const parameters: UnknownRecord = {
+				resolution: normalizeHappyHorseEditResolution(params.resolution),
+				watermark: false,
+			}
+			const audioSetting = stringParam(params.audio_setting, '')
+			if (audioSetting === 'auto' || audioSetting === 'origin') parameters.audio_setting = audioSetting
+			applyHappyHorseSeed(parameters, params)
+			return { model: HAPPYHORSE_VIDEO_EDIT, input: { prompt, media }, parameters }
+		}
+
+		const parameters: UnknownRecord = {
+			resolution: normalizeResolutionTier(params.resolution),
+			duration: boundedInt(params.duration, 5, 3, 15),
+			watermark: false,
+		}
+		applyHappyHorseSeed(parameters, params)
+
+		if (genMode === 'first-frame') {
+			if (!refImages[0]) throw new Error('HappyHorse image-to-video requires one upstream image.')
+			// i2v derives the frame size from the input image, so it takes no ratio.
+			return {
+				model: HAPPYHORSE_I2V,
+				input: { prompt, media: [{ type: 'first_frame', url: await this.ensureUrl(refImages[0], 'image') }] },
+				parameters,
+			}
+		}
+
+		parameters.ratio = normalizeHappyHorseRatio(params.ratio || params.aspectRatio || params.aspect_ratio)
+
+		if (genMode === 'image-ref') {
+			if (refImages.length === 0) throw new Error('HappyHorse reference-to-video requires at least one upstream image.')
+			if (refImages.length > 9) throw new Error('HappyHorse reference-to-video supports at most 9 reference images.')
+			const media = await Promise.all(refImages.map(async url => ({
+				type: 'reference_image',
+				url: await this.ensureUrl(url, 'image'),
+			})))
+			return { model: HAPPYHORSE_R2V, input: { prompt, media }, parameters }
+		}
+
+		return { model: HAPPYHORSE_T2V, input: { prompt }, parameters }
+	}
+
 	private async buildWan30Route(prompt: string, params: Record<string, unknown>): Promise<WanVideoRoute> {
 		const genMode = stringParam(params.genMode, 'text-to-video')
 		const refImages = stringList(params.refImages)
@@ -562,7 +651,7 @@ export class DashScopeVideoProvider implements VideoProvider {
 		const input: UnknownRecord = { prompt }
 		if (media.length > 0) input.media = media
 		const parameters: UnknownRecord = {
-			resolution: normalizeWan30Resolution(params.resolution),
+			resolution: normalizeResolutionTier(params.resolution),
 			ratio: normalizeWan30Ratio(params.ratio || params.aspectRatio || params.aspect_ratio),
 			duration: normalizeWan30Duration(params.duration),
 			audio: optionalBooleanParam(params.audio) ?? true,
@@ -707,7 +796,9 @@ export class DashScopeVideoProvider implements VideoProvider {
 	private async downloadVideo(url: string): Promise<string> {
 		const resp = await requestUrl({ url })
 		const outputDir = outputDirectoryPath(this.outputDir)
-		const filePath = outputFilePath(this.outputDir, `dashscope_wan27_${Date.now()}.${videoExtFromUrl(url)}`)
+		// `checkStatus` only receives a task id, so the file name stays model-neutral
+		// rather than mislabelling Wan 3.0 / HappyHorse output as Wan 2.7.
+		const filePath = outputFilePath(this.outputDir, `dashscope_video_${Date.now()}.${videoExtFromUrl(url)}`)
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(outputDir)) await adapter.mkdir(outputDir)
 		await adapter.writeBinary(filePath, resp.arrayBuffer)

@@ -86,8 +86,9 @@ export interface ModelParam {
 export interface ProviderConfig {
 	apiModelId: string
 	/**
-	 * This provider routes the model's modes to multiple upstream model IDs
-	 * internally (e.g. DashScope Wan 2.7, DashScope voice). The catalog
+	 * This provider routes the model to multiple upstream model IDs internally,
+	 * keyed either by mode (DashScope Wan 2.7 / HappyHorse 1.1, DashScope voice)
+	 * or by a param (APIMart GPT Image 2.5's `variant`). The catalog
 	 * `apiModelId` is a display-only umbrella; routing lives in the provider.
 	 * Marking aggregated locks the API-model-id editor (a single editable id
 	 * would be meaningless / could corrupt routing).

@@ -18,6 +18,7 @@ export const seedance25: ModelConfig = {
 		bytedance: { apiModelId: 'doubao-seedance-2-5-260628' },
 		byteplus: {
 			apiModelId: 'dreamina-seedance-2-5-260628',
+			editableApiModelId: true,
 			refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' },
 		},
 		svnewapi: { apiModelId: 'sv-seedance-2.5' },
@@ -95,7 +96,7 @@ export const seedance2: ModelConfig = {
 	type: 'video',
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-260128' },
-		byteplus: { apiModelId: 'dreamina-seedance-2-0-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
+		byteplus: { apiModelId: 'dreamina-seedance-2-0-260128', editableApiModelId: true, refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
 		fal: { apiModelId: 'bytedance/seedance-2.0' },
 		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'tokenrouter' } },
 		token360: { apiModelId: 'seedance-2.0', refDelivery: { image: 'native_asset', nativeAssetProvider: 'token360' } },
@@ -170,7 +171,7 @@ export const seedance2Fast: ModelConfig = {
 	type: 'video',
 	supportedProviders: {
 		bytedance: { apiModelId: 'doubao-seedance-2-0-fast-260128' },
-		byteplus: { apiModelId: 'dreamina-seedance-2-0-fast-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
+		byteplus: { apiModelId: 'dreamina-seedance-2-0-fast-260128', editableApiModelId: true, refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'byteplus' } },
 		tokenrouter: { apiModelId: 'dreamina-seedance-2-0-fast-260128', refDelivery: { image: 'native_asset', video: 'native_asset', audio: 'native_asset', nativeAssetProvider: 'tokenrouter' } },
 		token360: { apiModelId: 'seedance-2.0-fast', refDelivery: { image: 'native_asset', nativeAssetProvider: 'token360' } },
 	},
