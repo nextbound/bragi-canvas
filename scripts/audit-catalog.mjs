@@ -13,7 +13,7 @@ import { pathToFileURL, fileURLToPath } from 'url'
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url))
 
 const entry = `
-import { ALL_MODELS, getProviderModes, isAggregated } from '../src/models/index.ts'
+import { ALL_MODELS, getProviderModes, isAggregated, isApiModelIdEditable } from '../src/models/index.ts'
 import { PROVIDERS, getProvider } from '../src/providers/registry.ts'
 import { getRefDelivery } from '../src/provider-model-prefs.ts'
 
@@ -42,7 +42,8 @@ for (const model of ALL_MODELS) {
 		const cfg = model.supportedProviders[providerId]
 		const spec = getProvider(providerId)
 		const modes = getProviderModes(model, providerId)
-		const editable = !cfg.aggregated && cfg.editableApiModelId === true
+		// Shared with the settings pencil and pruneApiModelIdOverrides — do not re-derive.
+		const editable = isApiModelIdEditable(model, providerId)
 
 		// 1. Provider must exist and be able to run this modality.
 		if (!spec) {

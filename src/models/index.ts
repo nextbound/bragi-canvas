@@ -105,6 +105,21 @@ export function isAggregated(model: ModelConfig, providerId: string | undefined)
 	return !!(providerId && model.supportedProviders[providerId]?.aggregated)
 }
 
+/**
+ * Whether the API model id is user-editable for this provider×model.
+ *
+ * Aggregated providers route to multiple upstream ids internally, so a single
+ * editable id is meaningless and could corrupt routing — always locked. Every
+ * other pairing is opt-in via `editableApiModelId`. This is the single source
+ * of truth: the settings pencil and the stored-override pruning both use it, so
+ * an override can never outlive the editor that produced it.
+ */
+export function isApiModelIdEditable(model: ModelConfig, providerId: string | undefined): boolean {
+	const cfg = providerId ? model.supportedProviders[providerId] : undefined
+	if (!cfg || cfg.aggregated) return false
+	return cfg.editableApiModelId === true
+}
+
 /** Get model by ID */
 export function getModelById(id: string): ModelConfig | undefined {
 	if (id === 'gpt-5.4') return gpt55

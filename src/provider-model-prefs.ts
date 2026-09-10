@@ -1,5 +1,5 @@
 import type { BragiSettings } from './settings'
-import { ALL_MODELS, getModelById, type ModelConfig } from './models'
+import { ALL_MODELS, getModelById, isApiModelIdEditable, type ModelConfig } from './models'
 import type { RefDelivery, RefModality } from './models/types'
 import { getConfiguredProviderIds, getProvider, type ProviderKey } from './providers/registry'
 
@@ -179,6 +179,26 @@ export function settingsWithProviderCredentialDraft(
 	}
 	applyProviderCredentialDraft(next, providerId, draft)
 	return next
+}
+
+/**
+ * Drop stored API-model-id overrides that the settings UI can no longer show or
+ * edit — the model left the catalog, the provider dropped it, or the
+ * provider×model is not (or is no longer) `editableApiModelId`.
+ *
+ * `resolveApiModelId` applies an override unconditionally, so an unreachable one
+ * silently rewrites every request with no way to inspect or clear it. Runs on
+ * every load to keep the invariant: an override exists only where a user could
+ * have set it.
+ */
+export function pruneApiModelIdOverrides(settings: BragiSettings): void {
+	for (const [providerId, overrides] of Object.entries(settings.apiModelIdOverrides || {})) {
+		for (const modelId of Object.keys(overrides)) {
+			const model = getModelById(modelId)
+			if (!model || !isApiModelIdEditable(model, providerId)) delete overrides[modelId]
+		}
+		if (Object.keys(overrides).length === 0) delete settings.apiModelIdOverrides[providerId]
+	}
 }
 
 export function pruneProviderModelPrefs(settings: BragiSettings): void {

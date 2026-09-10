@@ -3,6 +3,7 @@ import {
 	connectProviderToModel,
 	disconnectModelFromAllProviders,
 	getConnectedConfiguredProviderIds,
+	pruneApiModelIdOverrides,
 	pruneProviderModelPrefs,
 } from './provider-model-prefs'
 import { getConfiguredProviderIds } from './providers/registry'
@@ -494,11 +495,6 @@ function migrateRemovedModels(settings: BragiSettings, previousVersion: number):
 		disconnectModelFromAllProviders(settings, modelId)
 	}
 
-	for (const [providerId, overrides] of Object.entries(settings.apiModelIdOverrides || {})) {
-		for (const modelId of REMOVED_MODEL_IDS) delete overrides[modelId]
-		if (Object.keys(overrides).length === 0) delete settings.apiModelIdOverrides[providerId]
-	}
-
 	for (const type of ['image', 'video', 'text', 'audio'] as const) {
 		settings.modelOrder[type] = settings.modelOrder[type].filter(id => !removed.has(id))
 	}
@@ -613,6 +609,9 @@ export function migrateSettings(
 	migrateProviderPrefs19(settings)
 	migrateRemovedModels(settings, previousVersion)
 	migrateProviderModelPrefs(settings, previousVersion)
+	// Overrides for removed models are dropped here too, so migrateRemovedModels
+	// deliberately does not touch apiModelIdOverrides itself.
+	pruneApiModelIdOverrides(settings)
 	migrateDashScopeWan27(settings, previousVersion)
 	migrateSeedance25SvRouter(settings, previousVersion)
 	settings.settingsSchemaVersion = CURRENT_SETTINGS_SCHEMA_VERSION

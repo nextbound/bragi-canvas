@@ -8,6 +8,9 @@
 - Added HappyHorse 1.1 on DashScope as the aggregated `happyhorse-1.1` model, routing text-to-video, first-frame, image-ref, and video-edit to `happyhorse-1.1-t2v` / `-i2v` / `-r2v` / `happyhorse-1.0-video-edit`.
 - Removed HappyHorse 1.0 entirely: the `happyhorse-1.0-t2v` / `happyhorse-1.0-i2v` catalog entries, the TokenRouter HappyHorse payload branch, and stale settings keys (settings schema 13).
 - Made DashScope video downloads model-neutral (`dashscope_video_*`) instead of labelling Wan 3.0 and HappyHorse output as Wan 2.7.
+- Restored the API-model-id pencil editor, which had been unreachable since the provider-integration refactor introduced `editableApiModelId` without opting any catalog entry in. All four BytePlus entries (Seedance 2.5 / 2.0 / 2.0 Fast, Seedream 5.0 Lite) now set it, so a custom `ep-...` inference endpoint can be entered again.
+- Added `pruneApiModelIdOverrides()`, run on every load: stored API-model-id overrides are dropped when the model leaves the catalog, the provider drops the model, or the pairing is not editable. `resolveApiModelId` applies overrides unconditionally, so an unreachable one silently rewrote every request with no pencil and no "Modified" badge in the UI.
+- Moved the id-editability rule into one exported `isApiModelIdEditable()`; the settings pencil, the override pruning, and `audit:catalog` had (or would have had) three separate copies.
 
 ## 1.38.0
 
