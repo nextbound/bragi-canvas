@@ -20,6 +20,8 @@ import { buildApimartMinimaxH3Request, MINIMAX_H3_MODEL_ID } from './apimart-min
  * results are returned at result.videos[0].url (string or string array).
  */
 const DEFAULT_MODEL = 'gpt-image-2'
+const GPT_IMAGE_25_UMBRELLA = 'gpt-image-2.5'
+const GPT_IMAGE_25_VARIANTS = new Set(['flare', 'sunburst'])
 const DEFAULT_VIDEO_MODEL = 'Omni-Flash-Ext'
 
 const API_BASE = 'https://api.apimart.ai/v1'
@@ -107,6 +109,25 @@ function isGenericContentType(contentType: string): boolean {
 	return !mime || mime === 'application/octet-stream' || mime === 'binary/octet-stream'
 }
 
+/**
+ * Only some APIMart image channels honor `quality`: the official GPT Image 2
+ * channel, and every GPT Image 2.5 build (which adds the `xhigh` / `max` tiers).
+ */
+function honorsQuality(modelId: string): boolean {
+	return modelId === 'gpt-image-2-official' || modelId.startsWith(GPT_IMAGE_25_UMBRELLA)
+}
+
+/**
+ * GPT Image 2.5 ships as two upstream builds of one model. The catalog carries
+ * the umbrella id (which is not callable on its own) and the `variant` param
+ * picks the build; anything unrecognized falls back to the faster one.
+ */
+function resolveApimartImageModelId(modelId: string, variant: unknown): string {
+	if (modelId !== GPT_IMAGE_25_UMBRELLA) return modelId
+	const picked = stringParam(variant, '').trim().toLowerCase()
+	return `${GPT_IMAGE_25_UMBRELLA}-${GPT_IMAGE_25_VARIANTS.has(picked) ? picked : 'flare'}`
+}
+
 function fallbackMime(kind: RelayAssetKind, ext: string): string {
 	if (kind === 'image') return ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
 	if (kind === 'video') return ext === 'mov' ? 'video/quicktime' : `video/${ext}`
@@ -126,7 +147,7 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 	}
 
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
-		const modelId = stringParam(params?.modelId, DEFAULT_MODEL)
+		const modelId = resolveApimartImageModelId(stringParam(params?.modelId, DEFAULT_MODEL), params?.variant)
 		const refImages = arrayParam(params?.refImages)
 
 		const size = stringParam(params?.aspectRatio, '1:1')
@@ -140,8 +161,7 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 			resolution,
 			n: 1,
 		}
-		// Quality is only honored by the official GPT Image 2 channel.
-		if (modelId === 'gpt-image-2-official' && params?.quality) {
+		if (honorsQuality(modelId) && params?.quality) {
 			body.quality = params.quality
 		}
 		if (refImages.length > 0) {

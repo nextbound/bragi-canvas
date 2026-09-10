@@ -541,7 +541,6 @@ export class TokenRouterVideoProvider implements VideoProvider {
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		const modelId = stringParam(params?.modelId, 'dreamina-seedance-2-0-260128')
 		const genMode = stringParam(params?.genMode, 'text-to-video')
-		const isHappyHorse = modelId.startsWith('happyhorse-1.0-')
 		const isSeedance = isSeedanceModel(modelId)
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages : []
 		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos : []
@@ -565,9 +564,7 @@ export class TokenRouterVideoProvider implements VideoProvider {
 			}
 		}
 
-		if (isHappyHorse) {
-			this.applyHappyHorseMedia(body, modelId, genMode, imageUrls)
-		} else if (isSeedance) {
+		if (isSeedance) {
 			this.applySeedanceMedia(body, imageUrls, refAudios, refVideos)
 		} else if (imageUrls.length > 0) {
 			body.image = imageUrls[0]
@@ -575,7 +572,7 @@ export class TokenRouterVideoProvider implements VideoProvider {
 			if (genMode === 'first-frame') body.first_frame_image = imageUrls[0]
 			else if (genMode === 'image-ref') body.image_urls = imageUrls
 		}
-		if (!isHappyHorse && !isSeedance && attachments.length > 0) body.attachments = attachments
+		if (!isSeedance && attachments.length > 0) body.attachments = attachments
 		this.applyVideoParams(body, params || {}, isSeedance)
 
 		const resp = await requestUrl({
@@ -600,17 +597,6 @@ export class TokenRouterVideoProvider implements VideoProvider {
 		const decoded = dataUriToBytes(ref)
 		if (!decoded) throw new Error('TokenRouter video: unsupported reference image format')
 		return uploadRef(undefined, copyToArrayBuffer(decoded.bytes), `ref.${decoded.ext}`, `image/${decoded.ext === 'jpg' ? 'jpeg' : decoded.ext}`)
-	}
-
-	private applyHappyHorseMedia(body: JsonRecord, modelId: string, genMode: string, imageUrls: string[]): void {
-		if (modelId === 'happyhorse-1.0-i2v' || genMode === 'first-frame') {
-			if (!imageUrls[0]) throw new Error('TokenRouter HappyHorse I2V requires one reference image.')
-			body.first_frame_image = imageUrls[0]
-			return
-		}
-		if (genMode === 'image-ref' && imageUrls.length > 0) {
-			body.image_urls = imageUrls.slice(0, 9)
-		}
 	}
 
 	private applySeedanceMedia(body: JsonRecord, imageUrls: string[], audioUrls: string[], videoUrls: string[]): void {

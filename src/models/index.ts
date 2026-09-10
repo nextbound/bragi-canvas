@@ -1,11 +1,11 @@
 import type { ModelConfig, GenerationType, Mode } from './types'
-import { gptImage, gptImageOfficial } from './gpt-image'
+import { gptImage, gptImageOfficial, gptImage25 } from './gpt-image'
 import { flux2Klein9b } from './flux'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
 import { seedream5, seedream5Lite, seedream45 } from './seedream'
 import { seedance25, seedance2, seedance2Fast } from './seedance'
 import { kling3, klingOmni3, kling26 } from './kling'
-import { happyHorseT2V, happyHorseI2V } from './happyhorse'
+import { happyHorse11 } from './happyhorse'
 import { veo31, veo31Lite } from './veo'
 import { zImageSpicy, qwenImageEditSpicy, wan30, wan27 } from './wan'
 import { gpt55, gpt55Pro, gemini31Pro, gemini35Flash, gemini3Flash, claudeOpus47, claudeSonnet46, qwen36Plus, grok43, grok4Fast } from './text-gen'
@@ -35,6 +35,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	nanoBanana2,
 	gptImage,
 	gptImageOfficial,
+	gptImage25,
 	grokImagine,
 	midjourneyV8,
 	midjourneyNiji7,
@@ -51,8 +52,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	kling3,
 	klingOmni3,
 	kling26,
-	happyHorseT2V,
-	happyHorseI2V,
+	happyHorse11,
 	wan30,
 	wan27,
 	veo31,

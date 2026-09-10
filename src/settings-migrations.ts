@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 12
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 13
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {
@@ -359,7 +359,20 @@ const LEGACY_MODEL_ID_RENAMES: Record<string, string> = {
 	// Wan 2.7 MuleRouter i2v-spicy merged into the unified wan-2.7 model (MuleRouter
 	// is now a provider on wan-2.7, restricted to first-frame).
 	'wan-2.7-i2v-spicy': 'wan-2.7',
+	// GPT Image 2.5's two upstream builds were briefly modelled as separate
+	// entries before becoming the `variant` param on one aggregated model. These
+	// ids were never released; the renames only clean up dev vaults.
+	'gpt-image-2.5-flare': 'gpt-image-2.5',
+	'gpt-image-2.5-sunburst': 'gpt-image-2.5',
 }
+
+/**
+ * Models dropped from the catalog. HappyHorse 1.0 T2V / I2V were TokenRouter-only
+ * entries; the family now ships as the aggregated DashScope `happyhorse-1.1`
+ * model, which is a different provider and mode set, so these are removed rather
+ * than renamed.
+ */
+const REMOVED_MODEL_IDS = ['happyhorse-1.0-t2v', 'happyhorse-1.0-i2v']
 
 function normalizeDashScopeProviderId(provider: string): string {
 	return provider === LEGACY_DASHSCOPE_PROVIDER_ID ? DASHSCOPE_PROVIDER_ID : provider
@@ -472,6 +485,29 @@ function migrateProviderPrefs19(settings: BragiSettings): void {
 	settings.migrationProviders_1_9 = true
 }
 
+function migrateRemovedModels(settings: BragiSettings, previousVersion: number): void {
+	if (previousVersion >= 13) return
+	const removed = new Set(REMOVED_MODEL_IDS)
+
+	for (const modelId of REMOVED_MODEL_IDS) {
+		delete settings.modelPrefs[modelId]
+		disconnectModelFromAllProviders(settings, modelId)
+	}
+
+	for (const [providerId, overrides] of Object.entries(settings.apiModelIdOverrides || {})) {
+		for (const modelId of REMOVED_MODEL_IDS) delete overrides[modelId]
+		if (Object.keys(overrides).length === 0) delete settings.apiModelIdOverrides[providerId]
+	}
+
+	for (const type of ['image', 'video', 'text', 'audio'] as const) {
+		settings.modelOrder[type] = settings.modelOrder[type].filter(id => !removed.has(id))
+	}
+
+	for (const selection of [settings.lastImage, settings.lastVideo, settings.lastAudio, settings.lastText]) {
+		if (selection?.modelId && removed.has(selection.modelId)) delete selection.modelId
+	}
+}
+
 function migrateProviderModelPrefs(settings: BragiSettings, previousVersion: number): void {
 	if (previousVersion >= PROVIDER_MODEL_PREFS_SCHEMA_VERSION) {
 		pruneProviderModelPrefs(settings)
@@ -575,6 +611,7 @@ export function migrateSettings(
 	migrateDashScopeSettings(settings, raw)
 	migrateByteplusGroupId(settings, raw)
 	migrateProviderPrefs19(settings)
+	migrateRemovedModels(settings, previousVersion)
 	migrateProviderModelPrefs(settings, previousVersion)
 	migrateDashScopeWan27(settings, previousVersion)
 	migrateSeedance25SvRouter(settings, previousVersion)

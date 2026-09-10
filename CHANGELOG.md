@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added GPT Image 2.5 on APIMart as one aggregated `gpt-image-2.5` model whose `variant` param picks the `flare` (faster, default) or `sunburst` (editing precision) upstream build, with the extended `xhigh` / `max` quality tiers and up to 16 reference images.
+- Extended the APIMart `quality` gate from the official GPT Image 2 channel to every `gpt-image-2.5*` route.
+- Widened the `aggregated` provider flag to cover param-keyed upstream routing, not just mode-keyed.
+- Added HappyHorse 1.1 on DashScope as the aggregated `happyhorse-1.1` model, routing text-to-video, first-frame, image-ref, and video-edit to `happyhorse-1.1-t2v` / `-i2v` / `-r2v` / `happyhorse-1.0-video-edit`.
+- Removed HappyHorse 1.0 entirely: the `happyhorse-1.0-t2v` / `happyhorse-1.0-i2v` catalog entries, the TokenRouter HappyHorse payload branch, and stale settings keys (settings schema 13).
+- Made DashScope video downloads model-neutral (`dashscope_video_*`) instead of labelling Wan 3.0 and HappyHorse output as Wan 2.7.
+
 ## 1.38.0
 
 - Added asynchronous SVRouter image task submission and three-second polling for APIMart-backed routes, with a ten-minute maximum wait.

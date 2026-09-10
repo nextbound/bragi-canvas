@@ -15,7 +15,7 @@ Everything that makes a provider differ from the base model lives in its `suppor
 
 - `apiModelId` — the upstream model id this provider uses. The id editor in settings is **locked (static label) by default**.
 - `editableApiModelId?: boolean` — opt-in. Set `true` to expose the pencil editor for providers that accept arbitrary upstream model ids (e.g. BytePlus C-Dance). Ignored when `aggregated` is set.
-- `aggregated?: boolean` — the provider routes the model's modes to multiple upstream ids internally (e.g. DashScope Wan 2.7 -> t2v/i2v/r2v/videoedit; DashScope voice -> tts/enrollment models). Routing stays hard-coded in the provider; the catalog only marks it. Aggregated locks the id editor and shows a static label. Must not also set `editableApiModelId`.
+- `aggregated?: boolean` — the provider routes the model to multiple upstream ids internally. The key can be the mode (DashScope Wan 2.7 -> t2v/i2v/r2v/videoedit; HappyHorse 1.1 -> the same four; DashScope voice -> tts/enrollment models) or a param (APIMart GPT Image 2.5 -> `variant` picks flare/sunburst). Reach for this whenever the catalog `apiModelId` is a display-only umbrella that upstream will not accept on its own; forking one catalog entry per upstream build is the wrong answer, because speed/quality builds of one model are a switch inside it, not separate models. Routing stays hard-coded in the provider; the catalog only marks it. Aggregated locks the id editor and shows a static label. Must not also set `editableApiModelId`.
 - `modes?: Mode[]` — restrict this provider to a subset of the model's `modes`. The mode dropdown and MCP schema only show the active provider's effective modes; unsupported modes are hidden (never shown as disabled / "not supported"). Provider resolution is strict-to-active — there is no mode-based provider fallback.
 - Param `providerOverrides[providerId]` — narrow a param's `options`/`optionsByMode`/`default`/`min`/`max`/`step`/`unit` for one provider, or set `hidden: true` to drop it entirely for that provider (e.g. MuleRouter Wan 2.7 omits `ratio`; xAI Grok Video 1.5 extends reference-to-video duration to 15 seconds while the legacy fal route remains capped at 10).
 
@@ -40,6 +40,28 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Legnext accepts model and render controls inside the `/v1/diffusion` `text` field. V8.2 exposes aspect ratio, Standard/2K resolution (`--hd`), stylize, chaos, raw style, stop, and weird controls. It does not expose the rejected `--q` / `--quality` flag.
 - Explicit user-authored Midjourney flags win. Detect long and short aliases as complete tokens so `--s` does not collide with `--seed` and `--c` does not collide with `--cref`.
 - Completed image tasks prefer the first non-empty URL in `output.image_urls`; use `output.image_url` only as a backward-compatible grid fallback.
+
+## GPT Image 2.5 (APIMart)
+
+- Bragi model ID: `gpt-image-2.5`, aggregated on APIMart. The upstream ids are `gpt-image-2.5-flare` (faster; everyday generation) and `gpt-image-2.5-sunburst` (editing precision), and the `variant` param picks one — `resolveApimartImageModelId` appends it, defaulting to `flare` for anything unrecognized. The bare `gpt-image-2.5` id is NOT callable, which is exactly why the entry is aggregated and the id editor stays locked.
+- The two builds share one endpoint, one request schema, one mode, and one param set, so they are a speed/quality switch inside one model rather than two models. Do not split them back into separate catalog entries.
+- A third id, `gpt-image-2.5-ext`, is listed by `/v1/models` with an empty `supported_endpoint_types` and is deliberately not wired.
+- `variant` is consumed when building the request and never forwarded: the APIMart image body is an explicit whitelist (`model`, `prompt`, `size`, `resolution`, `n`, optional `quality` / `image_urls`).
+- Endpoint: `POST https://api.apimart.ai/v1/images/generations`; task status uses the existing `GET /v1/tasks/{task_id}` poll, and the completed URL is read from `result.images[0].url[0]`.
+- The request reuses the GPT Image 2 payload shape: the selected aspect ratio goes in `size` and the size tier goes in `resolution`. `resolution` accepts `1k` / `2k` / `4k` only, so the 2.5 models do not offer the Auto size tier.
+- Both 2.5 builds honor `quality`, which adds the `xhigh` and `max` tiers on top of `auto` / `low` / `medium` / `high`. `honorsQuality()` in `apimart.ts` gates the field to the official GPT Image 2 channel plus every `gpt-image-2.5*` id; the non-official `gpt-image-2` route still omits it.
+- Reference images ride the existing `image_urls` array through Bragi Relay, capped at 16.
+
+## HappyHorse 1.1 (DashScope)
+
+- Bragi model ID: `happyhorse-1.1`, aggregated on DashScope. The canvas mode selects the upstream id inside `DashScopeVideoProvider`: `text-to-video` → `happyhorse-1.1-t2v`, `first-frame` → `happyhorse-1.1-i2v`, `image-ref` → `happyhorse-1.1-r2v`, `video-edit` → `happyhorse-1.0-video-edit`.
+- The editing model deliberately stays on 1.0: Alibaba ships no `happyhorse-1.1-video-edit`, and requesting it returns `404 InvalidParameter — Model not exist.` Verify with a probe before "upgrading" that id.
+- All four ids post to `POST {baseUrl}/services/aigc/video-generation/video-synthesis` with `X-DashScope-Async: enable` and poll through the shared `GET {baseUrl}/tasks/{task_id}`, so HappyHorse reuses Wan's `checkStatus` and download path unchanged.
+- The model, endpoint URL, and API key must belong to the same region. The DashScope base URL in provider settings decides the region; cross-region calls fail.
+- `resolution` is `480P` / `720P` / `1080P` (default `1080P`) except video editing, which accepts `720P` / `1080P` only — expressed as an `optionsByMode` override rather than a second model.
+- `ratio` (9 values, default `16:9`) applies to t2v and r2v only: i2v derives the frame from the input image and video editing follows the source clip. `duration` is 3-15s (default 5) for t2v / i2v / r2v; video editing follows the source clip length. `audio_setting` (`auto` / `origin`) is video-edit only. `watermark` is always sent as `false`.
+- Reference limits: i2v takes exactly one `first_frame`; r2v takes 1-9 `reference_image` entries; video editing takes exactly one `video` plus 0-5 `reference_image` entries. Reference media is delivered as Bragi Relay HTTPS URLs (DashScope's `defaultRefDelivery`).
+- HappyHorse 1.0 T2V / I2V were TokenRouter-only entries and are fully removed — catalog, TokenRouter payload branch, and stale `modelPrefs` / `modelOrder` / `apiModelIdOverrides` keys (settings schema 13).
 
 ## APIMart Omni-Flash-Ext
 

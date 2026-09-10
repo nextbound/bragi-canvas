@@ -84,3 +84,71 @@ export const gptImageOfficial: ModelConfig = {
 	modes: gptImage.modes,
 	params: gptImage.params,
 }
+
+/**
+ * GPT Image 2.5 — one model, two upstream builds selected by the `variant`
+ * param: `gpt-image-2.5-flare` (faster; everyday generation and prototyping)
+ * and `gpt-image-2.5-sunburst` (editing precision for production assets).
+ *
+ * The bare `gpt-image-2.5` id is not callable, so the APIMart entry is
+ * `aggregated`: the catalog id is a display-only umbrella and
+ * `resolveApimartImageModelId` in `apimart.ts` appends the selected variant.
+ * Both builds share one request schema on `POST /v1/images/generations`, honor
+ * `quality` (with the extra `xhigh` / `max` tiers 2.x lacks), and accept up to
+ * 16 reference images through `image_urls` — so the variant is a speed/quality
+ * switch, not a different set of modes or params.
+ */
+export const gptImage25: ModelConfig = {
+	id: 'gpt-image-2.5',
+	name: 'GPT Image 2.5',
+	type: 'image',
+	supportedProviders: {
+		apimart: { apiModelId: 'gpt-image-2.5', aggregated: true },
+	},
+	modes: ['text-to-image'],
+	params: [
+		{
+			id: 'variant',
+			label: 'Variant',
+			type: 'select',
+			options: [
+				{ label: 'Flare (faster)', value: 'flare' },
+				{ label: 'Sunburst (editing precision)', value: 'sunburst' },
+			],
+			default: 'flare',
+		},
+		{
+			id: 'aspectRatio',
+			label: 'Aspect Ratio',
+			type: 'select',
+			options: GPT_IMAGE_RATIOS,
+			default: '1:1',
+		},
+		{
+			id: 'imageSize',
+			label: 'Size',
+			type: 'select',
+			// The 2.5 endpoint's `resolution` field has no auto tier.
+			options: [
+				{ label: '1K', value: '1K' },
+				{ label: '2K', value: '2K' },
+				{ label: '4K', value: '4K' },
+			],
+			default: '2K',
+		},
+		{
+			id: 'quality',
+			label: 'Quality',
+			type: 'select',
+			options: [
+				{ label: 'Auto', value: 'auto' },
+				{ label: 'Low', value: 'low' },
+				{ label: 'Medium', value: 'medium' },
+				{ label: 'High', value: 'high' },
+				{ label: 'Extra high', value: 'xhigh' },
+				{ label: 'Max', value: 'max' },
+			],
+			default: 'auto',
+		},
+	],
+}
