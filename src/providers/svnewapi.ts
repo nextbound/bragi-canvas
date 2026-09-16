@@ -82,12 +82,25 @@ function isHttpUrl(value: string): boolean {
 	return /^https?:\/\//i.test(value)
 }
 
+function responseJson(resp: { text?: string; json?: unknown }): unknown {
+	try {
+		const json = resp.json
+		if (json !== undefined && json !== null) return json
+	} catch {
+		// Obsidian may throw here when a gateway returns a non-JSON error body.
+	}
+	try {
+		return resp.text ? JSON.parse(resp.text) : null
+	} catch {
+		return null
+	}
+}
+
 function parseProviderError(label: string, resp: { status: number; text?: string; json?: unknown }): string {
-	const body = asRecord(resp.json) || (() => {
-		try { return asRecord(JSON.parse(resp.text || '')) } catch { return null }
-	})()
+	const body = asRecord(responseJson(resp))
 	const error = asRecord(body?.error)
-	const msg = stringParam(error?.message || body?.message || resp.text, `HTTP ${resp.status}`)
+	const detail = error?.message || body?.error || body?.message || body?.detail || resp.text
+	const msg = stringParam(detail, `HTTP ${resp.status}`).trim() || `HTTP ${resp.status}`
 	const code = stringParam(error?.code || error?.type || body?.code, '')
 	return `${label}: ${code ? code + ' — ' : ''}${msg}`
 }

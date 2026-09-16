@@ -30,6 +30,7 @@
     "test:elevenlabs-voice-changer": "node scripts/verify-elevenlabs-voice-changer.mjs",
     "test:audio-asset-id": "node scripts/verify-audio-asset-id.mjs",
     "test:byteplus-asset-error-reason": "node scripts/verify-byteplus-asset-error-reason.mjs",
+    "test:svnewapi-error-response": "node scripts/verify-svnewapi-error-response.mjs",
     "test:svnewapi-image-refs": "node scripts/verify-svnewapi-image-refs.mjs",
     "test:svnewapi-video-params": "node scripts/verify-svnewapi-video-params.mjs",
     "test:tokenrouter-modelark-assets": "node scripts/verify-tokenrouter-modelark-assets.mjs",

@@ -118,6 +118,20 @@ interface GatewayResp {
 	text: string
 }
 
+function responseJson(resp: { text?: string; json?: unknown }): unknown {
+	try {
+		const json = resp.json
+		if (json !== undefined && json !== null) return json
+	} catch {
+		// Obsidian may throw here when the gateway returns a non-JSON error body.
+	}
+	try {
+		return resp.text ? JSON.parse(resp.text) : null
+	} catch {
+		return null
+	}
+}
+
 async function postJson(creds: SvNewApiAssetCreds, path: string, body: unknown): Promise<GatewayResp> {
 	const resp = await requestUrl({
 		url: `${creds.baseUrl}${path}`,
@@ -129,7 +143,7 @@ async function postJson(creds: SvNewApiAssetCreds, path: string, body: unknown):
 		body: JSON.stringify(body),
 		throw: false,
 	})
-	return { status: resp.status, json: resp.json, text: resp.text }
+	return { status: resp.status, json: responseJson(resp), text: resp.text }
 }
 
 async function createGatewayAsset(creds: SvNewApiAssetCreds, model: string, url: string, assetType: AssetType): Promise<{ id: string; status: string }> {

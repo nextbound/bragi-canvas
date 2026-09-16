@@ -94,6 +94,27 @@ try {
 			await ensureSvNewApiAsset(plugin, canvas, 'refs/face.png', 'seedance', { baseUrl: 'https://gateway.test', apiKey: 'key' })
 			if (call !== 2) throw new Error('expected create + status calls')
 		}
+
+		export async function runSvNewApiPlainTextAssetError() {
+			globalThis.__bragiRequestUrl = async () => {
+				const response = { status: 502, text: 'error code: 502\\n' }
+				Object.defineProperty(response, 'json', {
+					get() { throw new SyntaxError("Unexpected token 'e'") },
+				})
+				return response
+			}
+			const plugin = {
+				app: {
+					vault: {
+						adapter: {
+							readBinary: async () => new ArrayBuffer(1),
+						},
+					},
+				},
+			}
+			const canvas = { nodes: new Map() }
+			await ensureSvNewApiAsset(plugin, canvas, 'refs/face.png', 'seedance', { baseUrl: 'https://gateway.test', apiKey: 'key' })
+		}
 	`)
 
 	await esbuild.build({
@@ -118,6 +139,12 @@ try {
 		mod.runSvNewApiAssetFlow(),
 		/gateway saw BytePlus moderation failure/,
 		'SV NewAPI asset status failures should include nested Result.Error.Message when present',
+	)
+
+	await assert.rejects(
+		mod.runSvNewApiPlainTextAssetError(),
+		/SV NewAPI asset register failed: error code: 502/,
+		'SV NewAPI asset registration should preserve plain-text gateway errors',
 	)
 
 	console.log('BytePlus asset error reason checks passed.')
