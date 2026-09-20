@@ -192,6 +192,9 @@ function extractVideoUrl(data: unknown): string {
 function extractFailure(data: unknown, fallback: string): string {
 	const body = unwrapData(data)
 	const error = asRecord(body.error)
+	const code = stringParam(error?.code, '').trim()
+	const errorMessage = stringParam(error?.message, '').trim()
+	if (body.model === 'sv-seedance-2.5' && code && errorMessage) return `${code} — ${errorMessage}`
 	for (const value of [body.fail_reason, body.error_message, error?.message]) {
 		const msg = stringParam(value, '').trim()
 		if (msg) return msg

@@ -69,6 +69,48 @@ try {
 			}
 			await provider().generateVideo('prompt', { modelId: 'sv-seedance-2.0' })
 		}
+
+		export async function runCompletedSeedance25TaskFailure() {
+			globalThis.__bragiRequestUrl = async () => ({
+				status: 200,
+				json: {
+					id: 'task_seedance25_failed',
+					task_id: 'task_seedance25_failed',
+					object: 'video',
+					model: 'sv-seedance-2.5',
+					status: 'failed',
+					progress: 100,
+					error: {
+						code: 'OutputAudioSensitiveContentDetected',
+						message: 'The request failed because the output audio may contain sensitive information. Request id: req_123',
+					},
+					metadata: { url: '' },
+				},
+				text: '',
+			})
+			await provider().checkStatus('task_seedance25_failed')
+		}
+
+		export async function runCompletedNonSeedanceTaskFailure() {
+			globalThis.__bragiRequestUrl = async () => ({
+				status: 200,
+				json: {
+					id: 'task_other_failed',
+					task_id: 'task_other_failed',
+					object: 'video',
+					model: 'sv-grok-video',
+					status: 'failed',
+					progress: 100,
+					error: {
+						code: 'upstream_failure',
+						message: 'The upstream video request failed.',
+					},
+					metadata: { url: '' },
+				},
+				text: '',
+			})
+			await provider().checkStatus('task_other_failed')
+		}
 	`)
 
 	await esbuild.build({
@@ -92,6 +134,16 @@ try {
 		mod.runPlainTextError(),
 		error => error instanceof Error && error.message === 'SV NewAPI video: error code: 502',
 		'plain-text SVRouter errors should preserve the HTTP body',
+	)
+	await assert.rejects(
+		mod.runCompletedSeedance25TaskFailure(),
+		error => error instanceof Error && error.message === 'SV NewAPI video: OutputAudioSensitiveContentDetected — The request failed because the output audio may contain sensitive information. Request id: req_123',
+		'a completed Seedance 2.5 task should expose both its provider error code and full message',
+	)
+	await assert.rejects(
+		mod.runCompletedNonSeedanceTaskFailure(),
+		error => error instanceof Error && error.message === 'SV NewAPI video: The upstream video request failed.',
+		'non-Seedance task failures should retain their existing message-only presentation',
 	)
 
 	console.log('SV NewAPI error response checks passed.')
