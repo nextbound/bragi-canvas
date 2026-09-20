@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.39.1
+
+- Fixed failed SVRouter Seedance 2.5 tasks to show the provider error code together with the full error message, including request IDs supplied by the provider.
+- Preserved SVRouter JSON error strings and plain-text gateway failures instead of replacing them with JSON parsing errors, including asset registration and status responses.
+- Added regression coverage for Seedance task failures, other video task failures, and gateway error responses.
+- Bumped the plugin version to `1.39.1`.
+
 ## 1.39.0
 
 - Added GPT Image 2.5 on APIMart as one aggregated `gpt-image-2.5` model whose `variant` param picks the `flare` (faster, default) or `sunburst` (editing precision) upstream build, with the extended `xhigh` / `max` quality tiers and up to 16 reference images.
