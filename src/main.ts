@@ -747,6 +747,9 @@ export default class BragiCanvas extends Plugin {
 			const uniqueVideos = [...new Set(upstream.videos)]
 			const uniqueAudios = [...new Set(upstream.audios)]
 			const uniquePdfs = [...new Set(upstream.pdfs)]
+			if (model.id === 'sonilo-music' && mode === 'video-to-music' && uniqueVideos.length !== 1) {
+				throw new Error('Sonilo video music needs exactly one upstream video.')
+			}
 
 			let refImages: string[] = []
 			let refAudios: string[] = []
@@ -862,7 +865,7 @@ export default class BragiCanvas extends Plugin {
 			// Prepare reference videos for models/providers that can consume upstream video inputs.
 			// BytePlus uses asset:// when native asset credentials are configured; otherwise
 			// the declarative delivery path falls back to a temporary HTTPS relay URL.
-			if (model.type === 'video' && uniqueVideos.length > 0) {
+			if ((model.type === 'video' || (model.id === 'sonilo-music' && mode === 'video-to-music')) && uniqueVideos.length > 0) {
 				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsMinimaxH3Refs && !supportsKlingOmniVideoRef && !isDashScopeWan) {
 					throw new Error('Reference video is not available for the active model and provider.')
 				}
@@ -872,7 +875,7 @@ export default class BragiCanvas extends Plugin {
 				if (supportsKlingOmniVideoRef && uniqueVideos.length > 1) {
 					throw new Error('Kling 3.0 Omni supports at most 1 reference video.')
 				}
-				const shouldUseVideos = supportsSeedanceUrlRefs || isDashScopeWan || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref' || mode === 'motion-control'
+				const shouldUseVideos = model.id === 'sonilo-music' || supportsSeedanceUrlRefs || isDashScopeWan || mode === 'video-extend' || mode === 'video-edit' || mode === 'video-ref' || mode === 'motion-control'
 				if (shouldUseVideos) {
 					for (const videoPath of uniqueVideos) {
 						if (isNativeSeedance && bytePlusCreds) {
@@ -1028,11 +1031,12 @@ export default class BragiCanvas extends Plugin {
 				delete audioParams.voiceDesignTextIndex
 				delete audioParams.voiceLabel
 				const audioResult = await provider.generateAudio(finalPrompt, {
-					mode: mode as 'tts' | 'music' | 'sound-effect',
+					...audioParams,
+					mode: mode as 'tts' | 'music' | 'video-to-music' | 'sound-effect',
 					modelId: audioModelId,
 					upstreamPrompts,
 					nodePrompt: result.prompt,
-					...audioParams,
+					refVideos,
 				})
 				if (audioResult.filePath) {
 					this.rememberGeneratedAsset(audioResult.filePath)

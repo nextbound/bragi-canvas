@@ -3,7 +3,7 @@ export type GenerationType = 'image' | 'video' | 'text' | 'audio'
 export type ImageMode = 'text-to-image' | 'image-ref-to-image'
 export type VideoMode = 'text-to-video' | 'first-frame' | 'image-ref' | 'first-last-frame' | 'multi-image-ref' | 'video-ref' | 'video-extend' | 'video-edit' | 'motion-control'
 export type TextMode = 'text-to-text'
-export type AudioMode = 'tts' | 'music' | 'sound-effect'
+export type AudioMode = 'tts' | 'music' | 'video-to-music' | 'sound-effect'
 
 export type Mode = ImageMode | VideoMode | TextMode | AudioMode
 export type VoiceSourceMode = 'builtin' | 'reference' | 'design'

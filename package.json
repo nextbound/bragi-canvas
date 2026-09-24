@@ -37,6 +37,7 @@
     "test:text-multimodal": "node scripts/verify-text-multimodal.mjs",
     "test:pika-provider": "node scripts/verify-pika-provider.mjs",
     "test:mureka-music": "node scripts/verify-mureka-music.mjs",
+    "test:sonilo-music": "node scripts/verify-sonilo-music.mjs",
     "test:dashscope-wan3": "node scripts/verify-dashscope-wan3.mjs",
     "test:seedance-2-5": "node scripts/verify-seedance-2-5.mjs",
     "test:byteplus-seedance-endpoint": "node scripts/verify-byteplus-seedance-endpoint.mjs",

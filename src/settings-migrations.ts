@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 13
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 14
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 export interface SettingsMigrationResult {

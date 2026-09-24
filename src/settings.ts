@@ -108,6 +108,7 @@ export interface BragiSettings {
 			pika: string
 		minimax: string
 		mureka: string
+		sonilo: string
 		elevenlabs: string
 		legnext: string
 		tokenrouter: string
@@ -185,6 +186,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 			pika: '',
 		minimax: '',
 		mureka: '',
+		sonilo: '',
 		elevenlabs: '',
 		legnext: '',
 		tokenrouter: '',
