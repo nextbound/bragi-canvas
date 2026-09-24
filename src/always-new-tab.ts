@@ -1,3 +1,4 @@
+import type { CanvasView } from './types/canvas-internal'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { WorkspaceLeaf, TFile, App } from 'obsidian'
 import { around } from 'monkey-around'
@@ -62,7 +63,7 @@ function readOpenState(openState: unknown): OpenState {
 }
 
 function findExistingLeaf(app: App, currentLeaf: WorkspaceLeaf, file: TFile): WorkspaceLeaf | null {
-	const expectedViewType = (app as unknown).viewRegistry?.getTypeByExtension?.(file.extension)
+	const expectedViewType = app.viewRegistry?.getTypeByExtension?.(file.extension)
 	let found: WorkspaceLeaf | null = null
 	app.workspace.iterateAllLeaves((leaf) => {
 		if (found) return
@@ -79,7 +80,7 @@ function findExistingLeaf(app: App, currentLeaf: WorkspaceLeaf, file: TFile): Wo
 
 function isMainLeaf(leaf: WorkspaceLeaf): boolean {
 	const root = leaf.getRoot?.()
-	const workspace = (leaf as unknown).app?.workspace
+	const workspace = leaf.app?.workspace
 	// Main area = rootSplit (not sidebars, not popouts)
 	return !!root && !!workspace && root === workspace.rootSplit
 }
@@ -91,7 +92,7 @@ function isCanvasLeaf(leaf: WorkspaceLeaf): boolean {
 function getLeafFilePath(leaf: WorkspaceLeaf): string | undefined {
 	const statePath = leaf.getViewState?.().state?.file
 	if (typeof statePath === 'string') return statePath
-	const viewFilePath = (leaf.view as unknown)?.file?.path
+	const viewFilePath = (leaf.view as CanvasView)?.file?.path
 	return typeof viewFilePath === 'string' ? viewFilePath : undefined
 }
 

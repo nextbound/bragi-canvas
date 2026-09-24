@@ -1,3 +1,4 @@
+import type { AllCanvasNodeData } from 'obsidian/canvas'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import {
@@ -118,7 +119,7 @@ export function findFreePosition(
 	height: number,
 	excludeId?: string,
 ): { x: number; y: number } {
-	const data = canvas.getData() as unknown
+	const data = canvas.getData()
 	const existing: BBox[] = []
 	for (const n of (data.nodes || [])) {
 		if (excludeId && n.id === excludeId) continue
@@ -183,7 +184,7 @@ interface GeneratingEntry {
 }
 
 const generatingRegistry = new Map<string, GeneratingEntry>()
-let tickInterval: ReturnType<typeof window.setInterval> | null = null
+let tickInterval: number | null = null
 
 function ensureTicker(): void {
 	if (tickInterval) return
@@ -244,7 +245,7 @@ export function styleGeneratingPlaceholder(
  * Remove overlay + ticker tracking. Safe to call on a node that was never
  * registered (e.g. a ghost we're sweeping).
  */
-function detachGeneratingOverlay(nodeId: string, nodeEl?: HTMLElement | null): void {
+export function detachGeneratingOverlay(nodeId: string, nodeEl?: HTMLElement | null): void {
 	const entry = generatingRegistry.get(nodeId)
 	if (entry) {
 		stopGeneratingOverlayAnimation(entry.overlay)
@@ -276,7 +277,7 @@ export function stopGeneratingTicker(): void {
  * even if the user hard-reloads Obsidian within ~500ms of starting generation.
  */
 function persistPlaceholderFields(canvas: Canvas, _nodeId: string, _modelName: string, _startedAt: number): void {
-	const anyCanvas = canvas as unknown
+	const anyCanvas = canvas
 	const app = anyCanvas.view?.app || anyCanvas.app
 	const filePath: string | undefined = anyCanvas.view?.file?.path
 	if (!app || !filePath) return
@@ -309,7 +310,7 @@ export function sweepInterruptedPlaceholders(
 ): number {
 	let count = 0
 	for (const node of canvas.nodes.values()) {
-		const d = node.getData() as unknown
+		const d = node.getData()
 		if (d.bragiGenerating !== true) continue
 		if (isTracked(node.id)) {
 			// Rehydrate: DOM was recreated on canvas activate, reattach overlay + class
@@ -464,7 +465,7 @@ export function replacePlaceholderWithFile(
 	// Reuse the placeholder's exact position AND size — it was sized to match the
 	// output when we created it, so there's no reason to reflow now. This avoids
 	// a second collision-avoidance pass that used to shove the node around.
-	const pd = placeholder.getData() as unknown
+	const pd = placeholder.getData()
 	const x = placeholder.x ?? pd.x
 	const y = placeholder.y ?? pd.y
 	const width = pd.width ?? 400
@@ -539,7 +540,7 @@ export function markNodeInterrupted(node: CanvasNode): void {
 export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): DuplicateWithConnectionsResult | null {
 	try {
 	const targetCanvas = node.canvas || canvas
-	const data = node.getData() as unknown
+	const data = node.getData()
 	const gap = 50
 
 	if (data.type === 'text') {
@@ -547,7 +548,7 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): Dupl
 		const height = data.height || 100
 		const nodeId = generateId()
 		const currentData = targetCanvas.getData()
-		const newNodeData: unknown = {
+		const newNodeData: AllCanvasNodeData = {
 			id: nodeId,
 			type: 'text',
 			text: data.text || node.text || '',
@@ -645,7 +646,7 @@ function getIncomingEdgeData(canvas: Canvas, node: CanvasNode): Array<{
 	const result: Array<{ fromNode: string; fromSide: string; fromEnd: string; toSide: string; toEnd: string }> = []
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as unknown).getData?.() || edge
+		const edgeData = edge.getData?.() || edge
 		result.push({
 			fromNode: edge.from.node.id,
 			fromSide: edgeData.fromSide || edge.from.side || 'right',

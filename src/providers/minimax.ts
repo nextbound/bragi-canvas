@@ -273,7 +273,7 @@ export class MiniMaxProvider implements AudioProvider {
 			? params.upstreamPrompts.filter((value): value is string => typeof value === 'string' && !!value.trim()).join('\n')
 			: typeof params?.lyrics === 'string' ? params.lyrics : ''
 
-		const body: unknown = {
+		const body: Record<string, unknown> = {
 			model: modelId,
 			prompt: nodePrompt,
 			is_instrumental: isInstrumental,

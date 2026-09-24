@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult, GenerateVideoResult, VideoProvider } from './types'
 import type { App } from 'obsidian'
@@ -374,7 +375,7 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${API_BASE}/tasks/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -399,8 +400,9 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		}
 		if (status === 'failed') {
 			const detail = stringifyDetail(data.error) || stringifyDetail(data.message) || 'no reason provided'
-			throw new Error(`APIMart: task failed — ${detail}`)
+			throw new TaskPollingError(`APIMart: task failed — ${detail}`, 'terminal')
 		}
+		assertPendingStatus(status)
 		return { done: false, taskId }
 	}
 
@@ -455,19 +457,19 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		if (!await adapter.exists(this.outputDir)) {
 			await adapter.mkdir(this.outputDir)
 		}
-		await adapter.writeBinary(filePath, bytes.buffer)
+		await adapter.writeBinary(filePath, new Uint8Array(bytes).buffer)
 		return { filePath }
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const fileName = `apimart_video_${Date.now()}.${videoExtension(url)}`
 		const filePath = `${this.outputDir}/${fileName}`
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) {
 			await adapter.mkdir(this.outputDir)
 		}
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 

@@ -1,3 +1,4 @@
+import { errorMessage } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { App } from 'obsidian'
 import type { BragiSettings } from '../settings'
@@ -94,7 +95,7 @@ async function testListModels(url: string, token: string): Promise<TestResult> {
 		if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err?.message || err}` }
+		return { ok: false, message: `Network error: ${errorMessage(err)}` }
 	}
 }
 
@@ -116,7 +117,7 @@ async function testSeedanceEndpoint(url: string, token: string): Promise<TestRes
 		if (resp.status >= 200 && resp.status < 500 && resp.status !== 404) return { ok: true, message: 'Connected.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err?.message || err}` }
+		return { ok: false, message: `Network error: ${errorMessage(err)}` }
 	}
 }
 
@@ -127,7 +128,7 @@ async function testGenericGet(url: string, headers: Record<string, string>): Pro
 		if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err?.message || err}` }
+		return { ok: false, message: `Network error: ${errorMessage(err)}` }
 	}
 }
 
@@ -188,7 +189,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (resp.status === 400 || resp.status === 200) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -236,12 +237,12 @@ export const PROVIDERS: ProviderSpec[] = [
 				// Gemini surfaces invalid / expired keys as 400 with reason = API_KEY_INVALID
 				const err = resp.json?.error
 				if (resp.status === 400 && err?.status === 'INVALID_ARGUMENT') {
-					return { ok: false, message: err?.message || 'Invalid API key.' }
+					return { ok: false, message: errorMessage(err) }
 				}
 				if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -338,7 +339,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (resp.status === 401 || resp.status === 403) return { ok: false, message: 'Invalid API key.' }
 				return { ok: true, message: 'Connected.' }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -373,7 +374,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (resp.status === 401) return { ok: false, message: 'Invalid API key.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -424,7 +425,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (resp.status < 500) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -483,7 +484,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (resp.status < 500) return { ok: true, message: 'Connected.' }
 				return { ok: false, message: `Unexpected status ${resp.status}.` }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},
@@ -631,7 +632,7 @@ export const PROVIDERS: ProviderSpec[] = [
 				if (healthy > 0) return { ok: true, message: `Connected. ${healthy} account(s) healthy.` }
 				return { ok: false, message: 'Token OK but no healthy Luma accounts upstream.' }
 			} catch (err: unknown) {
-				return { ok: false, message: `Network error: ${err?.message || err}` }
+				return { ok: false, message: `Network error: ${errorMessage(err)}` }
 			}
 		},
 	},

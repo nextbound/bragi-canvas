@@ -1,3 +1,4 @@
+import { recordValue } from '../runtime-values'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { requestUrl } from 'obsidian'
 import { signRequest } from './sigv4'
@@ -571,9 +572,9 @@ function buildAnthropicContent(prompt: string, refImages: string[], refPdfs: str
 }
 
 function parseAnthropicText(data: unknown): string {
-	const blocks = data?.content
+	const blocks = recordValue(data).content
 	if (!Array.isArray(blocks)) return ''
-	return blocks.filter((b: unknown) => b.type === 'text').map((b: unknown) => b.text).join('\n').trim()
+	return blocks.map(recordValue).filter(b => b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n').trim()
 }
 
 /**
@@ -632,7 +633,7 @@ export class BedrockClaudeTextProvider implements TextGenProvider {
 
 	async generateText(prompt: string, params?: Record<string, unknown>): Promise<TextGenResult> {
 		const bedrockModelId = params?.modelId
-		if (!bedrockModelId) throw new Error('Bedrock: missing modelId')
+		if (typeof bedrockModelId !== 'string' || !bedrockModelId) throw new Error('Bedrock: missing modelId')
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages.filter((r): r is string => typeof r === 'string') : []
 		const refPdfs: string[] = Array.isArray(params?.refPdfs) ? params.refPdfs.filter((r): r is string => typeof r === 'string') : []
 

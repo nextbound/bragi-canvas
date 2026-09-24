@@ -1,3 +1,4 @@
+import { errorMessage } from './task-errors'
 import { Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from './main'
 import { findFreePosition } from './canvas-ops'
@@ -563,7 +564,7 @@ class ImageAnnotationCanvasMode {
 	open(): void {
 		void this.load().catch(err => {
 			console.error('Bragi annotation editor failed to open', err)
-			new Notice(err instanceof Error ? err.message : 'Could not open annotation editor')
+			new Notice(err instanceof Error ? errorMessage(err) : 'Could not open annotation editor')
 			this.close()
 		})
 	}
@@ -1047,7 +1048,7 @@ class ImageAnnotationCanvasMode {
 			this.syncToolState()
 			this.refreshSelectionToolbar(true)
 			console.error('Bragi annotation save failed', err)
-			new Notice(err instanceof Error ? err.message : 'Could not save annotation')
+			new Notice(err instanceof Error ? errorMessage(err) : 'Could not save annotation')
 		}
 	}
 

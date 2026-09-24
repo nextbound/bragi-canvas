@@ -12,7 +12,7 @@ export function getOrderedAudios(canvas: Canvas, node: CanvasNode): string[] {
 	const upstream = getUpstreamInputs(canvas, node)
 	const uniqueAudios = [...new Set(upstream.audios)]
 
-	const nodeData = node.getData() as unknown
+	const nodeData = node.getData()
 	const savedOrder: string[] | undefined = nodeData.bragiAudioOrder
 
 	if (savedOrder && savedOrder.length > 0) {
@@ -60,7 +60,7 @@ export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App):
 		return
 	}
 
-	const nodeData = node.getData() as unknown
+	const nodeData = node.getData()
 	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && /\.md$/i.test(nodeData.file || ''))) {
 		return
 	}
@@ -157,7 +157,7 @@ export function updateAudioRefStrip(canvas: Canvas, node: CanvasNode, app: App):
 			newOrder.splice(fromIdx, 1)
 			newOrder.splice(toIdx, 0, draggedPath)
 
-			const data = node.getData() as unknown
+			const data = node.getData()
 			node.setData({ ...data, bragiAudioOrder: newOrder })
 
 			endRefDrag()
@@ -185,7 +185,7 @@ export function refreshAllAudioRefs(canvas: Canvas, app: App): void {
 	if (!canvas.nodes) return
 	const nodes = canvas.nodes instanceof Map
 		? Array.from(canvas.nodes.values())
-		: (canvas.nodes as unknown[])
+		: ([] as CanvasNode[])
 	for (const node of nodes) {
 		const data = node.getData()
 		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data).file || ''))) {

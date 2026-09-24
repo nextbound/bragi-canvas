@@ -1,3 +1,6 @@
+interface KlingTaskResponse { code?: number; data?: { task_status?: string; task_status_msg?: string; task_result?: { videos?: { url?: string }[] } } }
+import { stringArray } from '../runtime-values'
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
@@ -27,8 +30,8 @@ export class KlingProvider implements VideoProvider {
 		const aspectRatio = params?.aspect_ratio || '16:9'
 		const quality = params?.mode || 'std'
 		const genMode = params?.genMode || null  // user-selected mode from panel
-		const refImages: string[] = params?.refImages || []
-		const refVideos: string[] = params?.refVideos || []
+		const refImages: string[] = stringArray(params?.refImages)
+		const refVideos: string[] = stringArray(params?.refVideos)
 		const characterOrientation = params?.character_orientation || 'video'
 		const keepOriginalSound = params?.keep_original_sound || 'yes'
 
@@ -94,7 +97,7 @@ export class KlingProvider implements VideoProvider {
 			`${BASE_URL}/v1/videos/image2video/${taskId}`,
 			`${BASE_URL}/v1/videos/motion-control/${taskId}`,
 		]
-		let data: unknown
+		let data: KlingTaskResponse | undefined
 		for (const url of urls) {
 			const result = await this.pollTask(token, url)
 			if (result?.code === 0) {
@@ -115,9 +118,10 @@ export class KlingProvider implements VideoProvider {
 		}
 
 		if (status === 'failed') {
-			throw new Error(`Kling: Task failed — ${data?.data?.task_status_msg || 'unknown'}`)
+			throw new TaskPollingError(`Kling: Task failed — ${data?.data?.task_status_msg || 'unknown'}`, 'terminal')
 		}
 
+		assertPendingStatus(status)
 		return { done: false, taskId }
 	}
 
@@ -207,8 +211,8 @@ export class KlingProvider implements VideoProvider {
 		throw new Error(`Kling Omni: ${lastError}`)
 	}
 
-	private async pollTask(token: string, url: string): Promise<unknown> {
-		const response = await requestUrl({
+	private async pollTask(token: string, url: string): Promise<KlingTaskResponse> {
+		const response = await pollRequest({
 			url,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${token}` },
@@ -218,7 +222,7 @@ export class KlingProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({ url })
+		const response = await pollRequest({ url })
 		const timestamp = Date.now()
 		const fileName = `vid_${timestamp}.mp4`
 		const filePath = `${this.outputDir}/${fileName}`
@@ -228,7 +232,7 @@ export class KlingProvider implements VideoProvider {
 			await adapter.mkdir(this.outputDir)
 		}
 
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 

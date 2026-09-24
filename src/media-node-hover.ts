@@ -20,7 +20,7 @@ interface MediaNodeInternals extends CanvasNode {
 }
 
 let renderPatchUninstall: (() => void) | null = null
-let refreshInterval: ReturnType<typeof window.setInterval> | null = null
+let refreshInterval: number | null = null
 let activeApp: App | null = null
 
 function getFilePath(node: CanvasNode): string {
@@ -67,7 +67,7 @@ async function getFileSize(app: App, node: MediaNodeInternals, filePath: string)
 	const fromNode = node.file?.stat?.size
 	if (typeof fromNode === 'number') return fromNode
 
-	const abstract = app.vault.getAbstractFileByPath(filePath)
+	const abstract = app.vault.getFileByPath(filePath)
 	if (abstract && 'stat' in abstract && abstract.stat) {
 		return abstract.stat.size
 	}
@@ -292,7 +292,7 @@ function findFileNodePrototype(canvas: Canvas): object | null {
 function tryInstallRenderPatch(canvas: Canvas): boolean {
 	if (renderPatchUninstall) return true
 
-	const proto = findFileNodePrototype(canvas) as { render?: (...args: unknown[]) => unknown } | null
+	const proto = findFileNodePrototype(canvas) as { render: (...args: unknown[]) => unknown; updateNodeLabel: (...args: unknown[]) => unknown } | null
 	if (!proto?.render) return false
 
 	renderPatchUninstall = around(proto, {

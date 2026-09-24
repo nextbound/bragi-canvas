@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- MCP request payloads and Canvas bridge data arrive as runtime-shaped JSON that is validated at the command boundary. */
 import { randomUUID } from 'crypto'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { Modal, TFile, type App } from 'obsidian'
 import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
 import type { Canvas, CanvasEdge, CanvasNode, MoveAndResizeOptions } from './types/canvas-internal'
@@ -14,7 +14,7 @@ import { getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
 import type { TaskQueue, TaskSnapshot } from './task-queue'
 import type { BragiSettings } from './settings'
-import { getSeedanceAssetMediaKind, setNodeAssetId, type SeedanceAssetProviderId } from './asset-ids'
+import { getSeedanceAssetMediaKind, setNodeAssetId } from './asset-ids'
 
 export type GetCanvas = () => Canvas | null
 export type RunGeneration = (node: CanvasNode, result: PanelResult) => Promise<{
@@ -204,7 +204,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 	const getCanvas = ctx.getCanvas
 
 	return [
-		{
+		defineTool({
 			category: 'Canvas — read',
 			name: 'list_nodes',
 			description: 'List all nodes on the active canvas',
@@ -215,9 +215,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				if (type) nodes = nodes.filter(n => n.getData().type === type)
 				return ok(nodes.map(serializeNode))
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — read',
 			name: 'get_node',
 			description: 'Get details of a single node including its edges',
@@ -231,9 +231,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					edges: edges.map(serializeEdge),
 				})
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — write',
 			name: 'create_text_node',
 			description: 'Create a new text node on the canvas',
@@ -254,9 +254,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ id: node.id })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — write',
 			name: 'update_node',
 			description: 'Update a node\'s content, position, or size',
@@ -308,9 +308,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok()
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — write',
 			name: 'delete_node',
 			description: 'Delete a node from the canvas',
@@ -322,9 +322,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok()
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — write',
 			name: 'connect_nodes',
 			description: 'Create an edge between two nodes',
@@ -362,9 +362,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				await canvas.requestSave()
 				return ok({ edgeId })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — write',
 			name: 'delete_edge',
 			description: 'Delete an edge from the canvas',
@@ -392,9 +392,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				await canvas.requestSave()
 				return ok({ status: 'ok', edgeId, deleted: true })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — read',
 			name: 'list_edges',
 			description: 'List all edges on the active canvas',
@@ -406,9 +406,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				const edges = canvas.getData().edges || []
 				return ok(edges.map(serializeEdge))
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Selection',
 			name: 'get_selection',
 			description: 'Get the currently selected nodes',
@@ -418,9 +418,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				const sel = canvas.selection ? Array.from(canvas.selection) : []
 				return ok(sel.map(serializeNode))
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Selection',
 			name: 'select_node',
 			description: 'Select a node on the canvas',
@@ -431,9 +431,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				canvas.selectOnly(node, false)
 				return ok()
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — read',
 			name: 'read_canvas',
 			description: 'Read the full canvas data (all nodes and edges). Returns a truncated marker if the JSON exceeds 100KB — use list_nodes / list_edges for large canvases.',
@@ -455,9 +455,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				}
 				return ok(data)
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Generation',
 			name: 'list_models',
 			description: 'List enabled AI models, optionally filtered by type (image/video/text/audio). Only returns models with a connected, configured provider.',
@@ -506,9 +506,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				}
 				return ok(result)
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Generation',
 			name: 'get_upstream',
 			description: 'Get upstream inputs (text prompts, reference images, reference videos, audio files, and PDFs) connected to a node via arrows',
@@ -528,9 +528,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					textRefs: textRefs.map(r => ({ nodeId: r.nodeId, preview: r.preview, kind: r.kind, mdPath: r.mdPath })),
 				})
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Generation',
 			name: 'generate',
 			description: 'Trigger AI generation on a node. The node must contain a text prompt (text node or .md file node). Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
@@ -619,9 +619,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 						: 'Generation runs in the background. Re-read the placeholder node to see when it is replaced with the result.',
 				})
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Task tracking',
 			name: 'list_pending_tasks',
 			description: 'List all pending async audio and video generation tasks. Empty array means no tracked in-flight async work.',
@@ -639,11 +639,14 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					placeholderNodeId: s.placeholderNodeId,
 					canvasPath: s.canvasPath,
 					elapsedMs: now - s.startedAt,
+					state: s.state || 'waiting-canvas',
+					nextRetryAt: s.nextRetryAt,
+					lastError: s.lastError,
 				})))
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — batch write',
 			name: 'create_nodes_batch',
 			description: 'Create multiple text nodes in a single canvas import. Much faster than calling create_text_node N times.',
@@ -683,9 +686,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ ids: created })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — batch write',
 			name: 'connect_nodes_batch',
 			description: 'Create multiple edges in a single canvas import.',
@@ -728,9 +731,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				await canvas.requestSave()
 				return ok({ edgeIds: created })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas — batch write',
 			name: 'update_nodes_batch',
 			description: 'Update geometry and/or color of many nodes in a single canvas import. Much faster than calling update_node N times. Use this for layout/cleanup passes on large canvases.',
@@ -765,9 +768,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ applied, missing })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Layout / cleanup',
 			name: 'create_group_node',
 			description: 'Create a group node (a labelled rectangular frame around a region of the canvas). Use this to visually partition a cluttered canvas into chapters / scenes / stages.',
@@ -790,9 +793,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ id })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Layout / cleanup',
 			name: 'arrange_in_grid',
 			description: 'Lay out the given nodes in a grid. Preserves each node\'s current width/height; only moves x/y. Typical cleanup call for a cluttered canvas.',
@@ -844,9 +847,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					cols,
 				})
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Files / assets',
 			name: 'create_file_node',
 			description: 'Create a file node on the canvas referencing an existing vault file (image/video/audio/md).',
@@ -868,9 +871,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ id })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Files / assets',
 			name: 'upload_image_as_node',
 			description: 'Write a base64-encoded image to the canvas\'s output directory (_bragi/assets by default) and create a file node for it.',
@@ -916,9 +919,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				void canvas.requestSave()
 				return ok({ id, filePath: finalPath })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Files / assets',
 			name: 'set_asset_id',
 			description: 'Bind a provider-specific Seedance Asset ID to an image or audio file node. Pass empty string to clear.',
@@ -934,14 +937,14 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				if (d.type !== 'file' || !getSeedanceAssetMediaKind(d.file || '')) {
 					throw new Error('Asset ID only applies to image or audio file nodes')
 				}
-				const providerId = (provider || 'tokenrouter') as SeedanceAssetProviderId
+				const providerId = (provider || 'tokenrouter')
 				setNodeAssetId(node, providerId, assetId)
 				void canvas.requestSave()
 				return ok({ nodeId, provider: providerId, assetId: assetId || null })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas switching',
 			name: 'get_active_canvas_info',
 			description: 'Get path and stats for the currently active canvas (or null if no canvas is open).',
@@ -958,9 +961,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					edgeCount: (data.edges || []).length,
 				})
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas switching',
 			name: 'list_canvases',
 			description: 'List canvas files Bragi has seen in this vault.',
@@ -976,9 +979,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					}
 				}))
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Canvas switching',
 			name: 'open_canvas',
 			description: 'Switch the active tab to the given .canvas file. Requires user confirmation via a modal; throws "cancelled by user" if the user declines.',
@@ -993,9 +996,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				ctx.rememberCanvasPath?.(file.path)
 				return ok({ path: file.path })
 			},
-		},
+		}),
 
-		{
+		defineTool({
 			category: 'Task tracking',
 			name: 'get_task_status',
 			description: 'Get status of an async task by taskId. Returns "pending" if still in-flight, or "not_found" if already completed/failed (inspect the placeholder node to see the result).',
@@ -1016,8 +1019,13 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					elapsedMs: Date.now() - snap.startedAt,
 				})
 			},
-		},
+		}),
 	]
 }
 
 /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Resume strict linting after the runtime-shaped data boundary. */
+
+/** Preserve each schema's inferred handler types before storing heterogeneous tools. */
+function defineTool<Args extends ToolSchema>(tool: McpToolDef<Args>): McpToolDef {
+ return { ...tool, handler: args => tool.handler(z.object(tool.inputSchema).parse(args)) }
+}

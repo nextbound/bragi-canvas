@@ -1,10 +1,12 @@
+import { errorMessage } from './task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- HTTP headers and worker IPC payloads arrive as runtime-shaped data narrowed at use sites. */
+import { validateMcpRequest } from './mcp-http-policy'
 import { spawn, type ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
 import { existsSync, readdirSync } from 'fs'
 import type { IncomingHttpHeaders } from 'http'
 import { join } from 'path'
-import { z, ZodError } from 'zod'
+import { z, ZodError } from 'zod/v3'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { App } from 'obsidian'
 import type { TaskQueue } from './task-queue'
@@ -59,23 +61,10 @@ type SetHttpHeader = (name: string, value: string) => void
 
 const PROTOCOL_VERSION = '2025-06-18'
 
-const CORS_HEADERS: Record<string, string> = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': '*',
-	'Access-Control-Expose-Headers': 'Mcp-Session-Id',
-}
-
 const MCP_HTTP_WORKER_SOURCE = String.raw`
 const http = require('http')
-
-const CORS_HEADERS = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': '*',
-	'Access-Control-Expose-Headers': 'Mcp-Session-Id',
-}
-
+const validateMcpRequest = ${validateMcpRequest.toString()}
+let listenPort = 0
 let server = null
 let nextRequestId = 1
 const pendingResponses = new Map()
@@ -96,10 +85,25 @@ function writeHeaders(res, headers) {
 
 function readRawBody(req) {
 	return new Promise((resolve, reject) => {
-		const chunks = []
-		req.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
-		req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-		req.on('error', reject)
+		let chunks = [], size = 0, settled = false
+		const finish = (error) => {
+			if (settled) return
+			settled = true
+			clearTimeout(timer)
+			if (error) { chunks = []; reject(error); req.resume() }
+			else resolve(Buffer.concat(chunks).toString('utf8'))
+		}
+		const timer = setTimeout(() => finish(Object.assign(new Error('MCP request body timed out after 30 seconds.'), { statusCode: 408 })), 30000)
+		req.on('data', chunk => {
+			if (settled) return
+			const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+			size += buffer.length
+			if (size > 64 * 1024 * 1024) finish(Object.assign(new Error('MCP request body exceeds 64 MiB.'), { statusCode: 413 }))
+			else chunks.push(buffer)
+		})
+		req.on('end', () => finish())
+		req.on('error', finish)
+		req.on('aborted', () => finish(new Error('MCP request aborted.')))
 	})
 }
 
@@ -108,14 +112,20 @@ function writeResponse(requestId, response) {
 	if (!res) return
 	pendingResponses.delete(requestId)
 
-	const headers = Object.assign({}, CORS_HEADERS, response && response.headers ? response.headers : {})
+	const headers = response && response.headers ? response.headers : {}
 	writeHeaders(res, headers)
 	res.writeHead(response && response.statusCode ? response.statusCode : 500)
 	res.end(response && response.body !== undefined ? response.body : '')
 }
 
 async function handleRequest(req, res) {
-	writeHeaders(res, CORS_HEADERS)
+	const policy = validateMcpRequest(req.headers, req.method, listenPort)
+	writeHeaders(res, policy.headers)
+	if (policy.status !== 200) {
+		res.writeHead(policy.status, { 'Content-Type': 'application/json', Connection: 'close' })
+		res.end(JSON.stringify({ error: policy.message }))
+		return
+	}
 
 	if (req.method === 'OPTIONS') {
 		res.writeHead(204)
@@ -142,8 +152,7 @@ async function handleRequest(req, res) {
 		})
 	} catch (err) {
 		pendingResponses.delete(requestId)
-		writeHeaders(res, CORS_HEADERS)
-		res.writeHead(500, { 'Content-Type': 'application/json' })
+		res.writeHead(err.statusCode || 500, { 'Content-Type': 'application/json', Connection: 'close' })
 		res.end(JSON.stringify({
 			jsonrpc: '2.0',
 			id: null,
@@ -158,6 +167,7 @@ function start(port, host) {
 		return
 	}
 
+	listenPort = port
 	server = http.createServer((req, res) => {
 		void handleRequest(req, res)
 	})
@@ -257,7 +267,8 @@ function toolInputSchema(tool: McpToolDef): unknown {
 	// Emit the schema inline (no `name`) so the top-level object keeps `type: "object"`.
 	// Passing `name` wraps the schema in `{ $ref, definitions }`, which has no top-level
 	// `type` and is rejected by hosts like OpenAI/Codex ("schema must be type object, got None").
-	return zodToJsonSchema(z.object(tool.inputSchema), {
+	const schema: z.ZodType<unknown> = z.object(tool.inputSchema)
+	return zodToJsonSchema(schema, {
 		$refStrategy: 'none',
 	})
 }
@@ -267,6 +278,7 @@ export class BragiMcpServer {
 	private workerStart: { resolve: () => void; reject: (err: Error) => void } | null = null
 	private workerStopping = false
 	private sessions = new Set<string>()
+	private port = 17775
 
 	constructor(
 		private getCanvas: GetCanvas,
@@ -293,6 +305,7 @@ export class BragiMcpServer {
 	}
 
 	async start(port: number): Promise<void> {
+		this.port = port
 		if (this.httpWorker) await this.stop()
 
 		return new Promise<void>((resolve, reject) => {
@@ -395,7 +408,7 @@ export class BragiMcpServer {
 			this.sendWorkerResponse(payload.requestId, this.withCors({
 				statusCode: 500,
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(jsonError(null, -32603, err instanceof Error ? err.message : String(err))),
+				body: JSON.stringify(jsonError(null, -32603, err instanceof Error ? errorMessage(err) : String(err))),
 			}))
 		}
 	}
@@ -419,11 +432,14 @@ export class BragiMcpServer {
 	private withCors(response: SerializedHttpResponse): SerializedHttpResponse {
 		return {
 			...response,
-			headers: { ...CORS_HEADERS, ...(response.headers ?? {}) },
+			headers: { ...(response.headers ?? {}) },
 		}
 	}
 
 	private async handleSerializedHttpRequest(req: SerializedHttpRequest): Promise<SerializedHttpResponse> {
+		const policy = validateMcpRequest(req.headers, req.method, this.port)
+		if (policy.status !== 200) return { statusCode: policy.status, headers: policy.headers, body: policy.message }
+		if (req.rawBody && Buffer.byteLength(req.rawBody, 'utf8') > 64 * 1024 * 1024) return { statusCode: 413, body: 'MCP request body exceeds 64 MiB.' }
 		if (req.method === 'OPTIONS') {
 			return this.withCors({ statusCode: 204 })
 		}
@@ -476,7 +492,7 @@ export class BragiMcpServer {
 			return this.withCors({
 				statusCode: 500,
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(jsonError(null, -32603, err instanceof Error ? err.message : String(err))),
+				body: JSON.stringify(jsonError(null, -32603, err instanceof Error ? errorMessage(err) : String(err))),
 			})
 		}
 	}
@@ -545,7 +561,7 @@ export class BragiMcpServer {
 			if (err instanceof ZodError) {
 				return jsonError(id, -32602, 'Invalid params', err.errors)
 			}
-			return jsonError(id, -32603, err instanceof Error ? err.message : String(err))
+			return jsonError(id, -32603, err instanceof Error ? errorMessage(err) : String(err))
 		}
 	}
 

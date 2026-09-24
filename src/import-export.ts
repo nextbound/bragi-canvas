@@ -1,3 +1,5 @@
+import { errorMessage } from './task-errors'
+import type { CanvasView } from './types/canvas-internal'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, FileSystemAdapter, Modal, Notice, Setting, TFile } from 'obsidian'
 import { Zip, ZipPassThrough, Unzip, UnzipInflate, unzipSync, strToU8, strFromU8 } from 'fflate'
@@ -83,7 +85,7 @@ function fromBase64(data: string): Uint8Array {
 // Obsidian's adapter.writeBinary wants an ArrayBuffer; copy out the exact bytes
 // (the Uint8Array may be a view into a larger backing buffer).
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-	return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+	return new Uint8Array(bytes).buffer
 }
 
 // A v3 package is a ZIP, which always starts with the local-file-header magic
@@ -770,7 +772,7 @@ export async function importCanvas(
 					importedFileCount++
 					notice.setMessage(`Importing assets… ${importedFileCount}/${loaded.assets.length}`)
 				} catch (err: unknown) {
-					new Notice(`Couldn't import ${basename(asset.path)}: ${err.message}`)
+					new Notice(`Couldn't import ${basename(asset.path)}: ${errorMessage(err)}`)
 				}
 			}
 		}
@@ -782,8 +784,8 @@ export async function importCanvas(
 			// Collect existing IDs
 			const existingData = asCanvasData(canvas.getData())
 			const existingIds = new Set<string>([
-				...(existingData.nodes || []).map((n: unknown) => n.id),
-				...(existingData.edges || []).map((e: unknown) => e.id),
+				...(existingData.nodes || []).map(n => n.id).filter((id): id is string => typeof id === 'string'),
+				...(existingData.edges || []).map(e => e.id).filter((id): id is string => typeof id === 'string'),
 			])
 
 			// Regenerate IDs
@@ -825,7 +827,7 @@ export async function importCanvas(
 		}
 	} catch (err: unknown) {
 		notice.hide()
-		new Notice(`Import failed: ${err.message}`)
+		new Notice(`Import failed: ${errorMessage(err)}`)
 		console.error('Bragi import error:', err)
 	}
 }
@@ -834,53 +836,53 @@ export async function importCanvas(
 
 function getCanvasFilePath(app: App): string | null {
 	const leaf = app.workspace.getLeaf(false)
-	const filePath = (leaf?.view as unknown)?.file?.path as string | undefined
+	const filePath = (leaf?.view as CanvasView)?.file?.path
 	return filePath || null
 }
 
-function collectFileRefs(data: unknown): string[] {
+function collectFileRefs(data: CanvasData): string[] {
 	const refs = new Set<string>()
 	for (const node of (data.nodes || [])) {
-		if (node.type === 'file' && node.file) {
+		if (node.type === 'file' && typeof node.file === 'string') {
 			refs.add(node.file)
 		}
-		if (node.type === 'group' && node.background) {
+		if (node.type === 'group' && typeof node.background === 'string') {
 			refs.add(node.background)
 		}
 	}
 	return [...refs]
 }
 
-function rewritePaths(data: unknown, pathMap: Map<string, string>): void {
+function rewritePaths(data: CanvasData, pathMap: Map<string, string>): void {
 	for (const node of (data.nodes || [])) {
-		if (node.type === 'file' && node.file && pathMap.has(node.file)) {
+		if (node.type === 'file' && typeof node.file === 'string' && pathMap.has(node.file)) {
 			node.file = pathMap.get(node.file)
 		}
-		if (node.type === 'group' && node.background && pathMap.has(node.background)) {
+		if (node.type === 'group' && typeof node.background === 'string' && pathMap.has(node.background)) {
 			node.background = pathMap.get(node.background)
 		}
 	}
 }
 
-function rewritePathsForImport(data: unknown, pathMap: Map<string, string>): void {
+function rewritePathsForImport(data: CanvasData, pathMap: Map<string, string>): void {
 	for (const node of (data.nodes || [])) {
-		if (node.type === 'file' && node.file && pathMap.has(node.file)) {
+		if (node.type === 'file' && typeof node.file === 'string' && pathMap.has(node.file)) {
 			node.file = pathMap.get(node.file)
 		}
-		if (node.type === 'group' && node.background && pathMap.has(node.background)) {
+		if (node.type === 'group' && typeof node.background === 'string' && pathMap.has(node.background)) {
 			node.background = pathMap.get(node.background)
 		}
 	}
 }
 
-function regenerateIds(data: unknown, existingIds: Set<string>): void {
+function regenerateIds(data: CanvasData, existingIds: Set<string>): void {
 	const idMap = new Map<string, string>()
 	const usedIds = new Set(existingIds)
 
 	for (const node of (data.nodes || [])) {
 		let newId: string
 		do { newId = generateId() } while (usedIds.has(newId))
-		idMap.set(node.id, newId)
+		if (typeof node.id === 'string') idMap.set(node.id, newId)
 		usedIds.add(newId)
 		node.id = newId
 	}
@@ -890,24 +892,24 @@ function regenerateIds(data: unknown, existingIds: Set<string>): void {
 		do { newId = generateId() } while (usedIds.has(newId))
 		usedIds.add(newId)
 		edge.id = newId
-		if (idMap.has(edge.fromNode)) edge.fromNode = idMap.get(edge.fromNode)
-		if (idMap.has(edge.toNode)) edge.toNode = idMap.get(edge.toNode)
+		if (typeof edge.fromNode === 'string' && idMap.has(edge.fromNode)) edge.fromNode = idMap.get(edge.fromNode)
+		if (typeof edge.toNode === 'string' && idMap.has(edge.toNode)) edge.toNode = idMap.get(edge.toNode)
 	}
 }
 
 function calculateMergeOffset(
-	existingNodes: unknown[],
-	importedNodes: unknown[]
+	existingNodes: Record<string, unknown>[],
+	importedNodes: Record<string, unknown>[]
 ): { dx: number; dy: number } {
 	if (existingNodes.length === 0 || importedNodes.length === 0) {
 		return { dx: 0, dy: 0 }
 	}
 
-	const existingRight = Math.max(...existingNodes.map((n: unknown) => (n.x || 0) + (n.width || 0)))
-	const existingTop = Math.min(...existingNodes.map((n: unknown) => n.y || 0))
+	const existingRight = Math.max(...existingNodes.map((n) => (typeof n.x === 'number' ? n.x : 0) + (typeof n.width === 'number' ? n.width : 0)))
+	const existingTop = Math.min(...existingNodes.map((n) => (typeof n.y === 'number' ? n.y : 0)))
 
-	const importedLeft = Math.min(...importedNodes.map((n: unknown) => n.x || 0))
-	const importedTop = Math.min(...importedNodes.map((n: unknown) => n.y || 0))
+	const importedLeft = Math.min(...importedNodes.map((n) => (typeof n.x === 'number' ? n.x : 0)))
+	const importedTop = Math.min(...importedNodes.map((n) => (typeof n.y === 'number' ? n.y : 0)))
 
 	return {
 		dx: existingRight + 200 - importedLeft,

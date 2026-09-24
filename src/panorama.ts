@@ -1,3 +1,5 @@
+interface PanoramaViewer { destroy(): void; resize(): void; getYaw(): number; getPitch(): number; getHfov(): number; on(event: string, callback: () => void): void }
+import { errorMessage } from './task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Modal, Notice, App, setIcon } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
@@ -5,7 +7,7 @@ import 'pannellum/build/pannellum.js'
 
 type PannellumGlobal = {
 	pannellum?: {
-		viewer: (element: HTMLElement, options: Record<string, unknown>) => unknown
+		viewer: (element: HTMLElement, options: Record<string, unknown>) => PanoramaViewer
 	}
 }
 
@@ -23,7 +25,7 @@ export class PanoramaViewerModal extends Modal {
 	private outputDir: string
 	private imagePath: string
 	private rememberAsset?: (path: string) => void
-	private viewer: unknown = null
+	private viewer: PanoramaViewer | null = null
 	private viewerEl: HTMLElement | null = null
 	private mirrored = false
 	private originalUrl: string | null = null
@@ -67,7 +69,7 @@ export class PanoramaViewerModal extends Modal {
 					await this.captureScreenshot()
 					this.close()
 				} catch (err: unknown) {
-					new Notice(`Couldn't capture: ${err.message || err}`)
+					new Notice(`Couldn't capture: ${errorMessage(err)}`)
 					captureBtn.classList.remove('is-disabled')
 				}
 			})()
@@ -91,7 +93,7 @@ export class PanoramaViewerModal extends Modal {
 			this.originalUrl = await this.loadImageUrl()
 			await this.rebuildViewer()
 		} catch (err: unknown) {
-			this.viewerEl.setText(`Couldn't load this image: ${err.message || err}`)
+			this.viewerEl.setText(`Couldn't load this image: ${errorMessage(err)}`)
 		}
 	}
 
@@ -224,7 +226,8 @@ export class PanoramaViewerModal extends Modal {
 		activeDocument.body.appendChild(offscreen)
 
 		const p = (window as unknown as PannellumGlobal).pannellum
-		const shotViewer: unknown = p.viewer(offscreen, {
+		if (!p) throw new Error('Panorama viewer unavailable')
+		const shotViewer = p.viewer(offscreen, {
 			type: 'equirectangular',
 			panorama: url,
 			autoLoad: true,
@@ -278,7 +281,7 @@ export class PanoramaViewerModal extends Modal {
 	}
 
 	private addNodeRightOf(filePath: string) {
-		const src = this.sourceNode.getData() as unknown
+		const src = this.sourceNode.getData()
 		const newId = generateId()
 		const edgeId = generateId()
 		const w = src.width || 500
@@ -310,7 +313,7 @@ export class PanoramaViewerModal extends Modal {
 
 /** Entry point called from toolbar. */
 export function openPanoramaViewer(app: App, canvas: Canvas, node: CanvasNode, outputDir: string, rememberAsset?: (path: string) => void): void {
-	const data = node.getData() as unknown
+	const data = node.getData()
 	const filePath = data.file
 	if (!filePath) {
 		new Notice('This node has no image file')

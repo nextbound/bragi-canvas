@@ -3,5 +3,3 @@ main.js
 dist/
 .dev-vault-plugin
 .DS_Store
-AGENTS.md
-docs/obsidian-review-checklist.md

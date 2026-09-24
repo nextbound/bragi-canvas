@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.40.1
+
+- Keep pending audio and video tasks across settings changes and restarts, including tasks belonging to closed canvases. Temporary network and rate-limit failures retry the original task; interrupted downloads and canvas saves can be resumed.
+- Add **Resume checking** to generation placeholders and the command palette. Task status now distinguishes waiting, retrying, and issues requiring attention.
+- Preserve shared source files when tidying assets. Only the selected canvas is updated, with a backup and clear partial-failure reporting.
+- Restrict local MCP requests by Host, Origin, JSON content type, body size, and read timeout while keeping local clients compatible with optional access tokens.
+- Add type checking, behavioral regression tests, and consistent pull-request/release checks. Production builds no longer copy files into a development vault.
+
 ## 1.40.0
 
 - Added Pika MiniMax H3 generation across text-to-video, first-frame, first-last-frame, image-reference, and video-reference modes, including audio-only references. Local media references use Bragi Relay, and provider errors retain their upstream details.

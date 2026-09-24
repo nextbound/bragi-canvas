@@ -14,13 +14,12 @@ export default defineConfig([
 			'node_modules/**',
 			'main.js',
 			'package-lock.json',
-			'src/mcp-server.ts',
 		],
 	},
 	...obsidianmd.configs.recommended,
+	{ files: ['scripts/**/*.mjs'], rules: { 'obsidianmd/prefer-active-doc': 'off', 'obsidianmd/prefer-active-window-timers': 'off' } },
 	{
 		files: ['src/**/*.ts'],
-		ignores: ['src/mcp-server.ts'],
 		languageOptions: {
 			parser: tsparser,
 			parserOptions: {

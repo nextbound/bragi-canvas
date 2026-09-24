@@ -1,8 +1,8 @@
+import { testRuntime } from './test-runtime.mjs'
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 
@@ -275,47 +275,17 @@ try {
 		/APIMart MiniMax-H3: invalid_request_error — Invalid request parameters/,
 	)
 
-	const siblingSkillDir = join('..', basename(process.cwd()).replace(/-plugin$/, '-skill'), 'bragi-canvas')
-	const skillDir = [join('..', 'skill', 'bragi-canvas'), siblingSkillDir].find(candidate => existsSync(candidate))
-	assert.ok(skillDir, 'Paired Bragi skill checkout must be available for sync verification.')
-	const [modelSource, modelIndexSource, providerSource, registrySource, mainSource, panelSource, rulesSource, changelogSource, packageSource, settingsSource, migrationsSource, skillModelsSource, skillWorkflowsSource, skillGotchasSource] = await Promise.all([
-		readFile('src/models/minimax-h3.ts', 'utf8'),
-		readFile('src/models/index.ts', 'utf8'),
-		readFile('src/providers/apimart.ts', 'utf8'),
-		readFile('src/providers/registry.ts', 'utf8'),
-		readFile('src/main.ts', 'utf8'),
-		readFile('src/panel.ts', 'utf8'),
-		readFile('docs/model-provider-rules.md', 'utf8'),
-		readFile('CHANGELOG.md', 'utf8'),
-		readFile('package.json', 'utf8'),
-		readFile('src/settings.ts', 'utf8'),
-		readFile('src/settings-migrations.ts', 'utf8'),
-		readFile(join(skillDir, 'references/models.md'), 'utf8'),
-		readFile(join(skillDir, 'references/workflows.md'), 'utf8'),
-		readFile(join(skillDir, 'references/gotchas.md'), 'utf8'),
-	])
-	assert.match(modelSource, /id: 'minimax-h3'[\s\S]*apimart: \{ apiModelId: 'MiniMax-H3' \}/)
-	assert.match(modelSource, /modes: \['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'video-ref'\]/)
-	assert.match(modelIndexSource, /import \{ minimaxH3 \} from '\.\/minimax-h3'/)
-	assert.match(providerSource, /modelId === MINIMAX_H3_MODEL_ID[\s\S]*generateMinimaxH3/)
-	assert.match(providerSource, /ensureRelayUrl\(ref, 'audio'\)/)
-	assert.match(registrySource, /id: 'apimart'[\s\S]*defaultRefDelivery: \{ image: 'relay', video: 'relay', audio: 'relay' \}/)
-	assert.match(mainSource, /supportsApimartMinimaxH3Refs/)
-	assert.match(panelSource, /audioCount > 0 && imageCount > 0 && modes\.includes\('image-ref'\)/)
-	assert.match(rulesSource, /## APIMart MiniMax-H3[\s\S]*MiniMax-H3/)
-	assert.match(changelogSource, /## Unreleased[\s\S]*MiniMax-H3/)
-	assert.match(packageSource, /"test:apimart-minimax-h3": "node scripts\/verify-apimart-minimax-h3\.mjs"/)
-	assert.match(settingsSource, /modelPrefs: \{\}[\s\S]*providerModelPrefs: \{\}/)
-	assert.doesNotMatch(
-		migrationsSource,
-		/connectProviderToModel\(settings, 'apimart', 'minimax-h3'\)/,
-		'New MiniMax-H3 support must not auto-connect or enable the model for existing users.',
-	)
-	assert.match(skillModelsSource, /MiniMax-H3[\s\S]*`minimax-h3`[\s\S]*APIMart/)
-	assert.match(skillWorkflowsSource, /MiniMax-H3 multimodal reference/)
-	assert.match(skillGotchasSource, /MiniMax-H3 frame and reference inputs are mutually exclusive/)
+	const catalog = await testRuntime("export {minimaxH3} from './src/models/minimax-h3'; export {inferMode} from './src/generation-mode'; export {migrateSettings} from './src/settings-migrations';")
+	try {
+		const {minimaxH3, inferMode, migrateSettings} = catalog.module
+		assert.equal(minimaxH3.supportedProviders.apimart.apiModelId, 'MiniMax-H3')
+		assert.equal(inferMode(minimaxH3.modes, 1, 0, 1), 'image-ref')
+		assert.equal(inferMode(minimaxH3.modes, 0, 1, 1), 'video-ref')
+		assert.equal(inferMode(minimaxH3.modes, 0, 0, 1, true), 'video-ref')
+		assert.notEqual(migrateSettings({settingsSchemaVersion:14,providers:{apimart:'test-key'},modelPrefs:{'minimax-h3':{enabled:false}},providerModelPrefs:{apimart:{'minimax-h3':false}}}).settings.modelPrefs['minimax-h3']?.enabled, true)
+	} finally { await catalog.cleanup() }
 
-	console.log('APIMart MiniMax-H3 payload, provider, relay, polling, catalog, and documentation checks passed.')
+	console.log('APIMart MiniMax-H3 payload, provider, relay, polling, catalog, and input inference checks passed.')
 } finally {
 	delete process.__bragiApimartH3RequestHandler
 	await rm(tempDir, { recursive: true, force: true })

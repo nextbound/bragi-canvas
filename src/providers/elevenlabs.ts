@@ -307,7 +307,7 @@ export class ElevenLabsProvider implements AudioProvider {
 	 * Returns binary mp3 directly.
 	 */
 	async generateMusic(prompt: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
-		const body: unknown = {
+		const body: Record<string, unknown> = {
 			prompt,
 			model_id: 'music_v1',
 		}
@@ -338,7 +338,7 @@ export class ElevenLabsProvider implements AudioProvider {
 	 * Returns binary mp3 directly.
 	 */
 	async generateSFX(text: string, params?: Record<string, unknown>): Promise<{ filePath: string }> {
-		const body: unknown = {
+		const body: Record<string, unknown> = {
 			text,
 			model_id: 'eleven_text_to_sound_v2',
 		}

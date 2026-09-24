@@ -50,7 +50,7 @@ function getAssetFileInfo(filePath: string): { assetType: BytePlusAssetType; ext
 
 function findNodeByPath(canvas: Canvas, filePath: string): CanvasNode | null {
 	for (const node of canvas.nodes.values()) {
-		const d = node.getData() as unknown
+		const d = node.getData()
 		if (d.type === 'file' && d.file === filePath) return node
 	}
 	return null
@@ -73,18 +73,18 @@ export function getBytePlusAssetCreds(plugin: BragiCanvas): BytePlusAssetCreds |
 }
 
 function getCachedAssetId(node: CanvasNode): string | null {
-	const d = node.getData() as unknown
+	const d = node.getData()
 	return d?.bragiAssetIds?.[PROVIDER_KEY] ?? null
 }
 
 function setCachedAssetId(node: CanvasNode, assetId: string) {
-	const d = node.getData() as unknown
+	const d = node.getData()
 	const map = { ...(d.bragiAssetIds || {}), [PROVIDER_KEY]: assetId }
 	node.setData({ ...d, bragiAssetIds: map })
 }
 
 function clearCachedAssetId(node: CanvasNode) {
-	const d = node.getData() as unknown
+	const d = node.getData()
 	if (!d.bragiAssetIds) return
 	const rest = { ...d.bragiAssetIds }
 	delete rest[PROVIDER_KEY]

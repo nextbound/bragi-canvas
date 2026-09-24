@@ -1,3 +1,4 @@
+import { recordValue } from '../runtime-values'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { requestUrl } from 'obsidian'
 import { signVolcRequest } from './volcengine-sig'
@@ -56,7 +57,7 @@ function randomHex(n: number): string {
 	return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function callUniversal(creds: BytePlusAssetCreds, action: string, body: unknown): Promise<unknown> {
+async function callUniversal(creds: BytePlusAssetCreds, action: string, body: unknown): Promise<Record<string, unknown>> {
 	const bodyStr = JSON.stringify(body)
 	const signed = await signVolcRequest({
 		accessKey: creds.accessKey,
@@ -77,7 +78,7 @@ async function callUniversal(creds: BytePlusAssetCreds, action: string, body: un
 	const json = resp.json
 	const error = json?.ResponseMetadata?.Error
 	if (error) {
-		const err: unknown = new Error(`BytePlus ${action}: ${error.Code} — ${error.Message}`)
+		const err = Object.assign(new Error(`BytePlus ${action}: ${error.Code} — ${error.Message}`), { code: error.Code, codeN: error.CodeN, status: resp.status })
 		err.code = error.Code
 		err.codeN = error.CodeN
 		err.status = resp.status
@@ -108,7 +109,7 @@ export async function createAsset(
 		},
 	})
 	const assetId = result.Id
-	if (!assetId) throw new Error(`BytePlus CreateAsset: no Id in response`)
+	if (typeof assetId !== 'string' || !assetId) throw new Error(`BytePlus CreateAsset: no Id in response`)
 	return assetId
 }
 
@@ -124,13 +125,15 @@ export async function getAsset(creds: BytePlusAssetCreds, assetId: string): Prom
 
 /** Is this error from GetAsset indicating the asset doesn't exist (e.g. wrong account, deleted)? */
 export function isAssetNotFound(err: unknown): boolean {
-	const code = err?.code || ''
+	const code = recordValue(err).code
+	if (typeof code !== 'string') return false
 	return /NotFound|NoSuchAsset|InvalidAsset|AssetNotExist/i.test(code)
 }
 
 /** Is this error from CreateAsset indicating the group doesn't exist? */
 export function isGroupNotFound(err: unknown): boolean {
-	const code = err?.code || ''
+	const code = recordValue(err).code
+	if (typeof code !== 'string') return false
 	return /NotFound|NoSuchGroup|InvalidGroup|GroupNotExist/i.test(code)
 }
 

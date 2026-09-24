@@ -1,6 +1,6 @@
 {
   "name": "bragi-canvas",
-  "version": "1.40.0",
+  "version": "1.40.1",
   "description": "Obsidian Canvas AI generation pipeline",
   "license": "MPL-2.0",
   "main": "main.js",
@@ -41,7 +41,16 @@
     "test:dashscope-wan3": "node scripts/verify-dashscope-wan3.mjs",
     "test:seedance-2-5": "node scripts/verify-seedance-2-5.mjs",
     "test:byteplus-seedance-endpoint": "node scripts/verify-byteplus-seedance-endpoint.mjs",
-    "test:xai-grok": "node scripts/verify-xai-grok.mjs"
+    "test:xai-grok": "node scripts/verify-xai-grok.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "test:task-recovery": "node scripts/verify-task-recovery.mjs",
+    "test:mcp-boundary": "node scripts/verify-mcp-boundary.mjs",
+    "test:migration": "node scripts/verify-migration.mjs",
+    "test:generation-context": "node scripts/verify-generation-context.mjs",
+    "check:version": "node scripts/check-version.mjs",
+    "sync:dev-vault": "node scripts/sync-dev-vault.mjs",
+    "verify": "npm run typecheck && npm run lint:obsidian && npm test && npm run check:catalog && npm run check:version && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

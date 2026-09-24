@@ -1,3 +1,5 @@
+import type { CanvasMenu } from './types/canvas-internal'
+import { errorMessage } from './task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { setIcon, setTooltip, Notice, App, Modal } from 'obsidian'
 import { around } from 'monkey-around'
@@ -130,7 +132,7 @@ async function downloadMediaFile(vaultPath: string, node: CanvasNode): Promise<v
 			activeDocument.body.removeChild(a)
 			new Notice('Download started')
 		} catch {
-			new Notice(`Download failed: ${err.message}`)
+			new Notice(`Download failed: ${errorMessage(err)}`)
 		}
 	}
 }
@@ -398,7 +400,7 @@ function createMarkButton(menuEl: HTMLElement, canvas: Canvas, nodes: CanvasNode
 	const pinBtn = createMenuButton('bragi-pin', 'bragi-pin', 'Mark', () => {
 		for (const node of nodes) {
 			const data = getCanvasData(node)
-			node.setData({ ...data, color: data.color === '6' ? '' : '6' })
+			node.setData({ color: data.color === '6' ? '' : '6' })
 		}
 		void canvas.requestSave()
 	})
@@ -496,7 +498,7 @@ function replaceBuiltinIcons(menuEl: HTMLElement): void {
 }
 
 // ── Native align menu hover control ────────────────────────────────────
-let nativeAlignCloseTimer: ReturnType<typeof window.setTimeout> | null = null
+let nativeAlignCloseTimer: number | null = null
 
 function cancelNativeAlignClose(): void {
 	if (nativeAlignCloseTimer) {
@@ -539,7 +541,7 @@ function openNativeAlignMenu(alignBtn: HTMLElement): void {
 	})
 }
 
-let bragiDropdownCloseTimer: ReturnType<typeof window.setTimeout> | null = null
+let bragiDropdownCloseTimer: number | null = null
 let bragiDropdownOutsideHandler: ((event: PointerEvent) => void) | null = null
 
 function cancelBragiDropdownClose(): void {
@@ -629,21 +631,21 @@ export function patchCanvasMenu(
 ): void {
 	if (menuUninstaller) return
 
-	const menu = (canvas as unknown).menu
+	const menu = canvas.menu
 	if (!menu) return
 
 	menuUninstaller = around(menu.constructor.prototype, {
-		render: (next: unknown) => function (this: unknown, ...args: unknown) {
+		render: (next: CanvasMenu['render']) => function (this: CanvasMenu, ...args: unknown[]) {
 			const result = next.call(this, ...args)
 
-			const menuEl = this.menuEl as HTMLElement
+			const menuEl = this.menuEl
 			if (!menuEl) return result
 
 			// Always add class and replace built-in icons (each render resets them)
 			menuEl.classList.add('bragi-canvas-menu')
 			replaceBuiltinIcons(menuEl)
 
-			const canvas = this.canvas as Canvas
+			const canvas = this.canvas
 			const selSize = canvas?.selection?.size || 0
 			const syncMenuGap = () => {
 				if (!canvas?.selection?.size) {
@@ -670,8 +672,8 @@ export function patchCanvasMenu(
 			// ── Align button: hover-to-open (native menu) ──
 			if (selSize > 1) {
 				const alignBtn = findBuiltinByLabel(menuEl, 'align') || findBuiltinByLabel(menuEl, 'arrange')
-				if (alignBtn && !(alignBtn as unknown)._bragiHoverBound) {
-					(alignBtn as unknown)._bragiHoverBound = true
+				if (alignBtn && !alignBtn.dataset.bragiHoverBound) {
+					alignBtn.dataset.bragiHoverBound = 'true'
 					alignBtn.addEventListener('mouseenter', () => openNativeAlignMenu(alignBtn))
 					alignBtn.addEventListener('mouseleave', scheduleNativeAlignClose)
 				}
@@ -1142,7 +1144,7 @@ function appendBragiCardMenuActions(menu: HTMLElement, app: App, pluginId?: stri
 	const importBtn = makeBtn('bragi-card-import', 'Import canvas', () => {
 		new BragiImportChoiceModal(app, (mode) => {
 			const id = mode === 'merge' ? 'bragi-canvas:bragi-import-merge' : 'bragi-canvas:bragi-import-new'
-			;(app as unknown).commands.executeCommandById(id)
+			;app.commands.executeCommandById(id)
 		}).open()
 	}, 'bragi-card-import', { autoCursor: true })
 
@@ -1155,11 +1157,11 @@ function appendBragiCardMenuActions(menu: HTMLElement, app: App, pluginId?: stri
 	menu.appendChild(actionSep)
 
 	menu.appendChild(makeBtn('bragi-card-export', 'Export canvas', () => {
-		(app as unknown).commands.executeCommandById('bragi-canvas:bragi-export-canvas')
+		app.commands.executeCommandById('bragi-canvas:bragi-export-canvas')
 	}, 'bragi-card-export'))
 
 	menu.appendChild(makeBtn('bragi-card-settings', 'Settings', () => {
-		const setting = (app as unknown).setting
+		const setting = app.setting
 		setting.open()
 		setting.openTabById(pluginId || 'bragi-canvas')
 	}, 'bragi-card-settings'))
@@ -1206,7 +1208,7 @@ function prependInteractionTools(menu: HTMLElement, canvas: Canvas): void {
  * with Bragi custom icons, and append export / import / settings buttons.
  */
 export function replaceCanvasCardMenuIcons(containerEl: HTMLElement, canvas: Canvas, app?: App, pluginId?: string): void {
-	const menu = containerEl.querySelector('.canvas-card-menu')
+	const menu = containerEl.querySelector<HTMLElement>('.canvas-card-menu')
 	if (!menu) return
 
 	replaceNativeCardMenuIcons(menu)

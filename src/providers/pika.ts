@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError } from '../task-errors'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { GenerateVideoResult, VideoProvider } from './types'
@@ -204,7 +205,7 @@ export class PikaVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const response = await requestUrl({
+		const response = await pollRequest({
 			url: `${PIKA_API_BASE}/v1/media/jobs/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'X-API-Key': this.apiKey },
@@ -218,7 +219,7 @@ export class PikaVideoProvider implements VideoProvider {
 		const status = jobStatus(data)
 		if (status === 'queued' || status === 'running') return { done: false, taskId }
 		if (status === 'failed') {
-			throw new Error(`Pika: task failed — ${jobError(data, 'no reason provided')}`)
+			throw new TaskPollingError(`Pika: task failed — ${jobError(data, 'no reason provided')}`, 'terminal')
 		}
 		if (status !== 'completed') {
 			throw new Error(`Pika: unknown task status "${status || 'missing'}"`)
@@ -226,7 +227,7 @@ export class PikaVideoProvider implements VideoProvider {
 
 		let url = completedVideoUrl(data)
 		if (!url) {
-			const contentResponse = await requestUrl({
+			const contentResponse = await pollRequest({
 				url: `${PIKA_API_BASE}/v1/media/jobs/${encodeURIComponent(taskId)}/content`,
 				method: 'GET',
 				headers: { 'X-API-Key': this.apiKey },
@@ -242,12 +243,12 @@ export class PikaVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({ url, throw: false })
+		const response = await pollRequest({ url, throw: false })
 		if (response.status >= 400) throw new Error(`Pika: failed to download video — HTTP ${response.status}`)
 		const filePath = `${this.outputDir}/pika_video_${Date.now()}.mp4`
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 }

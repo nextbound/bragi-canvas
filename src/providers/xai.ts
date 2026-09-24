@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult, VideoProvider, GenerateVideoResult, AudioProvider, GenerateAudioResult, ListVoicesOptions, VoiceOption } from './types'
 import type { App } from 'obsidian'
@@ -254,7 +255,7 @@ export class XAIVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${XAI_BASE}/videos/${taskId}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -271,19 +272,20 @@ export class XAIVideoProvider implements VideoProvider {
 		if (status === 'failed' || status === 'expired') {
 			const code = stringValue(body?.error?.code)
 			const message = stringValue(body?.error?.message) || 'no reason provided'
-			throw new Error(`xAI: video ${status}${code ? ` [${code}]` : ''} — ${message}`)
+			throw new TaskPollingError(`xAI: video ${status}${code ? ` [${code}]` : ''} — ${message}`, 'terminal')
 		}
 		if (status === 'done') {
 			const videoUrl = body?.video?.url
 			if (!videoUrl) throw new Error('xAI: completed task has no video URL')
-			const videoResp = await requestUrl({ url: videoUrl })
+			const videoResp = await pollRequest({ url: videoUrl })
 			const fileName = `grok_video_${Date.now()}.mp4`
 			const filePath = `${this.outputDir}/${fileName}`
 			const adapter = this.app.vault.adapter
 			if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
-			await adapter.writeBinary(filePath, videoResp.arrayBuffer)
+			await writeTaskResult(adapter, filePath, videoResp.arrayBuffer)
 			return { done: true, filePath }
 		}
+		assertPendingStatus(status)
 		return { done: false, taskId }
 	}
 
@@ -387,7 +389,7 @@ export class XAIAudioProvider implements AudioProvider {
 		})
 		if (resp.status === 401 || resp.status === 403) throw new Error('xAI: invalid API key or TTS not authorized')
 		if (resp.status >= 400) throw new Error(`xAI voices: ${parseErr(resp)}`)
-		const list = Array.isArray(resp.json?.voices) ? resp.json.voices : Array.isArray(resp.json?.data) ? resp.json.data : []
+		const list: unknown[] = Array.isArray(resp.json?.voices) ? resp.json.voices : Array.isArray(resp.json?.data) ? resp.json.data : []
 		return list
 			.filter(isRecord)
 			.map(record => normalizeXaiVoice(record, source))

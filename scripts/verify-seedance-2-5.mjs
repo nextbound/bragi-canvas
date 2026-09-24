@@ -1,5 +1,6 @@
+import { testRuntime } from './test-runtime.mjs'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -158,28 +159,16 @@ try {
 	assert.equal(writes.length, 1)
 	assert.deepEqual([...new Uint8Array(writes[0].data)], [1, 2, 3])
 
-	const [modelSource, mainSource, providerRules, migrationsSource] = await Promise.all([
-		readFile('src/models/seedance.ts', 'utf8'),
-		readFile('src/main.ts', 'utf8'),
-		readFile('docs/model-provider-rules.md', 'utf8'),
-		readFile('src/settings-migrations.ts', 'utf8'),
-	])
-	assert.match(modelSource, /id: 'seedance-2\.5'[\s\S]*bytedance: \{ apiModelId: 'doubao-seedance-2-5-260628' \}[\s\S]*apiModelId: 'dreamina-seedance-2-5-260628'/)
-	assert.match(modelSource, /id: 'seedance-2\.5'[\s\S]*svnewapi: \{ apiModelId: 'sv-seedance-2\.5' \}/)
-	assert.match(modelSource, /modes: \['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'video-ref', 'video-extend', 'video-edit'\]/)
-	assert.match(modelSource, /id: 'seedance-2\.5'[\s\S]*\{ label: '1080p', value: '1080p' \}/)
-	assert.match(mainSource, /getSeedanceReferenceLimits\(model\.id\)/)
-	assert.match(providerRules, /## Volcengine and BytePlus Seedance 2\.5[\s\S]*doubao-seedance-2-5-260628[\s\S]*dreamina-seedance-2-5-260628/)
-	assert.match(migrationsSource, /CURRENT_SETTINGS_SCHEMA_VERSION = 12/)
-	assert.match(
-		migrationsSource,
-		/function migrateSeedance25SvRouter[\s\S]*const modelId = 'seedance-2\.5'[\s\S]*connectProviderToModel\(settings, 'svnewapi', modelId\)/,
-	)
-	assert.doesNotMatch(
-		migrationsSource.match(/function migrateSeedance25SvRouter[\s\S]*?\n}/)?.[0] || '',
-		/selectedProvider/,
-		'Seedance 2.5 SVRouter migration must not change the active provider.',
-	)
+	const catalog = await testRuntime("export {ALL_MODELS} from './src/models'; export {migrateSettings} from './src/settings-migrations';")
+	try {
+		const model = catalog.module.ALL_MODELS.find(model => model.id === 'seedance-2.5')
+		assert.equal(model.supportedProviders.bytedance.apiModelId, 'doubao-seedance-2-5-260628')
+		assert.equal(model.supportedProviders.byteplus.apiModelId, 'dreamina-seedance-2-5-260628')
+		const settings = catalog.module.migrateSettings({settingsSchemaVersion:11,providers:{svnewapi:'test',bytedance:'test'},modelPrefs:{'seedance-2.5':{enabled:true,selectedProvider:'bytedance'}},providerModelPrefs:{bytedance:{'seedance-2.5':true}}}).settings
+		assert.equal(settings.providerModelPrefs.svnewapi['seedance-2.5'], true)
+		assert.equal(settings.modelPrefs['seedance-2.5'].selectedProvider, 'bytedance')
+		assert.deepEqual(catalog.module.migrateSettings(settings).settings, settings)
+	} finally { await catalog.cleanup() }
 
 	console.log('Seedance 2.5 provider checks passed.')
 } finally {

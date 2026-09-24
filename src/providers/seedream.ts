@@ -1,3 +1,4 @@
+import { stringArray } from '../runtime-values'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult } from './types'
 import type { App } from 'obsidian'
@@ -37,13 +38,13 @@ export class SeedreamProvider implements ImageProvider {
 		const modelId = params?.modelId || 'doubao-seedream-5-0-260128'
 		const aspectRatio = params?.aspectRatio || '1:1'
 		const resolution = params?.resolution || '2K'
-		const refImages: string[] = params?.refImages || []
+		const refImages: string[] = stringArray(params?.refImages)
 
 		// Look up pixel size
 		const size = resolveSeedreamImageSize(resolution as string, aspectRatio as string)
 
 		// Build request body
-		const body: unknown = {
+		const body: Record<string, unknown> = {
 			model: modelId,
 			prompt,
 			size,
@@ -94,7 +95,7 @@ export class SeedreamProvider implements ImageProvider {
 		}
 
 		const binary = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0))
-		await adapter.writeBinary(filePath, binary)
+		await adapter.writeBinary(filePath, binary.buffer)
 
 		return { filePath }
 	}

@@ -1,5 +1,8 @@
-import { App } from 'obsidian'
+import { App, TFile, View } from 'obsidian'
 import { AllCanvasNodeData, CanvasData } from 'obsidian/canvas'
+
+export interface CanvasView extends View { canvas?: Canvas; file?: TFile | null; save?(): Promise<void> }
+export interface CanvasMenu { menuEl: HTMLElement; containerEl?: HTMLElement; canvas: Canvas; render(...args: unknown[]): unknown }
 
 export interface CanvasNode {
 	id: string
@@ -41,12 +44,25 @@ export interface MoveAndResizeOptions {
 }
 
 export interface CanvasEdge {
+	getData?(): import('obsidian/canvas').CanvasEdgeData
+	fromSide?: import('obsidian/canvas').NodeSide
+	toSide?: import('obsidian/canvas').NodeSide
+	fromEnd?: string
+	toEnd?: string
+	lineGroupEl?: SVGGElement
+	wrapperEl?: SVGGElement
+	lineEndGroupEl?: SVGGElement
+	path?: SVGPathElement
 	id: string
 	from: { node: CanvasNode; side: string }
 	to: { node: CanvasNode; side: string }
 }
 
 export interface Canvas {
+	app?: App
+	view?: CanvasView
+	menu?: CanvasMenu
+	edgeContainerEl?: SVGSVGElement
 	edges: CanvasEdge[]
 	selection: Set<CanvasNode>
 	nodes: Map<string, CanvasNode>
