@@ -303,7 +303,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'Pika',
 		docUrl: 'https://dev.pika.art/models',
 		fields: [{ key: 'pika', label: 'API key', placeholder: 'pk_...', type: 'password' }],
-		defaultRefDelivery: { image: 'relay', video: 'relay' },
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.pika,
 		makeVideo: ({ settings, app, outputDir }) =>
 			new PikaVideoProvider(settings.providers.pika, app, outputDir),

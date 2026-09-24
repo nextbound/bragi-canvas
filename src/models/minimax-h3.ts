@@ -6,6 +6,7 @@ export const minimaxH3: ModelConfig = {
 	type: 'video',
 	supportedProviders: {
 		apimart: { apiModelId: 'MiniMax-H3' },
+		pika: { apiModelId: 'minimax/h3', aggregated: true },
 	},
 	modes: ['text-to-video', 'first-frame', 'first-last-frame', 'image-ref', 'video-ref'],
 	params: [

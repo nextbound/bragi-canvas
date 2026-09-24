@@ -772,7 +772,10 @@ export default class BragiCanvas extends Plugin {
 			const isDashScopeWan3 = activeProvider === 'dashscope' && model.id === 'wan-3.0'
 			const isDashScopeWan = activeProvider === 'dashscope' && (model.id === 'wan-2.7' || isDashScopeWan3)
 			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
-			const supportsApimartMinimaxH3Refs = activeProvider === 'apimart' && model.id === 'minimax-h3'
+			const supportsMinimaxH3Refs = (activeProvider === 'apimart' || activeProvider === 'pika') && model.id === 'minimax-h3'
+			if (supportsMinimaxH3Refs && uniqueVideos.length > 0 && mode !== 'video-ref') {
+				throw new Error('MiniMax-H3 reference videos require video-ref mode.')
+			}
 			const supportsKlingOmniVideoRef = model.id === 'kling-3.0-omni' && (activeProvider === 'kling' || activeProvider === 'apimart')
 			const isNativeSeedance = (activeProvider === 'bytedance' || activeProvider === 'byteplus') && isSeedanceModel
 			const hasSeedanceMediaRefs = uniqueImages.length > 0 || uniqueAudios.length > 0 || uniqueVideos.length > 0
@@ -840,7 +843,7 @@ export default class BragiCanvas extends Plugin {
 			}
 
 			// Upload reference audios for providers/models that need public media URLs.
-			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsApimartMinimaxH3Refs) && uniqueAudios.length > 0) {
+			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs) && uniqueAudios.length > 0) {
 				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
 				for (const audioPath of audioRefs) {
 					if (bytePlusCreds) {
@@ -860,7 +863,7 @@ export default class BragiCanvas extends Plugin {
 			// BytePlus uses asset:// when native asset credentials are configured; otherwise
 			// the declarative delivery path falls back to a temporary HTTPS relay URL.
 			if (model.type === 'video' && uniqueVideos.length > 0) {
-				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsApimartMinimaxH3Refs && !supportsKlingOmniVideoRef && !isDashScopeWan) {
+				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsMinimaxH3Refs && !supportsKlingOmniVideoRef && !isDashScopeWan) {
 					throw new Error('Reference video is not available for the active model and provider.')
 				}
 				if (supportsApimartVideoRef && uniqueVideos.length > 1) {

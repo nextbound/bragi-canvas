@@ -121,6 +121,14 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Poll all submitted tasks through `GET /v1/media/jobs/{id}`. On completion, use `output.video.url`, falling back to `GET /v1/media/jobs/{id}/content` when the status payload omits the content URL.
 - Do not add Pika Kling O1 or map it to an existing Bragi model: Pika exposes it only as video-to-video and Bragi has no exact catalogue match. Pika also has no exact Kling 2.6 mapping.
 
+## Pika MiniMax-H3
+
+- Keep the stable Bragi model ID `minimax-h3`. Pika's `minimax/h3` entry is aggregated because the selected mode routes to `/v1/media/minimax/h3/text-to-video`, `/image-to-video`, or `/reference-to-video`.
+- The provider connection check uses Pika's free `GET /billing/balance` endpoint, which verifies the key without creating a billable job.
+- `text-to-video` sends `ratio` (Adaptive maps to `16:9`). `first-frame` and `first-last-frame` send exactly one or two ordered `first_frame_image` / `last_frame_image` URLs and omit `ratio`. `image-ref` requires images and no videos. `video-ref` accepts video references with optional image/audio, or audio-only references, through the reference endpoint.
+- Pika accepts up to 9 images, 3 videos, 3 audio clips, and 12 files total. Reference videos may total at most 15 seconds; Pika validates their durations. Prompt citations use `@Image1`, `@Video1`, and `@Audio1`. Bragi relays every local reference image/video/audio to HTTPS before submission.
+- Duration is 4–15 whole seconds; resolution is `768P` or `2K`; reference ratio also allows Adaptive. Map Bragi `watermark` to Pika `aigc_watermark`. Optional advanced `seed` is -1 through 4294967295. Use Pika's existing job polling and MP4 download path.
+
 ## SuChuang Gemini Omni
 
 - Endpoint: `POST https://api.wuyinkeji.com/api/async/video_google_omni`.
