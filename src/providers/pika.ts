@@ -1,6 +1,7 @@
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { GenerateVideoResult, VideoProvider } from './types'
+import { buildPikaH3Request } from './pika-minimax-h3-payload'
 
 const PIKA_API_BASE = 'https://api.dev.pika.art'
 const KLING_3_MODEL_ID = 'kling-3.0'
@@ -80,6 +81,7 @@ export function buildPikaVideoRequest(
 	const refVideos = stringArray(params.refVideos)
 
 	if (!prompt.trim()) throw new Error('Pika requires a prompt.')
+	if (modelId === 'minimax/h3') return buildPikaH3Request(prompt, params)
 
 	if (modelId !== KLING_3_MODEL_ID) {
 		throw new Error(`Pika does not support model "${modelId}".`)
@@ -138,6 +140,7 @@ function errorDetail(response: { status: number; json?: unknown; text?: string }
 	const data = isRecord(response.json) ? response.json : null
 	const detail = data?.message ?? data?.error ?? response.text ?? `HTTP ${response.status}`
 	if (typeof detail === 'string') return detail
+	if (isRecord(detail)) return stringValue(detail.message, stringValue(detail.code, `HTTP ${response.status}`))
 	try {
 		return JSON.stringify(detail)
 	} catch {
@@ -147,6 +150,12 @@ function errorDetail(response: { status: number; json?: unknown; text?: string }
 
 function jobStatus(data: UnknownRecord): string {
 	return stringValue(data.status)
+}
+
+function jobError(data: UnknownRecord, fallback: string): string {
+	return typeof data.error === 'string' ? data.error
+		: isRecord(data.error) ? stringValue(data.error.message, stringValue(data.error.code, fallback))
+		: fallback
 }
 
 function completedVideoUrl(data: UnknownRecord): string {
@@ -179,7 +188,9 @@ export class PikaVideoProvider implements VideoProvider {
 			body: JSON.stringify(request.body),
 			throw: false,
 		})
-		if (response.status === 401 || response.status === 403) throw new Error('Pika: invalid API key')
+		if (response.status === 401 || (response.status === 403 && !isRecord(response.json?.error))) {
+			throw new Error('Pika: invalid API key')
+		}
 		if (response.status >= 400) throw new Error(`Pika: ${errorDetail(response)}`)
 
 		const data: unknown = response.json
@@ -187,7 +198,7 @@ export class PikaVideoProvider implements VideoProvider {
 		const taskId = stringValue(data.id)
 		if (!taskId) throw new Error('Pika: no task ID in response')
 		if (jobStatus(data) === 'failed') {
-			throw new Error(`Pika: ${stringValue(data.error, 'task submission failed')}`)
+			throw new Error(`Pika: ${jobError(data, 'task submission failed')}`)
 		}
 		return { done: false, taskId }
 	}
@@ -207,7 +218,7 @@ export class PikaVideoProvider implements VideoProvider {
 		const status = jobStatus(data)
 		if (status === 'queued' || status === 'running') return { done: false, taskId }
 		if (status === 'failed') {
-			throw new Error(`Pika: task failed — ${stringValue(data.error, 'no reason provided')}`)
+			throw new Error(`Pika: task failed — ${jobError(data, 'no reason provided')}`)
 		}
 		if (status !== 'completed') {
 			throw new Error(`Pika: unknown task status "${status || 'missing'}"`)
@@ -245,7 +256,7 @@ export async function testPikaConnection(apiKey: string): Promise<{ ok: boolean;
 	if (!apiKey.trim()) return { ok: false, message: 'API key is empty.' }
 	try {
 		const response = await requestUrl({
-			url: `${PIKA_API_BASE}/v1/models`,
+			url: `${PIKA_API_BASE}/billing/balance`,
 			method: 'GET',
 			headers: { 'X-API-Key': apiKey },
 			throw: false,

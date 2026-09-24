@@ -238,8 +238,9 @@ function supportsVoiceSource(model: ModelConfig, source: VoiceMode): boolean {
  * Infer the best default mode based on upstream inputs and model's supported modes.
  * Falls through priorities — if the model doesn't support a mode, skip it.
  */
-function inferMode(modes: Mode[], imageCount: number, videoCount: number, audioCount = 0): Mode {
+function inferMode(modes: Mode[], imageCount: number, videoCount: number, audioCount = 0, audioOnlyVideoRef = false): Mode {
 	// Audio refs are multimodal references, never first/last-frame controls.
+	if (audioOnlyVideoRef && audioCount > 0 && imageCount === 0 && videoCount === 0 && modes.includes('video-ref')) return 'video-ref'
 	if (audioCount > 0 && videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
 	if (audioCount > 0 && imageCount > 0 && modes.includes('image-ref')) return 'image-ref'
 
@@ -548,16 +549,17 @@ export function showGenerateBar(
 		modeSelect.innerHTML = ''
 		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
 		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
+		const audioOnlyVideoRef = selectedModel?.id === 'minimax-h3' && provider === 'pika'
 		if (!selectedModel || modes.length <= 1 || selectedModel.inferModeFromInputs) {
 			modeSelect.classList.add('bragi-hidden')
 			selectedMode = selectedModel?.inferModeFromInputs
-				? inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount)
+				? inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount, audioOnlyVideoRef)
 				: modes[0] || null
 			return
 		}
 
 		modeSelect.classList.remove('bragi-hidden')
-		const inferred = inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount)
+		const inferred = inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount, audioOnlyVideoRef)
 
 		for (const mode of modes) {
 			const opt = createEl('option')

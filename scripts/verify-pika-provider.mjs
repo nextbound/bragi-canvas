@@ -52,6 +52,41 @@ try {
 		aspect_ratio: '16:9',
 	})
 
+	const h3 = (genMode, extra = {}) => buildPikaVideoRequest('A slow pan', {
+		modelId: 'minimax/h3', genMode, duration: 4, resolution: '768P', watermark: 'false', ...extra,
+	})
+	const image = 'https://relay.example/one.png'
+	const image2 = 'https://relay.example/two.png'
+	const video = 'https://relay.example/motion.mp4'
+	const audio = 'https://relay.example/voice.wav'
+	assert.deepEqual(h3('text-to-video'), {
+		path: '/v1/media/minimax/h3/text-to-video',
+		body: { prompt: 'A slow pan', duration: 4, resolution: '768P', aigc_watermark: false, ratio: '16:9' },
+	})
+	assert.deepEqual(h3('first-frame', { refImages: [image] }), {
+		path: '/v1/media/minimax/h3/image-to-video',
+		body: { prompt: 'A slow pan', duration: 4, resolution: '768P', aigc_watermark: false, first_frame_image: image },
+	})
+	assert.deepEqual(h3('first-last-frame', { refImages: [image, image2] }), {
+		path: '/v1/media/minimax/h3/image-to-video',
+		body: { prompt: 'A slow pan', duration: 4, resolution: '768P', aigc_watermark: false, first_frame_image: image, last_frame_image: image2 },
+	})
+	assert.deepEqual(h3('image-ref', { refImages: [image], refAudios: [audio] }), {
+		path: '/v1/media/minimax/h3/reference-to-video',
+		body: { prompt: 'A slow pan', duration: 4, resolution: '768P', aigc_watermark: false, ratio: 'adaptive', image_urls: [image], audio_urls: [audio] },
+	})
+	assert.deepEqual(h3('video-ref', { refImages: [image], refVideos: [video], refAudios: [audio] }), {
+		path: '/v1/media/minimax/h3/reference-to-video',
+		body: { prompt: 'A slow pan', duration: 4, resolution: '768P', aigc_watermark: false, ratio: 'adaptive', image_urls: [image], video_urls: [video], audio_urls: [audio] },
+	})
+	assert.deepEqual(h3('video-ref', { refAudios: [audio] }).body.audio_urls, [audio])
+	assert.throws(() => h3('first-frame', { refImages: [image, image2] }), /exactly 1 image/)
+	assert.throws(() => h3('video-ref'), /video or audio reference/)
+	assert.throws(() => h3('image-ref', { refImages: [image], refVideos: [video] }), /no videos/)
+	assert.throws(() => h3('image-ref', { refImages: [image], duration: 16 }), /4 to 15/)
+	assert.throws(() => h3('image-ref', { refImages: [image], refAudios: ['data:audio/wav;base64,AAA'] }), /HTTP\(S\) reference URLs/)
+	assert.throws(() => h3('video-ref', { refImages: Array(9).fill(image), refVideos: Array(3).fill(video), refAudios: [audio] }), /12 reference files/)
+
 	const proImage = buildPikaVideoRequest('Blink and smile', {
 		modelId: 'kling-3.0',
 		genMode: 'first-frame',
@@ -143,6 +178,15 @@ try {
 	assert.equal(requests[0].url, 'https://api.dev.pika.art/v1/media/kling/kling-3.0/image-to-video')
 	assert.equal(requests[0].headers['X-API-Key'], 'test-key')
 
+	process.__bragiPikaRequestHandler = async () => ({
+		status: 403,
+		json: { id: 'rejected-job', status: 'failed', error: { code: 'insufficient_balance', message: 'Insufficient org balance' } },
+	})
+	await assert.rejects(
+		() => provider.generateVideo('Blink', { modelId: 'minimax/h3', genMode: 'text-to-video' }),
+		/Insufficient org balance/,
+	)
+
 	process.__bragiPikaRequestHandler = async (request) => {
 		requests.push(request)
 		if (request.url.endsWith('/jobs/queued-job')) {
@@ -160,6 +204,10 @@ try {
 		return { status: 200, json: { id: 'failed-job', status: 'failed', error: 'render rejected' } }
 	}
 	await assert.rejects(() => provider.checkStatus('failed-job'), /render rejected/)
+	process.__bragiPikaRequestHandler = async () => ({
+		status: 200, json: { id: 'failed-job', status: 'failed', error: { code: 'provider_error', message: 'upstream generation failed' } },
+	})
+	await assert.rejects(() => provider.checkStatus('failed-job'), /upstream generation failed/)
 
 	process.__bragiPikaRequestHandler = async (request) => {
 		requests.push(request)
@@ -203,16 +251,22 @@ try {
 	assert.match(contentFallback.filePath, /^assets\/pika_video_\d+\.mp4$/)
 	assert.equal(writes.length, 2)
 
-	process.__bragiPikaRequestHandler = async () => ({ status: 200, json: { object: 'list', data: [] } })
+	process.__bragiPikaRequestHandler = async (request) => {
+		requests.push(request)
+		return { status: 200, json: { balance_micro_usd: 1000000 } }
+	}
 	assert.deepEqual(await testPikaConnection('valid-key'), { ok: true, message: 'Connected.' })
+	assert.equal(requests.at(-1).url, 'https://api.dev.pika.art/billing/balance')
 	process.__bragiPikaRequestHandler = async () => ({ status: 401, json: { message: 'Unauthorized' } })
 	assert.deepEqual(await testPikaConnection('bad-key'), { ok: false, message: 'Invalid API key.' })
 
-	const [settingsSource, migrationsSource, registrySource, modelSource, modelRulesSource] = await Promise.all([
+	const [settingsSource, migrationsSource, registrySource, modelSource, h3ModelSource, mainSource, modelRulesSource] = await Promise.all([
 		readFile('src/settings.ts', 'utf8'),
 		readFile('src/settings-migrations.ts', 'utf8'),
 		readFile('src/providers/registry.ts', 'utf8'),
 		readFile('src/models/kling.ts', 'utf8'),
+		readFile('src/models/minimax-h3.ts', 'utf8'),
+		readFile('src/main.ts', 'utf8'),
 		readFile('docs/model-provider-rules.md', 'utf8'),
 	])
 	assert.match(settingsSource, /pika: string/, 'Settings type must include providers.pika.')
@@ -229,7 +283,7 @@ try {
 	)
 	assert.match(
 		registrySource,
-		/id: 'pika'[\s\S]*?name: 'Pika'[\s\S]*?defaultRefDelivery: \{ image: 'relay', video: 'relay' \}[\s\S]*?makeVideo:/,
+		/id: 'pika'[\s\S]*?name: 'Pika'[\s\S]*?defaultRefDelivery: \{ image: 'relay', video: 'relay', audio: 'relay' \}[\s\S]*?makeVideo:/,
 		'Provider registry must expose Pika as a relay-backed video provider.',
 	)
 	assert.match(
@@ -254,6 +308,8 @@ try {
 		'Kling 3.0 Omni params must not keep stale Pika provider overrides.',
 	)
 	assert.doesNotMatch(modelSource, /id: 'kling-o1'/, 'This change must not add a mismatched Kling O1 model.')
+	assert.match(h3ModelSource, /pika: \{ apiModelId: 'minimax\/h3', aggregated: true \}/)
+	assert.match(mainSource, /supportsMinimaxH3Refs = \(activeProvider === 'apimart' \|\| activeProvider === 'pika'\)/)
 	assert.match(
 		modelRulesSource,
 		/## Pika Kling[\s\S]*kling-3\.0[\s\S]*does not list a compatible Kling 3\.0 Omni model/,
