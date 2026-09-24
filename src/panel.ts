@@ -37,6 +37,7 @@ const MODE_LABELS: Record<string, string> = {
 	'text-to-text': 'Text → Text',
 	'tts': 'Text to Speech',
 	'music': 'Music',
+	'video-to-music': 'Video → Music',
 	'sound-effect': 'Sound Effect',
 }
 
@@ -218,7 +219,7 @@ function audioIntentForModel(model: ModelConfig): AudioIntent {
 function supportsAudioIntent(model: ModelConfig, intent: AudioIntent): boolean {
 	if (model.type !== 'audio') return false
 	if (intent === 'speech') return model.modes.includes('tts')
-	return model.modes.includes('music') || model.modes.includes('sound-effect')
+	return model.modes.includes('music') || model.modes.includes('video-to-music') || model.modes.includes('sound-effect')
 }
 
 function musicSelectionNeedsLyrics(model: ModelConfig | null, params: Record<string, string | number>): boolean {
@@ -248,6 +249,7 @@ function inferMode(modes: Mode[], imageCount: number, videoCount: number, audioC
 	if (imageCount > 0 && videoCount > 0 && modes.includes('motion-control')) return 'motion-control'
 
 	// Video upstream → reference or extend
+	if (videoCount > 0 && modes.includes('video-to-music')) return 'video-to-music'
 	if (videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
 	if (videoCount > 0 && modes.includes('video-extend')) return 'video-extend'
 	if (videoCount > 0 && modes.includes('video-edit')) return 'video-edit'
@@ -870,7 +872,7 @@ export function showGenerateBar(
 
 	function modelSupportsInputs(m: ModelConfig): boolean {
 		if (m.type === 'text') return textUpstreamIssue(m) === null
-		// Image models — always compatible for now
+		// Image and audio models — always compatible for now
 		if (m.type !== 'video') return true
 		// No special inputs — only text-to-video models can run without refs.
 		if (upstreamImageCount === 0 && upstreamVideoCount === 0) return m.modes.includes('text-to-video')
@@ -998,6 +1000,10 @@ export function showGenerateBar(
 				disabled = true
 				title = 'Connect a lyrics text node'
 			}
+		}
+		if (selectedModel?.id === 'sonilo-music' && selectedMode === 'video-to-music' && upstreamVideoCount !== 1) {
+			disabled = true
+			title = 'Connect exactly one upstream video'
 		}
 
 		const voiceConfig = voiceConfigFor(selectedModel)

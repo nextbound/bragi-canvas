@@ -18,6 +18,7 @@ import { RunPodFluxImageProvider, testRunPodConnection } from './runpod'
 import { ElevenLabsProvider } from './elevenlabs'
 import { MiniMaxProvider } from './minimax'
 import { MurekaProvider, testMurekaConnection } from './mureka'
+import { SoniloProvider, testSoniloConnection } from './sonilo'
 import { LegnextProvider } from './legnext'
 import { APIMartProvider } from './apimart'
 import { SuchuangVideoProvider, testSuchuangConnection } from './suchuang'
@@ -436,6 +437,16 @@ export const PROVIDERS: ProviderSpec[] = [
 		makeAudio: ({ settings, app, outputDir }) =>
 			new MurekaProvider(settings.providers.mureka, app, outputDir),
 		testConnection: (d) => testMurekaConnection(d.mureka || ''),
+	},
+	{
+		id: 'sonilo',
+		name: 'Sonilo',
+		docUrl: 'https://platform.sonilo.com/docs',
+		fields: [{ key: 'sonilo', label: 'API key', placeholder: 'Sonilo API key', type: 'password' }],
+		defaultRefDelivery: { video: 'relay' },
+		isConfigured: (s) => !!s.providers.sonilo,
+		makeAudio: ({ settings, app, outputDir }) => new SoniloProvider(settings.providers.sonilo, app, outputDir),
+		testConnection: (d) => testSoniloConnection(d.sonilo || ''),
 	},
 	{
 		id: 'dashscope',

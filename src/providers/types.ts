@@ -86,7 +86,7 @@ export interface VoiceChangeOptions {
 
 export interface AudioProvider {
 	name: string
-	generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'sound-effect', modelId?: string, [k: string]: unknown }): Promise<GenerateAudioResult>
+	generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'video-to-music' | 'sound-effect', modelId?: string, [k: string]: unknown }): Promise<GenerateAudioResult>
 	checkStatus?(taskId: string): Promise<GenerateAudioResult>
 	listVoices?(options?: ListVoicesOptions): Promise<VoiceOption[]>
 	cloneVoice?(options: VoiceCloneOptions): Promise<VoiceCloneResult>

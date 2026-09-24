@@ -393,6 +393,24 @@ export const murekaMusic: ModelConfig = {
 	],
 }
 
+export const soniloMusic: ModelConfig = {
+	id: 'sonilo-music',
+	name: 'Sonilo Music',
+	type: 'audio',
+	supportedProviders: {
+		sonilo: { apiModelId: 'sonilo-music', refDelivery: { video: 'relay' } },
+	},
+	modes: ['music', 'video-to-music'],
+	params: [
+		{ id: 'duration', label: 'Duration', type: 'range', modes: ['music'], min: 5, max: 360, step: 1, unit: 's', default: 30 },
+		{
+			id: 'output_format', label: 'Format', type: 'select', default: 'mp3',
+			options: [{ label: 'MP3', value: 'mp3' }, { label: 'M4A', value: 'm4a' }, { label: 'WAV', value: 'wav' }],
+		},
+		{ id: 'prompt_influence', label: 'Prompt influence', type: 'range', modes: ['video-to-music'], min: 0, max: 1, step: 0.1, default: 0.5 },
+	],
+}
+
 // ── Sound Effect Models ──
 
 export const elevenLabsSFX: ModelConfig = {

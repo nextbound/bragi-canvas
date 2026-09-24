@@ -24,6 +24,7 @@ import {
 	elevenLabsMusic,
 	minimaxMusic,
 	murekaMusic,
+	soniloMusic,
 	elevenLabsSFX,
 } from './audio'
 
@@ -81,6 +82,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	elevenLabsMusic,
 	minimaxMusic,
 	murekaMusic,
+	soniloMusic,
 	elevenLabsSFX,
 ]
 
