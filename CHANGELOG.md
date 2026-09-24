@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.40.0
+
+- Added Pika MiniMax H3 generation across text-to-video, first-frame, first-last-frame, image-reference, and video-reference modes, including audio-only references. Local media references use Bragi Relay, and provider errors retain their upstream details.
+- Added Sonilo Music with text-to-music and video-to-music modes. Music generation supports MP3, M4A, and WAV output; video inputs follow Canvas edges through Bragi Relay. Sonilo tasks are asynchronous and save playable audio nodes to the canvas.
+- Added provider-specific regression checks for Pika and Sonilo. Both integrations were verified with generated media on Obsidian canvases.
+- Bumped the plugin version to `1.40.0`.
+
 ## 1.39.1
 
 - Fixed failed SVRouter Seedance 2.5 tasks to show the provider error code together with the full error message, including request IDs supplied by the provider.
