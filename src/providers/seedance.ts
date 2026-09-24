@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
@@ -214,7 +215,7 @@ export class SeedanceProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const response = await requestUrl({
+		const response = await pollRequest({
 			url: `${this.baseUrl}/${taskId}`,
 			method: 'GET',
 			headers: {
@@ -236,15 +237,16 @@ export class SeedanceProvider implements VideoProvider {
 		}
 
 		if (data.status === 'failed') {
-			throw new Error(`Seedance: Task failed — ${data.error?.message || 'unknown error'}`)
+			throw new TaskPollingError(`Seedance: Task failed — ${data.error?.message || 'unknown error'}`, 'terminal')
 		}
 
 		// Still processing
+		assertPendingStatus(data.status)
 		return { done: false, taskId }
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({ url })
+		const response = await pollRequest({ url })
 		const timestamp = Date.now()
 		let extension = 'mp4'
 		try {
@@ -260,7 +262,7 @@ export class SeedanceProvider implements VideoProvider {
 			await adapter.mkdir(this.outputDir)
 		}
 
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 }

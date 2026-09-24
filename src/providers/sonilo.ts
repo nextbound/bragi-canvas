@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError } from '../task-errors'
 import { requestUrl, type App } from 'obsidian'
 import type { AudioProvider, GenerateAudioResult } from './types'
 
@@ -64,7 +65,6 @@ export function encodeMultipartFields(fields: Record<string, string>, boundary: 
 
 export class SoniloProvider implements AudioProvider {
 	name = 'Sonilo'
-	private retries = new Map<string, { count: number; nextAt: number }>()
 
 	constructor(private apiKey: string, private app: App, private outputDir: string) {}
 
@@ -92,53 +92,31 @@ export class SoniloProvider implements AudioProvider {
 
 	async checkStatus(taskId: string): Promise<GenerateAudioResult> {
 		if (!taskId.startsWith('sonilo:') || taskId.length <= 7) throw new Error('Sonilo: invalid task ID.')
-		const retry = this.retries.get(taskId)
-		if (retry && Date.now() < retry.nextAt) return { done: false, taskId }
 		const id = taskId.slice(7)
-		let response: Awaited<ReturnType<typeof requestUrl>>
-		try {
-			response = await requestUrl({
-				url: `${SONILO_BASE_URL}/tasks/${encodeURIComponent(id)}`,
-				method: 'GET', headers: this.headers(), throw: false,
-			})
-		} catch {
-			return this.transientFailure(taskId)
-		}
+		const response = await pollRequest({
+			url: `${SONILO_BASE_URL}/tasks/${encodeURIComponent(id)}`,
+			method: 'GET', headers: this.headers(), throw: false,
+		})
 		const data = parseJson(response.text)
-		if (response.status === 429 || response.status >= 500) {
-			const retryAfter = Object.entries(response.headers || {}).find(([key]) => key.toLowerCase() === 'retry-after')?.[1]
-			const retryAfterSeconds = retryAfter ? Number(retryAfter) : 0
-			return this.transientFailure(taskId, retryAfterSeconds)
-		}
 		if (response.status >= 400) throw responseError(response.status, data)
 		const status = data.status
 		if (status === 'processing' || status === 'queued' || status === 'running') {
-			this.retries.delete(taskId)
 			return { done: false, taskId }
 		}
-		if (status === 'failed' || status === 'canceled') throw new Error(`Sonilo: ${message(data, `task ${status}`)}`)
+		if (status === 'failed' || status === 'canceled') throw new TaskPollingError(`Sonilo: ${message(data, `task ${status}`)}`, 'terminal')
 		if (status !== 'succeeded' && status !== 'completed') throw new Error(`Sonilo: unknown task status ${String(status)}`)
 		const audio = Array.isArray(data.audio) ? record(data.audio[0]) : {}
 		const url = audio.url
 		if (typeof url !== 'string' || !url.startsWith('https://')) throw new Error('Sonilo: completed task has no audio URL.')
 		const format = this.audioFormat(audio)
-		let download: Awaited<ReturnType<typeof requestUrl>>
-		try {
-			download = await requestUrl({ url, method: 'GET', throw: false })
-		} catch {
-			return this.transientFailure(taskId)
-		}
-		if (download.status === 429 || download.status >= 500) {
-			return this.transientFailure(taskId)
-		}
+		const download = await pollRequest({ url, method: 'GET', throw: false })
 		if (download.status >= 400) throw new Error(`Sonilo: audio download failed (HTTP ${download.status}).`)
 		if (!download.arrayBuffer.byteLength) throw new Error('Sonilo: downloaded audio is empty.')
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const safeId = id.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 48)
 		const filePath = `${this.outputDir}/sonilo_music_${safeId}_${Date.now()}.${format}`
-		await adapter.writeBinary(filePath, download.arrayBuffer)
-		this.retries.delete(taskId)
+		await writeTaskResult(adapter, filePath, download.arrayBuffer)
 		return { done: true, filePath }
 	}
 
@@ -153,14 +131,6 @@ export class SoniloProvider implements AudioProvider {
 		return 'm4a'
 	}
 
-	private transientFailure(taskId: string, retryAfterSeconds = 0): GenerateAudioResult {
-		// Keep the accepted task alive: a transient poll/download error does not mean generation failed.
-		const count = Math.min((this.retries.get(taskId)?.count || 0) + 1, 6)
-		const backoffMs = Math.min(60_000, 2000 * 2 ** (count - 1))
-		const retryAfterMs = Number.isFinite(retryAfterSeconds) ? Math.max(0, retryAfterSeconds * 1000) : 0
-		this.retries.set(taskId, { count, nextAt: Date.now() + Math.max(backoffMs, retryAfterMs) })
-		return { done: false, taskId }
-	}
 }
 
 export async function testSoniloConnection(apiKey: string): Promise<{ ok: boolean; message: string }> {

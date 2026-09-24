@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -610,7 +611,7 @@ export class TokenRouterVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${this.baseUrl}/video/generations/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -627,8 +628,9 @@ export class TokenRouterVideoProvider implements VideoProvider {
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (FAILED_STATUSES.has(normalized)) {
-			throw new Error(`TokenRouter video: ${extractFailure(resp.json, 'Task failed')}`)
+			throw new TaskPollingError(`TokenRouter video: ${extractFailure(resp.json, 'Task failed')}`, 'terminal')
 		}
+		assertPendingStatus(normalized)
 		return { done: false, taskId }
 	}
 
@@ -659,11 +661,11 @@ export class TokenRouterVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/tokenrouter_video_${Date.now()}.${videoExtFromUrl(url)}`
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 }

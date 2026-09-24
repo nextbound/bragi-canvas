@@ -1,3 +1,5 @@
+import { errorMessage } from '../task-errors'
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- MuleRouter responses are runtime-shaped and narrowed at the provider boundary. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -297,7 +299,7 @@ export class MuleRouterVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${this.baseUrl}${WAN27_I2V_SPICY_PATH}/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -315,8 +317,9 @@ export class MuleRouterVideoProvider implements VideoProvider {
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (FAILED_STATUSES.has(status)) {
-			throw new Error(`MuleRouter video: ${providerErrorMessage(resp.json, 'Task failed')}`)
+			throw new TaskPollingError(`MuleRouter video: ${providerErrorMessage(resp.json, 'Task failed')}`, 'terminal')
 		}
+		assertPendingStatus(status)
 		return { done: false, taskId }
 	}
 
@@ -328,11 +331,11 @@ export class MuleRouterVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/mulerouter_wan27_${Date.now()}.${videoExtFromUrl(url)}`
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 }
@@ -354,7 +357,7 @@ export async function testMuleRouterConnection(apiKey: string): Promise<{ ok: bo
 		if (resp.status < 500) return { ok: true, message: 'Connected.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err?.message || err}` }
+		return { ok: false, message: `Network error: ${errorMessage(err)}` }
 	}
 }
 

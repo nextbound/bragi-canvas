@@ -1,6 +1,6 @@
+import { errorMessage } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { requestUrl } from 'obsidian'
-import type { BragiSettings } from '../settings'
 
 /**
  * Built-in Bragi temporary storage — the plugin ships with this endpoint + token so users
@@ -60,20 +60,11 @@ export async function testBragiRelay(cfg: BragiRelayConfig): Promise<{ ok: boole
 		if (resp.status === 401) return { ok: false, error: 'Invalid token' }
 		return { ok: false, error: `HTTP ${resp.status}: ${JSON.stringify(resp.json || '').substring(0, 100)}` }
 	} catch (err: unknown) {
-		return { ok: false, error: err?.message || String(err) }
+		return { ok: false, error: errorMessage(err) }
 	}
 }
 
 /** Pick the active cloud storage config from settings. Bragi temporary storage first, then R2 fallback. */
-export function getActiveRelay(settings: BragiSettings): { kind: 'bragi'; cfg: BragiRelayConfig } | { kind: 'r2' } | null {
-	if (settings.cloudStorage?.provider === 'bragi' && isBragiRelayConfigured(settings.cloudStorage)) {
-		return { kind: 'bragi', cfg: { endpoint: settings.cloudStorage.endpoint, token: settings.cloudStorage.token } }
-	}
-	// Legacy R2 direct
-	if (settings.r2 && settings.r2.accountId && settings.r2.accessKeyId && settings.r2.secretAccessKey && settings.r2.bucket && settings.r2.publicBaseUrl) {
-		return { kind: 'r2' }
-	}
-	return null
-}
+
 
 /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Resume strict linting after the runtime-shaped data boundary. */

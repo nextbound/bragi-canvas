@@ -1,3 +1,4 @@
+import { stringArray, recordValue } from '../runtime-values'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult } from './types'
 import type { App } from 'obsidian'
@@ -29,8 +30,8 @@ export class LumaProvider implements ImageProvider {
 	}
 
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
-		const refImages: string[] = params?.refImages || []
-		const aspectRatio = VALID_RATIOS.has(params?.aspectRatio) ? params.aspectRatio : '1:1'
+		const refImages: string[] = stringArray(params?.refImages)
+		const aspectRatio = typeof params?.aspectRatio === 'string' && VALID_RATIOS.has(params.aspectRatio) ? params.aspectRatio : '1:1'
 
 		const imageUrl = refImages.length > 0
 			? await this.img2img(prompt, aspectRatio, refImages[0])
@@ -95,20 +96,20 @@ export class LumaProvider implements ImageProvider {
 	private extractUrl(resp: { status: number; text?: string }): string {
 		// Parse body defensively — upstream infra (Vercel, Cloudflare) occasionally returns
 		// plain-text error pages like "Request Entity Too Large" which would crash resp.json.
-		let body: unknown = null
+		let body: Record<string, unknown> | null = null
 		const rawText = resp.text || ''
-		try { body = rawText ? JSON.parse(rawText) : null } catch { body = null }
+		try { body = rawText ? recordValue(JSON.parse(rawText)) : null } catch { body = null }
 
 		if (resp.status === 401) throw new Error('Luma: invalid API key')
 		if (resp.status === 413) throw new Error('Luma: reference image too large (upload route exceeded)')
 		if (resp.status === 503) throw new Error('Luma: no healthy upstream account (cookie likely expired)')
 		if (resp.status === 504) throw new Error('Luma: generation timed out')
 		if (resp.status >= 400) {
-			const msg = body?.message || body?.error || rawText.substring(0, 200) || `HTTP ${resp.status}`
+			const msg = typeof body?.message === 'string' ? body.message : typeof body?.error === 'string' ? body.error : rawText.substring(0, 200) || `HTTP ${resp.status}`
 			throw new Error(`Luma: ${msg}`)
 		}
 		const url = body?.image_url
-		if (!url) throw new Error(`Luma: no image_url in response — ${rawText.substring(0, 200)}`)
+		if (typeof url !== 'string' || !url) throw new Error(`Luma: no image_url in response — ${rawText.substring(0, 200)}`)
 		return url
 	}
 }

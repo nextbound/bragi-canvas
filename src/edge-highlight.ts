@@ -4,7 +4,7 @@ import type { Canvas, CanvasNode, CanvasEdge } from './types/canvas-internal'
 
 const HIGHLIGHT_CLASS = 'bragi-edge-connected'
 const HOVER_CLASS = 'bragi-edge-hovered'
-let highlightInterval: ReturnType<typeof window.setInterval> | null = null
+let highlightInterval: number | null = null
 let lastNodeSelectionKey = ''
 let hoverCleanup: (() => void) | null = null
 let hoveredLineGroup: SVGGElement | null = null
@@ -29,12 +29,13 @@ function getNodeSelectionKey(nodes: CanvasNode[]): string {
  * Obsidian stores it internally — try common property names.
  */
 function getEdgeLineGroup(edge: CanvasEdge): SVGGElement | null {
-	const e = edge as unknown
-	return e.lineGroupEl || e.wrapperEl || e.path?.parentElement || null
+	const e = edge
+	const group = e.lineGroupEl || e.wrapperEl || e.path?.parentNode
+	return group instanceof SVGGElement ? group : null
 }
 
 function getEdgeEndGroup(edge: CanvasEdge): SVGGElement | null {
-	const e = edge as unknown
+	const e = edge
 	return e.lineEndGroupEl || null
 }
 
@@ -106,7 +107,7 @@ function isEdgeSelected(lineGroup: SVGGElement): boolean {
 }
 
 function setupEdgeHover(canvas: Canvas): () => void {
-	const container = (canvas as unknown).edgeContainerEl as SVGSVGElement | undefined
+	const container = canvas.edgeContainerEl
 	if (!container) return () => {}
 
 	const onMouseOver = (event: MouseEvent) => {
@@ -114,7 +115,7 @@ function setupEdgeHover(canvas: Canvas): () => void {
 		if (!path) return
 
 		const lineGroup = path.parentElement
-		if (!(lineGroup instanceof SVGGElement) || lineGroup.parentElement !== container) return
+		if (!(lineGroup instanceof SVGGElement) || lineGroup.parentNode !== container) return
 		if (lineGroup === hoveredLineGroup) return
 		if (isEdgeSelected(lineGroup)) {
 			clearHover()

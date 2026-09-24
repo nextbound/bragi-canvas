@@ -1,3 +1,5 @@
+import { inferMode } from './generation-mode'
+import type { LastSelection } from './settings'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Notice, App } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, ModelParam, VoiceSourceMode } from './models/types'
@@ -239,49 +241,7 @@ function supportsVoiceSource(model: ModelConfig, source: VoiceMode): boolean {
  * Infer the best default mode based on upstream inputs and model's supported modes.
  * Falls through priorities — if the model doesn't support a mode, skip it.
  */
-function inferMode(modes: Mode[], imageCount: number, videoCount: number, audioCount = 0, audioOnlyVideoRef = false): Mode {
-	// Audio refs are multimodal references, never first/last-frame controls.
-	if (audioOnlyVideoRef && audioCount > 0 && imageCount === 0 && videoCount === 0 && modes.includes('video-ref')) return 'video-ref'
-	if (audioCount > 0 && videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
-	if (audioCount > 0 && imageCount > 0 && modes.includes('image-ref')) return 'image-ref'
 
-	// Image + video upstream → Kling Motion Control (character image + motion clip)
-	if (imageCount > 0 && videoCount > 0 && modes.includes('motion-control')) return 'motion-control'
-
-	// Video upstream → reference or extend
-	if (videoCount > 0 && modes.includes('video-to-music')) return 'video-to-music'
-	if (videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
-	if (videoCount > 0 && modes.includes('video-extend')) return 'video-extend'
-	if (videoCount > 0 && modes.includes('video-edit')) return 'video-edit'
-
-	// 3+ images cannot be a first/last-frame pair; prefer a reference mode.
-	if (imageCount > 2) {
-		if (modes.includes('multi-image-ref')) return 'multi-image-ref'
-		if (modes.includes('image-ref')) return 'image-ref'
-	}
-
-	// 2 images → prefer first-last-frame, then multi-ref, then image-ref
-	if (imageCount >= 2) {
-		if (modes.includes('first-last-frame')) return 'first-last-frame'
-		if (modes.includes('multi-image-ref')) return 'multi-image-ref'
-		if (modes.includes('image-ref')) return 'image-ref'
-		if (modes.includes('image-ref-to-image')) return 'image-ref-to-image'
-	}
-
-	// 1 image → prefer first-frame, then image-ref (video), then image-ref-to-image (image)
-	if (imageCount === 1) {
-		if (modes.includes('first-frame')) return 'first-frame'
-		if (modes.includes('image-ref')) return 'image-ref'
-		if (modes.includes('image-ref-to-image')) return 'image-ref-to-image'
-	}
-
-	// No special inputs → text-to-video/image/text
-	if (modes.includes('text-to-video')) return 'text-to-video'
-	if (modes.includes('text-to-image')) return 'text-to-image'
-	if (modes.includes('text-to-text')) return 'text-to-text'
-
-	return modes[0]
-}
 
 let activeBar: HTMLElement | null = null
 let dismissHandler: (() => void) | null = null
@@ -429,11 +389,11 @@ export function showGenerateBar(
 
 	// ── Define functions (all DOM elements exist now) ──
 
-	function lastSelectionForCurrentType(): Record<string, unknown> | null {
-		const nodeData = node.getData() as unknown
+	function lastSelectionForCurrentType(): LastSelection | null {
+		const nodeData = node.getData()
 		const nodeLastGen = (nodeData.bragiLastGen || nodeData.ovidLastGen)?.[currentType]
 		const globalLastKey = lastSelectionKey(currentType)
-		const globalLast = (settings as unknown)[globalLastKey]
+		const globalLast = settings[globalLastKey]
 		return nodeLastGen || globalLast || null
 	}
 
@@ -550,7 +510,7 @@ export function showGenerateBar(
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
 		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
-		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
+		const modes = selectedModel ? getProviderModes(selectedModel, provider ?? undefined) : []
 		const audioOnlyVideoRef = selectedModel?.id === 'minimax-h3' && provider === 'pika'
 		if (!selectedModel || modes.length <= 1 || selectedModel.inferModeFromInputs) {
 			modeSelect.classList.add('bragi-hidden')
@@ -957,15 +917,15 @@ export function showGenerateBar(
 				const model = selectedModel
 				if (model) {
 					const param = model.params.find(p => p.label === paramId)
-					if (param && savedParams[param.id] !== undefined) {
-						select.value = String(savedParams[param.id])
+					if (param && savedParams?.[param.id] !== undefined) {
+						select.value = String(savedParams?.[param.id])
 					}
 				}
 			})
 		}
 	}
 
-	let savedParams: Record<string, unknown> | null = null
+	let savedParams: Record<string, string | number> | null = null
 
 	function updateUpstreamMediaHint() {
 		if (currentType !== 'text') {
@@ -1089,11 +1049,11 @@ export function showGenerateBar(
 			const nodeData = node.getData()
 			if (nodeData.type === 'text') {
 				prompt = node.text?.trim() || ''
-			} else if (nodeData.type === 'file' && (nodeData as unknown).file?.endsWith('.md')) {
-				const filePath = (nodeData as unknown).file
-				const file = app.vault.getAbstractFileByPath(filePath)
+			} else if (nodeData.type === 'file' && nodeData.file?.endsWith('.md')) {
+				const filePath = nodeData.file
+				const file = app.vault.getFileByPath(filePath)
 				if (file) {
-					prompt = (await app.vault.read(file as unknown)).trim()
+					prompt = (await app.vault.read(file)).trim()
 				}
 			}
 
@@ -1111,7 +1071,7 @@ export function showGenerateBar(
 			// Save to global memory
 			const lastKey = lastSelectionKey(currentType)
 			const submitParams = currentVisibleParamValues()
-			;(settings as unknown)[lastKey] = {
+			;settings[lastKey] = {
 				modelId: selectedModel.id,
 				params: { ...submitParams },
 				batchCount,
@@ -1119,7 +1079,7 @@ export function showGenerateBar(
 			onSaveSettings?.()
 
 			// Save to node metadata (persists in canvas JSON)
-			const currentNodeData = node.getData() as unknown
+			const currentNodeData = node.getData()
 			const bragiLastGen = currentNodeData.bragiLastGen || currentNodeData.ovidLastGen || {}
 			bragiLastGen[currentType] = {
 				modelId: selectedModel.id,
@@ -1151,10 +1111,10 @@ export function showGenerateBar(
 	rebuildModelList()
 
 	// Restore last batch count (node metadata > global)
-	const initNodeData = node.getData() as unknown
+	const initNodeData = node.getData()
 	const initNodeLast = (initNodeData.bragiLastGen || initNodeData.ovidLastGen)?.[currentType]
 	const initGlobalKey = lastSelectionKey(currentType)
-	const initGlobalLast = (settings as unknown)[initGlobalKey]
+	const initGlobalLast = settings[initGlobalKey]
 	const initLast = initNodeLast || initGlobalLast
 	if (initLast?.batchCount) {
 		batchSelect.value = String(initLast.batchCount)
@@ -1167,7 +1127,7 @@ export function showGenerateBar(
 	const nodeCanvas = node.canvas
 	let barParent: HTMLElement | null = null
 
-	const menu = (nodeCanvas as unknown).menu
+	const menu = nodeCanvas.menu
 	if (menu?.menuEl?.parentElement) {
 		barParent = menu.menuEl.parentElement
 	}
@@ -1283,7 +1243,7 @@ export function showBatchGenerateBar(
 	function rebuildModeList() {
 		modeSelect.innerHTML = ''
 		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
-		const modes = selectedModel ? getProviderModes(selectedModel, provider) : []
+		const modes = selectedModel ? getProviderModes(selectedModel, provider ?? undefined) : []
 		if (!selectedModel || modes.length <= 1) {
 			modeSelect.classList.add('bragi-hidden')
 			selectedMode = modes[0] || null
@@ -1437,7 +1397,7 @@ export function showBatchGenerateBar(
 				modelSelect.appendChild(opt)
 			}
 			const globalLastKey = lastSelectionKey(currentType)
-			const globalLast = (settings as unknown)[globalLastKey]
+			const globalLast = settings[globalLastKey]
 			const lastModel = globalLast?.modelId ? models.find(m => m.id === globalLast.modelId) : null
 			selectedModel = lastModel || models[0]
 			modelSelect.value = selectedModel.id
@@ -1484,7 +1444,7 @@ export function showBatchGenerateBar(
 		const batchCount = parseInt(batchSelect.value) || 1
 		const lastKey = lastSelectionKey(currentType)
 		const submitParams = currentVisibleParamValues()
-		;(settings as unknown)[lastKey] = {
+		;settings[lastKey] = {
 			modelId: selectedModel.id,
 			params: { ...submitParams },
 			batchCount,
@@ -1511,13 +1471,13 @@ export function showBatchGenerateBar(
 	rebuildModelList()
 
 	const globalLastKey = lastSelectionKey(currentType)
-	const globalLast = (settings as unknown)[globalLastKey]
+	const globalLast = settings[globalLastKey]
 	if (globalLast?.batchCount) batchSelect.value = String(globalLast.batchCount)
 
 	// Attach to DOM — use the first node's canvas
 	const nodeCanvas = nodes[0].canvas
 	let barParent: HTMLElement | null = null
-	const menu = (nodeCanvas as unknown)?.menu
+	const menu = nodeCanvas?.menu
 	if (menu?.menuEl?.parentElement) barParent = menu.menuEl.parentElement
 	if (!barParent && nodeCanvas?.wrapperEl?.parentElement) barParent = nodeCanvas.wrapperEl.parentElement
 	if (!barParent) { barParent = activeDocument.body; bar.classList.add('is-body-attached') }

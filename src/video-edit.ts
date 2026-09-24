@@ -1,3 +1,4 @@
+import { errorMessage } from './task-errors'
 import { Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from './main'
 import { findFreePosition } from './canvas-ops'
@@ -138,7 +139,7 @@ class VideoEditMode {
 	open(): void {
 		void this.load().catch((err) => {
 			console.error('Bragi video editor failed to open', err)
-			new Notice(err instanceof Error ? err.message : 'Could not open video editor')
+			new Notice(err instanceof Error ? errorMessage(err) : 'Could not open video editor')
 			this.close()
 		})
 	}
@@ -546,7 +547,7 @@ class VideoEditMode {
 			new Notice('Frame captured')
 		} catch (err: unknown) {
 			console.error('Bragi video editor: frame capture failed', err)
-			new Notice(err instanceof Error ? err.message : 'Could not capture frame')
+			new Notice(err instanceof Error ? errorMessage(err) : 'Could not capture frame')
 		} finally {
 			this.setBusy(false)
 		}
@@ -584,7 +585,7 @@ class VideoEditMode {
 		} catch (err: unknown) {
 			notice.hide()
 			console.error('Bragi video editor: clip export failed', err)
-			new Notice(err instanceof Error ? err.message : 'Could not export clip')
+			new Notice(err instanceof Error ? errorMessage(err) : 'Could not export clip')
 		} finally {
 			this.setBusy(false)
 		}

@@ -7,7 +7,7 @@ const token360FlowSource = readFileSync('src/token360-asset-flow.ts', 'utf8')
 const openaiSource = readFileSync('src/providers/openai.ts', 'utf8')
 const tokenrouterSource = readFileSync('src/providers/tokenrouter.ts', 'utf8')
 const gptImageSource = readFileSync('src/models/gpt-image.ts', 'utf8')
-const agentSource = readFileSync('AGENT.md', 'utf8')
+const agentSource = readFileSync('AGENTS.md', 'utf8')
 
 function assertOrder(source, first, second, message) {
 	const firstIndex = source.indexOf(first)
@@ -93,7 +93,7 @@ assert.match(
 assert.match(
 	agentSource,
 	/preserve PNG\/JPEG bytes as-is and convert every other image format to PNG/,
-	'AGENT.md must document the reference image upload normalization rule',
+	'AGENTS.md must document the reference image upload normalization rule',
 )
 
 console.log('Reference image upload normalization checks passed.')

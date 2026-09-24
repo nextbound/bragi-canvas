@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and gateway payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -424,7 +425,7 @@ export class SvNewApiVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${this.baseUrl}/v1/videos/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -439,17 +440,18 @@ export class SvNewApiVideoProvider implements VideoProvider {
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (FAILED_STATUSES.has(normalized)) {
-			throw new Error(`SV NewAPI video: ${extractFailure(resp.json, 'task failed')}`)
+			throw new TaskPollingError(`SV NewAPI video: ${extractFailure(resp.json, 'task failed')}`, 'terminal')
 		}
+		assertPendingStatus(normalized)
 		return { done: false, taskId }
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/svnewapi_video_${Date.now()}.${videoExtFromUrl(url)}`
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 }

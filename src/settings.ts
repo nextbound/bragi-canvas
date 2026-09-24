@@ -354,7 +354,7 @@ export class BragiSettingTab extends PluginSettingTab {
 	private renderCloudStorageSection(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName('Temporary cloud')
-			.setDesc('Briefly hosts your files so model apis can fetch them. Auto-deleted after 24h.')
+			.setDesc('Briefly hosts your files so model apis can fetch them. Scheduled to expire after one day.')
 			.addDropdown(dd => {
 				dd.addOption('bragi', 'Bragi')
 				dd.setValue('bragi')

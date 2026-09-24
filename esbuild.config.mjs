@@ -86,17 +86,6 @@ if (prod) {
 	const srcCss = path.resolve("src/styles.css");
 	const rootCss = path.resolve("styles.css");
 	await fs.copyFile(srcCss, rootCss);
-	const vaultConfig = path.resolve(".dev-vault-plugin");
-	try {
-		const vaultDir = (await fs.readFile(vaultConfig, "utf8")).trim();
-		if (vaultDir) {
-			await fs.copyFile(srcCss, path.join(vaultDir, "styles.css"));
-			await fs.copyFile(path.resolve("main.js"), path.join(vaultDir, "main.js"));
-			console.log(`[build] synced styles.css + main.js → ${vaultDir}`);
-		}
-	} catch {
-		// Optional dev vault path — skip when not configured.
-	}
 	process.exit(0);
 } else {
 	await context.watch();

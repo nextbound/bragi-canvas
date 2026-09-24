@@ -1,3 +1,5 @@
+import { errorMessage } from '../task-errors'
+import { writeTaskResult, pollRequest, TaskPollingError } from '../task-errors'
 import { requestUrl, type App } from 'obsidian'
 import type { AudioProvider, GenerateAudioResult } from './types'
 
@@ -111,7 +113,7 @@ export class MurekaProvider implements AudioProvider {
 
 	async checkStatus(taskId: string): Promise<GenerateAudioResult> {
 		const { kind, id } = decodeMurekaTaskId(taskId)
-		const response = await requestUrl({
+		const response = await pollRequest({
 			url: `${MUREKA_BASE_URL}/v1/${kind}/query/${encodeURIComponent(id)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -128,7 +130,7 @@ export class MurekaProvider implements AudioProvider {
 			return { done: true, filePath: await this.downloadAudio(audioUrl, id) }
 		}
 		if (['failed', 'timeouted', 'cancelled'].includes(status)) {
-			throw new Error(`Mureka: ${stringValue(data?.failed_reason) || `task ${status}`}`)
+			throw new TaskPollingError(`Mureka: ${stringValue(data?.failed_reason) || `task ${status}`}`, 'terminal')
 		}
 		if (!['preparing', 'queued', 'running', 'streaming'].includes(status)) {
 			throw new Error(`Mureka: unknown task status "${status || 'empty'}"`)
@@ -137,13 +139,13 @@ export class MurekaProvider implements AudioProvider {
 	}
 
 	private async downloadAudio(url: string, taskId: string): Promise<string> {
-		const response = await requestUrl({ url, method: 'GET', throw: false })
+		const response = await pollRequest({ url, method: 'GET', throw: false })
 		if (response.status >= 400) throw new Error(`Mureka audio download: status ${response.status}`)
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const safeTaskId = taskId.replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 48) || 'result'
 		const filePath = `${this.outputDir}/mureka_music_${safeTaskId}_${Date.now()}.mp3`
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 }
@@ -161,6 +163,6 @@ export async function testMurekaConnection(apiKey: string): Promise<{ ok: boolea
 		if (response.status === 401 || response.status === 403) return { ok: false, message: 'Invalid API key.' }
 		return { ok: false, message: `Unexpected status ${response.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err instanceof Error ? err.message : String(err)}` }
+		return { ok: false, message: `Network error: ${err instanceof Error ? errorMessage(err) : String(err)}` }
 	}
 }

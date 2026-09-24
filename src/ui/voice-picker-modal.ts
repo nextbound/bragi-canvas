@@ -293,5 +293,5 @@ function stringValues(value: string | string[] | undefined): string[] {
 }
 
 function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : String(err)
+	return err instanceof Error ? errorMessage(err) : String(err)
 }

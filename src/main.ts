@@ -1,3 +1,6 @@
+import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
+import { errorMessage } from './task-errors'
+import type { CanvasView } from './types/canvas-internal'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Plugin, Notice, requestUrl, Menu, Modal, Setting, normalizePath } from 'obsidian'
 import { BragiSettings, DEFAULT_SETTINGS, BragiSettingTab, type GeneratedAssetRecord } from './settings'
@@ -53,12 +56,12 @@ const ELEVENLABS_VOICE_CHANGER_MODEL_ID = 'eleven_multilingual_sts_v2'
 
 export default class BragiCanvas extends Plugin {
 	settings: BragiSettings = DEFAULT_SETTINGS
-	private thumbInterval: ReturnType<typeof window.setInterval> | null = null
+	private thumbInterval: number | null = null
 	private attachmentRedirectStop: (() => void) | null = null
 	taskQueue = new TaskQueue()
 	private mcpServer: BragiMcpServer | null = null
-	private pendingTaskSnapshots: TaskSnapshot[] = []
-	private resumedCanvasPaths = new Set<string>()
+	private unloaded = false
+	private settingsWrite: Promise<void> = Promise.resolve()
 	// Placeholder IDs for sync (image/text/audio) generations currently running in
 	// this session. Ghost sweeper consults this alongside TaskQueue to avoid
 	// flagging an in-flight placeholder as interrupted.
@@ -84,10 +87,19 @@ export default class BragiCanvas extends Plugin {
 
 		registerBragiIcons()
 		await this.loadSettings()
-		this.taskQueue.onChange = () => { this.persistPendingTasks() }
-		this.taskQueue.onComplete = (filePath, canvasPath) => {
+		this.taskQueue.onChange = () => this.saveSettings()
+		this.taskQueue.isCanvasLive = (canvas, path) => this.app.workspace.getLeavesOfType('canvas').some(leaf => {
+			const view = leaf.view as unknown as { canvas?: Canvas; file?: { path: string } }
+			return view.canvas === canvas && view.file?.path === path
+		})
+		this.taskQueue.onComplete = async (filePath, canvasPath) => {
 			this.rememberGeneratedAsset(filePath, canvasPath)
+			await this.saveSettings()
 		}
+		this.addCommand({
+			id: 'resume-generation-checks', name: 'Resume pending generation checks',
+			callback: () => { this.tryPatchCanvas(); this.taskQueue.resume() },
+		})
 		this.addSettingTab(new BragiSettingTab(this.app, this))
 
 		// Force all file-opens into new tabs — protects in-flight generation placeholders
@@ -99,6 +111,11 @@ export default class BragiCanvas extends Plugin {
 			// @ts-ignore — internal API
 			this.app.workspace.on('canvas:node-menu', (menu: Menu, node: CanvasNode) => {
 				const nodeData = node.getData()
+				if (this.taskQueue.getSnapshots().some(task => task.placeholderNodeId === node.id && task.canvasPath === this.getCanvasPath(node.canvas))) {
+					menu.addItem(item => item.setTitle('Resume checking').setIcon('refresh-cw').onClick(() => {
+						this.tryPatchCanvas(); this.taskQueue.resume(node.id, this.getCanvasPath(node.canvas) || undefined)
+					}))
+				}
 				if (nodeData.type !== 'file') return
 				const filePath = (nodeData as { file?: string }).file || ''
 				if (!getSeedanceAssetMediaKind(filePath)) return
@@ -185,6 +202,7 @@ export default class BragiCanvas extends Plugin {
 	}
 
 	onunload() {
+		this.unloaded = true
 		this.stopMcpServer()
 		unpatchCanvasMenu()
 		unpatchPlaceholderContextMenu()
@@ -230,16 +248,16 @@ export default class BragiCanvas extends Plugin {
 
 	getActiveCanvas(): Canvas | null {
 		const leaf = this.app.workspace.getLeaf(false)
-		const view = leaf?.view as unknown
+		const view = leaf?.view as CanvasView
 		if (view?.getViewType?.() !== 'canvas' || !view.canvas) return null
-		return view.canvas as Canvas
+		return view.canvas
 	}
 
 	getActiveCanvasPath(): string | null {
 		const leaf = this.app.workspace.getLeaf(false)
-		const view = leaf?.view as unknown
+		const view = leaf?.view as CanvasView
 		if (view?.getViewType?.() !== 'canvas') return null
-		const path = (view)?.file?.path as string | undefined
+		const path = (view)?.file?.path
 		return typeof path === 'string' && path.endsWith('.canvas') ? path : null
 	}
 
@@ -278,7 +296,7 @@ export default class BragiCanvas extends Plugin {
 			this.openUpdateModal(result.update)
 		} catch (err) {
 			console.error('Bragi Canvas: update check failed', err)
-			if (opts.manual) new Notice(`Update check failed: ${err instanceof Error ? err.message : String(err)}`)
+			if (opts.manual) new Notice(`Update check failed: ${err instanceof Error ? errorMessage(err) : String(err)}`)
 		} finally {
 			this.updateCheckInFlight = false
 		}
@@ -347,11 +365,11 @@ export default class BragiCanvas extends Plugin {
 	tryPatchCanvas() {
 		const leaf = this.app.workspace.getLeaf(false)
 		if (!leaf) return
-		const view = leaf.view as unknown
+		const view = leaf.view as CanvasView
 		if (view?.getViewType?.() !== 'canvas' || !view.canvas) return
 
-		const canvas = view.canvas as Canvas
-		const canvasPath = (view)?.file?.path as string | undefined
+		const canvas = view.canvas
+		const canvasPath = (view)?.file?.path
 		if (canvasPath) {
 			this.rememberCanvasPath(canvasPath)
 			this.checkScopedMigration()
@@ -399,11 +417,11 @@ export default class BragiCanvas extends Plugin {
 			(node) => openPanoramaViewer(this.app, getCanvasFromNode(node), node, this.getOutputDir(), path => this.rememberGeneratedAsset(path)),
 			(node) => void splitImageNodeIntoTiles(this, getCanvasFromNode(node), node).catch(err => {
 				console.error('Bragi split grid error:', err)
-				new Notice(`Split failed: ${err.message || err}`)
+				new Notice(`Split failed: ${errorMessage(err) || err}`)
 			}),
 			(nodes) => void composeSelectedImageNodes(this, getCanvasFromNode(nodes[0]), nodes).catch(err => {
 				console.error('Bragi compose images error:', err)
-				new Notice(`Collage failed: ${err.message || err}`)
+				new Notice(`Collage failed: ${errorMessage(err) || err}`)
 			}),
 			(node, activeCanvas) => openImageAnnotationTool(this, activeCanvas, node, 'box'),
 			(node, activeCanvas) => openVideoEditTool(this, activeCanvas, node),
@@ -428,7 +446,7 @@ export default class BragiCanvas extends Plugin {
 		startMediaNodeHover(canvas, this.app)
 
 		// Replace right-side canvas control icons + bottom card menu icons
-		const containerEl = (view).containerEl as HTMLElement
+		const containerEl = (view).containerEl
 		if (containerEl) {
 			replaceCanvasControlIcons(containerEl)
 			replaceCanvasCardMenuIcons(containerEl, canvas, this.app, this.manifest.id)
@@ -462,13 +480,13 @@ export default class BragiCanvas extends Plugin {
 
 	async executeBatchGeneration(nodes: CanvasNode[], result: PanelResult) {
 		const promises = nodes.map(async (node) => {
-			const nodeData = node.getData() as unknown
+			const nodeData = node.getData()
 			let prompt = ''
 			if (nodeData.type === 'text') {
-				prompt = (node as unknown).text?.trim() || nodeData.text?.trim() || ''
+				prompt = node.text?.trim() || nodeData.text?.trim() || ''
 			} else if (nodeData.type === 'file' && /\.md$/i.test(nodeData.file || '')) {
-				const file = this.app.vault.getAbstractFileByPath(nodeData.file)
-				if (file) prompt = (await this.app.vault.read(file as unknown)).trim()
+				const file = this.app.vault.getFileByPath(nodeData.file)
+				if (file) prompt = (await this.app.vault.read(file)).trim()
 			}
 			if (!prompt) return
 			await this.executeGeneration(node, { ...result, prompt })
@@ -531,7 +549,7 @@ export default class BragiCanvas extends Plugin {
 			new Notice('Denoised image ready')
 		} catch (err: unknown) {
 			console.error('Bragi Canvas NLM 35 denoise error:', err)
-			const message = err instanceof Error ? err.message : 'NLM 35 denoise failed'
+			const message = err instanceof Error ? errorMessage(err) : 'NLM 35 denoise failed'
 			markNodeFailed(placeholder, message)
 			new Notice(`NLM 35 failed: ${message}`)
 		} finally {
@@ -588,8 +606,8 @@ export default class BragiCanvas extends Plugin {
 			new Notice(colorMatchDataUri ? 'Denoised image ready with upstream color match' : 'Denoised image ready')
 		} catch (err: unknown) {
 			console.error('Bragi Canvas denoise error:', err)
-			markNodeFailed(placeholder, err instanceof Error ? err.message : 'Denoise failed')
-			new Notice(`Denoise failed: ${err instanceof Error ? err.message : String(err)}`)
+			markNodeFailed(placeholder, err instanceof Error ? errorMessage(err) : 'Denoise failed')
+			new Notice(`Denoise failed: ${err instanceof Error ? errorMessage(err) : String(err)}`)
 		} finally {
 			this.syncGenerating.delete(placeholder.id)
 		}
@@ -648,6 +666,9 @@ export default class BragiCanvas extends Plugin {
 		const { prompt, model } = result
 
 		const canvas = getCanvasFromNode(node)
+		const canvasPath = this.getCanvasPath(canvas)
+		const outputDir = this.getOutputDir()
+		if (!canvasPath) throw new Error('Save the source canvas before generating.')
 
 		// Read upstream inputs (reference images, additional prompts)
 		const upstream = getUpstreamInputs(canvas, node)
@@ -666,6 +687,7 @@ export default class BragiCanvas extends Plugin {
 			return null
 		}
 
+		if (this.getCanvasPath(canvas) !== canvasPath) throw new Error('Source canvas closed before generation started.')
 		const targetSize = computeOutputSize(model.type, readAspectRatio(result.params))
 		const placeholder = createPlaceholderNode(canvas, model.name, node, targetSize)
 		// Register as in-flight so the ghost sweeper doesn't flag it on reloads.
@@ -677,11 +699,11 @@ export default class BragiCanvas extends Plugin {
 		new Notice(`Generating ${model.name}${inputInfo}…`)
 
 		// Fire the provider call in the background — placeholder id is returned immediately.
-		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts)
+		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts, canvasPath, outputDir)
 			.catch((err: unknown) => {
 				console.error('Bragi Canvas generation error:', err)
-				markNodeFailed(placeholder, err?.message || 'Unknown error')
-				new Notice(`Generation failed: ${err?.message || 'Unknown error'}`)
+				if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, errorMessage(err))
+				new Notice(`Generation failed: ${errorMessage(err)}`)
 			})
 			.finally(() => {
 				// Async placeholders are tracked by TaskQueue, not syncGenerating, so
@@ -737,10 +759,11 @@ export default class BragiCanvas extends Plugin {
 		finalPrompt: string,
 		upstream: ReturnType<typeof getUpstreamInputs>,
 		upstreamPrompts: string[],
+		canvasPath: string,
+		outputDir: string,
 	): Promise<void> {
 		const { model, activeProvider, apiModelId, mode, params } = result
 		try {
-			const outputDir = this.getOutputDir()
 
 			// Read reference images in user-defined order (from thumbnail drag)
 			const uniqueImages = getOrderedImages(canvas, node)
@@ -909,7 +932,7 @@ export default class BragiCanvas extends Plugin {
 				const spec = getProvider(activeProvider)
 				const provider = spec?.makeImage?.({ settings: this.settings, app: this.app, outputDir })
 				if (!provider) {
-					markNodeFailed(placeholder, `${activeProvider} doesn't support image generation`)
+					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support image generation`)
 					return
 				}
 				// Legnext historically got `modelId: model.id` instead of apiModelId — preserve
@@ -918,28 +941,27 @@ export default class BragiCanvas extends Plugin {
 					: { ...params, modelId: apiModelId, refImages }
 				const genResult = await provider.generateImage(finalPrompt, imgParams)
 
-				this.rememberGeneratedAsset(genResult.filePath)
-				replacePlaceholderWithFile(canvas, placeholder, genResult.filePath, node)
+				this.rememberGeneratedAsset(genResult.filePath, canvasPath)
+				if (this.getCanvasPath(canvas) === canvasPath) replacePlaceholderWithFile(canvas, placeholder, genResult.filePath, node)
 				new Notice('Image ready')
 
 			} else if (model.type === 'video') {
 				const spec = getProvider(activeProvider)
 				const provider = spec?.makeVideo?.({ settings: this.settings, app: this.app, outputDir })
 				if (!provider) {
-					markNodeFailed(placeholder, `${activeProvider} doesn't support video generation`)
+					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support video generation`)
 					return
 				}
 				const videoResult = await provider.generateVideo(finalPrompt, { ...params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs })
 
 				if (videoResult.done && videoResult.filePath) {
 					// Rare: synchronous completion
-					this.rememberGeneratedAsset(videoResult.filePath)
-					replacePlaceholderWithFile(canvas, placeholder, videoResult.filePath, node)
+					this.rememberGeneratedAsset(videoResult.filePath, canvasPath)
+					if (this.getCanvasPath(canvas) === canvasPath) replacePlaceholderWithFile(canvas, placeholder, videoResult.filePath, node)
 					new Notice('Video ready')
 				} else if (videoResult.taskId) {
 					// Queue for async polling
-					const canvasPath = (this.app.workspace.getLeaf(false)?.view as unknown)?.file?.path as string | undefined
-					this.taskQueue.addTask({
+					await this.taskQueue.addTask({
 						snapshot: {
 							taskId: videoResult.taskId,
 							providerName: activeProvider,
@@ -964,19 +986,27 @@ export default class BragiCanvas extends Plugin {
 				const spec = getProvider(activeProvider)
 				const provider = spec?.makeText?.({ settings: this.settings, app: this.app, outputDir })
 				if (!provider) {
-					markNodeFailed(placeholder, `${activeProvider} doesn't support text generation`)
+					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support text generation`)
 					return
 				}
 				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages, refVideos, refAudios, refPdfs })
 
+				if (this.getCanvasPath(canvas) !== canvasPath) {
+					const path = `${outputDir}/text_${Date.now()}.md`
+					if (!await this.app.vault.adapter.exists(outputDir)) await this.app.vault.adapter.mkdir(outputDir)
+					await this.app.vault.adapter.write(path, textResult)
+					this.rememberGeneratedAsset(path, canvasPath)
+					new Notice(`Source canvas closed. Text saved to ${path}`)
+					return
+				}
 				// Split result into multiple nodes if ---SPLIT--- is present
 				canvas.removeNode(placeholder)
 				const segments = textResult.split(/\n?---SPLIT---\n?/).map((s: string) => s.trim()).filter(Boolean)
 				const currentData = canvas.getData()
 				const sourceData = node.getData()
 				const nodeWidth = Math.max(300, sourceData.width)
-				const newNodes: unknown[] = []
-				const newEdges: unknown[] = []
+				const newNodes: AllCanvasNodeData[] = []
+				const newEdges: CanvasEdgeData[] = []
 
 				for (let i = 0; i < segments.length; i++) {
 					const nodeId = Math.random().toString(36).substring(2, 18)
@@ -1012,7 +1042,7 @@ export default class BragiCanvas extends Plugin {
 				const spec = getProvider(activeProvider)
 				const provider = spec?.makeAudio?.({ settings: this.settings, app: this.app, outputDir })
 				if (!provider) {
-					markNodeFailed(placeholder, `${activeProvider} doesn't support audio generation`)
+					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support audio generation`)
 					return
 				}
 				const audioParams: Record<string, unknown> = { ...params }
@@ -1039,8 +1069,8 @@ export default class BragiCanvas extends Plugin {
 					refVideos,
 				})
 				if (audioResult.filePath) {
-					this.rememberGeneratedAsset(audioResult.filePath)
-					replacePlaceholderWithFile(canvas, placeholder, audioResult.filePath, node)
+					this.rememberGeneratedAsset(audioResult.filePath, canvasPath)
+					if (this.getCanvasPath(canvas) === canvasPath) replacePlaceholderWithFile(canvas, placeholder, audioResult.filePath, node)
 					if (customVoiceRecord) {
 						const outputNode = findFileNodeByPath(canvas, audioResult.filePath)
 						if (outputNode) {
@@ -1050,8 +1080,7 @@ export default class BragiCanvas extends Plugin {
 					}
 					new Notice('Audio ready')
 				} else if (audioResult.taskId && provider.checkStatus) {
-					const canvasPath = (this.app.workspace.getLeaf(false)?.view as unknown)?.file?.path as string | undefined
-					this.taskQueue.addTask({
+					await this.taskQueue.addTask({
 						snapshot: {
 							taskId: audioResult.taskId,
 							providerName: activeProvider,
@@ -1076,8 +1105,8 @@ export default class BragiCanvas extends Plugin {
 			}
 		} catch (err: unknown) {
 			console.error('Bragi Canvas generation error:', err)
-			markNodeFailed(placeholder, err.message || 'Unknown error')
-			new Notice(`Generation failed: ${err.message}`)
+			if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, errorMessage(err) || 'Unknown error')
+			new Notice(`Generation failed: ${errorMessage(err)}`)
 		}
 	}
 
@@ -1138,6 +1167,7 @@ export default class BragiCanvas extends Plugin {
 				mimeType: audioMimeType(sourcePath),
 			})
 
+			if (!result.filePath) throw new Error('Voice change did not return an audio file.')
 			this.rememberGeneratedAsset(result.filePath)
 			replacePlaceholderWithFile(canvas, placeholder, result.filePath, node)
 			const outputNode = findFileNodeByPath(canvas, result.filePath)
@@ -1148,7 +1178,7 @@ export default class BragiCanvas extends Plugin {
 			new Notice('Voice changed')
 		} catch (err: unknown) {
 			console.error('Bragi Canvas voice changer error:', err)
-			const message = err instanceof Error ? err.message : String(err)
+			const message = err instanceof Error ? errorMessage(err) : String(err)
 			markNodeFailed(placeholder, message || 'Voice changer failed')
 			new Notice(`Voice changer failed: ${message}`)
 		} finally {
@@ -1166,7 +1196,7 @@ export default class BragiCanvas extends Plugin {
 			return
 		}
 
-		const nodeData = node.getData() as unknown
+		const nodeData = node.getData()
 		const filePath = nodeData.file
 		if (!filePath) return
 
@@ -1224,8 +1254,8 @@ export default class BragiCanvas extends Plugin {
 			new Notice('Transcription ready')
 		} catch (err: unknown) {
 			console.error('Bragi Canvas STT error:', err)
-			markNodeFailed(placeholder, err.message || 'Transcription failed')
-			new Notice(`Transcription failed: ${err.message}`)
+			markNodeFailed(placeholder, errorMessage(err) || 'Transcription failed')
+			new Notice(`Transcription failed: ${errorMessage(err)}`)
 		}
 	}
 
@@ -1239,7 +1269,7 @@ export default class BragiCanvas extends Plugin {
 			return
 		}
 
-		const nodeData = node.getData() as unknown
+		const nodeData = node.getData()
 		const filePath = nodeData.file
 		if (!filePath) return
 
@@ -1283,8 +1313,8 @@ export default class BragiCanvas extends Plugin {
 			new Notice('Voice isolated')
 		} catch (err: unknown) {
 			console.error('Bragi Canvas isolation error:', err)
-			markNodeFailed(placeholder, err.message || 'Voice isolation failed')
-			new Notice(`Voice isolation failed: ${err.message}`)
+			markNodeFailed(placeholder, errorMessage(err) || 'Voice isolation failed')
+			new Notice(`Voice isolation failed: ${errorMessage(err)}`)
 		}
 	}
 
@@ -1368,19 +1398,24 @@ export default class BragiCanvas extends Plugin {
 		const { _pendingTasks, ...settingsData } = raw
 		const result = migrateSettings(settingsData, DEFAULT_SETTINGS)
 		this.settings = result.settings
-		this.pendingTaskSnapshots = Array.isArray(_pendingTasks) ? _pendingTasks : []
+		this.taskQueue.restore(_pendingTasks)
 		if (result.changed) await this.saveSettings()
 	}
 
-	async saveSettings() {
-		await this.saveData({ ...this.settings, _pendingTasks: this.taskQueue.getSnapshots() })
+	async saveSettings(): Promise<void> {
+		const data = structuredClone({ ...this.settings, _pendingTasks: this.taskQueue.getSnapshots() })
+		const write = this.settingsWrite.catch(() => {}).then(() => this.saveData(data))
+		this.settingsWrite = write
+		await write
 	}
 
-	private persistPendingTasks() {
-		// Fire-and-forget; keep _pendingTasks in sync with the queue.
-		void this.saveData({ ...this.settings, _pendingTasks: this.taskQueue.getSnapshots() }).catch(err => {
-			console.error('Bragi Canvas: failed to persist pending tasks', err)
-		})
+	private getCanvasPath(canvas: Canvas): string | null {
+		if (this.unloaded) return null
+		for (const leaf of this.app.workspace.getLeavesOfType('canvas')) {
+			const view = leaf.view as unknown as { canvas?: Canvas; file?: { path: string } }
+			if (view.canvas === canvas && view.file?.path) return view.file.path
+		}
+		return null
 	}
 
 	private checkScopedMigration(): void {
@@ -1405,60 +1440,11 @@ export default class BragiCanvas extends Plugin {
 			: spec?.makeVideo?.(ctx) ?? null
 	}
 
-	// Try to resume pending tasks whose canvas is now open.
-	// Called from tryPatchCanvas() — idempotent per canvas path.
-	private resumePendingTasksForCanvas(canvas: Canvas, canvasPath: string) {
-		if (this.resumedCanvasPaths.has(canvasPath)) return
-
-		const mine = this.pendingTaskSnapshots.filter(s => s.canvasPath === canvasPath)
-		if (mine.length === 0) {
-			this.resumedCanvasPaths.add(canvasPath)
-			return
-		}
-
-		// Wait until the canvas has actually loaded nodes — otherwise we'd drop every snapshot as an orphan.
-		if (canvas.nodes.size === 0) return
-		this.resumedCanvasPaths.add(canvasPath)
-
-		let resumed = 0
-		let dropped = 0
-		for (const snap of mine) {
-			if (this.taskQueue.hasTask(snap.taskId)) continue
-
-			const placeholder = canvas.nodes.get(snap.placeholderNodeId)
-			const sourceNode = canvas.nodes.get(snap.sourceNodeId)
-			if (!placeholder || !sourceNode) {
-				dropped++
-				continue
-			}
-
-			const provider = this.buildTaskProvider(snap)
-			if (!provider || !provider.checkStatus) {
-				dropped++
-				continue
-			}
-
-			// Re-mark placeholder as generating (shimmer class is DOM-only, lost on reload)
-			const nodeEl = (placeholder as unknown).nodeEl || (placeholder as unknown).containerEl
-			nodeEl?.classList.add('bragi-generating')
-
-			this.taskQueue.addTask({
-				snapshot: snap,
-				provider,
-				canvas,
-				placeholder,
-				sourceNode,
-			})
-			resumed++
-		}
-
-		// Drop orphans from snapshot list (queue now owns the live ones)
-		this.pendingTaskSnapshots = this.pendingTaskSnapshots.filter(s => s.canvasPath !== canvasPath)
-		this.persistPendingTasks()
-
-		if (resumed > 0) new Notice(`Resumed ${resumed} generation task${resumed > 1 ? 's' : ''}`)
-		if (dropped > 0) console.warn(`Bragi Canvas: Dropped ${dropped} pending task(s) — nodes or provider no longer available`)
+	// Bind runtime views to durable records; unopened canvases remain in the queue.
+	private resumePendingTasksForCanvas(canvas: Canvas, canvasPath: string): void {
+		this.taskQueue.bindCanvas(canvas, canvasPath, snapshot => this.buildTaskProvider(snapshot))
 	}
+
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {

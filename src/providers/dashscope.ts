@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, assertPendingStatus, TaskPollingError } from '../task-errors'
 import type { App } from 'obsidian'
 import { normalizePath, requestUrl } from 'obsidian'
 import type {
@@ -292,7 +293,7 @@ function dataUriToBytes(dataUri: string, kind: 'image' | 'audio' | 'video' | 'pd
 }
 
 function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-	return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+	return new Uint8Array(bytes).buffer
 }
 
 function videoExtFromUrl(url: string): string {
@@ -526,7 +527,7 @@ export class DashScopeVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: dashScopeUrl(this.baseUrl, `${TASK_PATH}/${encodeURIComponent(taskId)}`),
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -544,8 +545,9 @@ export class DashScopeVideoProvider implements VideoProvider {
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (VIDEO_FAILED_STATUSES.has(status)) {
-			throw new Error(`DashScope video: ${videoFailureMessage(payload)}`)
+			throw new TaskPollingError(`DashScope video: ${videoFailureMessage(payload)}`, 'terminal')
 		}
+		assertPendingStatus(status)
 		return { done: false, taskId }
 	}
 
@@ -794,14 +796,14 @@ export class DashScopeVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const outputDir = outputDirectoryPath(this.outputDir)
 		// `checkStatus` only receives a task id, so the file name stays model-neutral
 		// rather than mislabelling Wan 3.0 / HappyHorse output as Wan 2.7.
 		const filePath = outputFilePath(this.outputDir, `dashscope_video_${Date.now()}.${videoExtFromUrl(url)}`)
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(outputDir)) await adapter.mkdir(outputDir)
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 }

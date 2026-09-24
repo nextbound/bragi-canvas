@@ -111,7 +111,7 @@ export class GeminiProvider implements ImageProvider {
 
 		// Decode base64 and write
 		const binary = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0))
-		await adapter.writeBinary(filePath, binary)
+		await adapter.writeBinary(filePath, binary.buffer)
 
 		return { filePath }
 	}

@@ -30,14 +30,14 @@ export function getOrderedTextRefs(canvas: Canvas, node: CanvasNode): TextRef[] 
 
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as unknown).getData?.() || edge
+		const edgeData = edge.getData?.() || edge
 		const toEnd = edgeData.toEnd ?? 'arrow'
 		const fromEnd = edgeData.fromEnd ?? 'none'
 		if (toEnd !== 'arrow') continue
 		if (fromEnd === 'arrow') continue
 
 		const src = edge.from.node
-		const data = src.getData() as unknown
+		const data = src.getData()
 		const srcId = src.id
 
 		if (data.type === 'text') {
@@ -51,7 +51,7 @@ export function getOrderedTextRefs(canvas: Canvas, node: CanvasNode): TextRef[] 
 		}
 	}
 
-	const nodeData = node.getData() as unknown
+	const nodeData = node.getData()
 	const savedOrder: string[] | undefined = nodeData.bragiTextOrder
 	const ordered: TextRef[] = []
 
@@ -87,11 +87,11 @@ export async function getOrderedPrompts(
 	const fullById = new Map<string, { kind: 'text' | 'md'; value: string }>()
 	for (const edge of edges) {
 		if (edge.to.node.id !== node.id) continue
-		const edgeData = (edge as unknown).getData?.() || edge
+		const edgeData = edge.getData?.() || edge
 		if ((edgeData.toEnd ?? 'arrow') !== 'arrow') continue
 		if ((edgeData.fromEnd ?? 'none') === 'arrow') continue
 		const src = edge.from.node
-		const data = src.getData() as unknown
+		const data = src.getData()
 		if (data.type === 'text') {
 			const text = (src.text || data.text || '').trim()
 			if (text) fullById.set(src.id, { kind: 'text', value: text })
@@ -106,9 +106,9 @@ export async function getOrderedPrompts(
 		if (full.kind === 'text') {
 			result.push(full.value)
 		} else {
-			const file = app.vault.getAbstractFileByPath(full.value)
+			const file = app.vault.getFileByPath(full.value)
 			if (file) {
-				const content = await app.vault.read(file as unknown)
+				const content = await app.vault.read(file)
 				if (content.trim()) result.push(content.trim())
 			}
 		}
@@ -123,7 +123,7 @@ export function updateTextRefStrip(canvas: Canvas, node: CanvasNode, app: App): 
 		return
 	}
 
-	const nodeData = node.getData() as unknown
+	const nodeData = node.getData()
 	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && /\.md$/i.test(nodeData.file || ''))) {
 		return
 	}
@@ -211,7 +211,7 @@ export function updateTextRefStrip(canvas: Canvas, node: CanvasNode, app: App): 
 			order.splice(fromIdx, 1)
 			order.splice(toIdx, 0, draggedId)
 
-			const d = node.getData() as unknown
+			const d = node.getData()
 			node.setData({ ...d, bragiTextOrder: order })
 
 			endRefDrag()
@@ -236,7 +236,7 @@ export function refreshAllTextRefs(canvas: Canvas, app: App): void {
 	if (!canvas.nodes) return
 	const nodes = canvas.nodes instanceof Map
 		? Array.from(canvas.nodes.values())
-		: (canvas.nodes as unknown[])
+		: ([] as CanvasNode[])
 	for (const node of nodes) {
 		const data = node.getData()
 		if (data.type === 'text' || (data.type === 'file' && /\.md$/i.test((data).file || ''))) {

@@ -136,3 +136,17 @@ Release tags must be plain semantic versions such as `1.12.4`. Do not prefix tag
 ## License
 
 Bragi Canvas is licensed under the Mozilla Public License 2.0 (`MPL-2.0`). See [LICENSE](LICENSE).
+
+## Recovering tasks
+
+Async audio and video tasks retain their source canvas and task ID across settings changes and restarts. Reopen the source canvas to continue. Temporary connection, rate-limit and server errors retry automatically. For a credential, unrecognized-response or local storage error, fix the issue and use **Resume checking** in the placeholder menu or **Resume pending generation checks** in the command palette. Recovery checks the original task and does not submit another generation.
+
+Downloaded output paths are saved before the canvas is updated. If a save fails, recovery reuses that file. If the placeholder was deleted, the saved output remains in `_bragi/assets/`.
+
+Asset tidying copies files and updates only the selected canvas, preserving originals for other notes and canvases. It saves a canvas backup first and reports partial completion.
+
+Local MCP clients can connect without a token when the token setting is empty; this mode does not isolate other processes on your machine. The server rejects external browser origins, `Origin: null`, unexpected Host headers, non-JSON POSTs and bodies over 64 MiB. Body reads time out after 30 seconds. An Origin header, if present, must exactly match the server URL's origin. CLI clients normally omit it.
+
+## Development checks
+
+Run `npm ci` then `npm run verify`. Builds create local release artifacts only. To copy a verified build into an existing development vault, run `npm run sync:dev-vault -- /absolute/path/to/vault/plugin-directory` explicitly. Run tests in a separate vault with synthetic data and no production credentials.

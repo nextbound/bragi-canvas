@@ -164,7 +164,7 @@ try {
 			buildApi.onLoad({ filter: /.*/, namespace: 'mock-canvas-ops' }, () => ({
 				contents: `
 					export function replacePlaceholderWithFile(...args) { process.__bragiTaskReplacements.push(args) }
-					export function markNodeFailed(...args) { process.__bragiTaskFailures.push(args) }
+					export function detachGeneratingOverlay() {}; export function markNodeFailed(...args) { process.__bragiTaskFailures.push(args) }
 				`,
 				loader: 'js',
 			}))
@@ -186,7 +186,7 @@ try {
 			startedAt: Date.now(), outputType: 'audio',
 		},
 		provider: { name: 'Mureka', checkStatus: async () => ({ done: true, filePath: '_bragi/assets/result.mp3' }) },
-		canvas: {}, placeholder: {}, sourceNode: {},
+		canvas: { nodes:new Map(), getData: () => ({nodes:[{id:'placeholder',type:'text',x:0,y:0,width:100,height:100}],edges:[]}), importData: data => process.__bragiTaskReplacements.push(data), requestSave: async () => {} }, placeholder: {}, sourceNode: {},
 	})
 	await queue.pollAll()
 	assert.equal(queue.activeCount, 0)
@@ -201,7 +201,7 @@ try {
 			startedAt: Date.now(),
 		},
 		provider: { name: 'Pika', checkStatus: async () => ({ done: true, filePath: '_bragi/assets/result.mp4' }) },
-		canvas: {}, placeholder: {}, sourceNode: {},
+		canvas: { nodes:new Map(), getData: () => ({nodes:[{id:'placeholder',type:'text',x:0,y:0,width:100,height:100}],edges:[]}), importData: data => process.__bragiTaskReplacements.push(data), requestSave: async () => {} }, placeholder: {}, sourceNode: {},
 	})
 	await legacyQueue.pollAll()
 	assert.equal(process.__bragiTaskNotices.at(-1), 'Video ready (Kling 3.0)')

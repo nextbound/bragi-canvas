@@ -50,7 +50,7 @@ export function patchPlaceholderContextMenu(canvas: Canvas): void {
 	const sample = canvas.nodes.values().next().value as CanvasNode | undefined
 	if (!sample) return
 
-	const proto = Object.getPrototypeOf(sample) as { showMenu?: (...args: unknown[]) => unknown }
+	const proto = Object.getPrototypeOf(sample) as { showMenu: (...args: unknown[]) => unknown }
 	if (!proto?.showMenu) return
 
 	contextMenuUninstaller = around(proto, {

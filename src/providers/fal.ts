@@ -1,3 +1,5 @@
+import { stringArray } from '../runtime-values'
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult, VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
@@ -151,8 +153,8 @@ export class FalVideoProvider implements VideoProvider {
 	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
 		let modelId = stringParam(params?.modelId, 'xai/grok-imagine-video')
 		const genMode = params?.genMode || 'text-to-video'
-		const refImages: string[] = params?.refImages || []
-		const refVideos: string[] = params?.refVideos || []
+		const refImages: string[] = stringArray(params?.refImages)
+		const refVideos: string[] = stringArray(params?.refVideos)
 
 		// Route to correct sub-endpoint based on mode
 		const modelBase = modelId.split('/text-to-video')[0].split('/image-to-video')[0]
@@ -173,14 +175,14 @@ export class FalVideoProvider implements VideoProvider {
 		}
 
 		// Build input
-		const input: unknown = { prompt }
+		const input: Record<string, unknown> = { prompt }
 
-		if (params?.duration) input.duration = parseInt(params.duration)
+		if (params?.duration) input.duration = parseInt(stringParam(params.duration, '5'))
 		if (params?.aspectRatio) input.aspect_ratio = params.aspectRatio
 		if (params?.aspect_ratio) input.aspect_ratio = params.aspect_ratio
 		if (params?.resolution) input.resolution = params.resolution
 		if (params?.ratio) input.aspect_ratio = params.ratio
-		if (params?.durationSeconds) input.duration = parseInt(params.durationSeconds)
+		if (params?.durationSeconds) input.duration = parseInt(stringParam(params.durationSeconds, '5'))
 
 		// Image inputs — data URIs need to be uploaded to R2 first
 		if (refImages.length > 0) {
@@ -241,7 +243,7 @@ export class FalVideoProvider implements VideoProvider {
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
 		const [modelId, requestId] = taskId.split('::')
 
-		const statusResponse = await requestUrl({
+		const statusResponse = await pollRequest({
 			url: `${FAL_QUEUE}/${modelId}/requests/${requestId}/status`,
 			method: 'GET',
 			headers: { 'Authorization': `Key ${this.apiKey}` },
@@ -251,7 +253,7 @@ export class FalVideoProvider implements VideoProvider {
 
 		if (status.status === 'COMPLETED') {
 			// Get result
-			const resultResponse = await requestUrl({
+			const resultResponse = await pollRequest({
 				url: `${FAL_QUEUE}/${modelId}/requests/${requestId}`,
 				method: 'GET',
 				headers: { 'Authorization': `Key ${this.apiKey}` },
@@ -268,15 +270,16 @@ export class FalVideoProvider implements VideoProvider {
 		}
 
 		if (status.status === 'FAILED') {
-			throw new Error(`fal.ai: Task failed — ${status.error || 'unknown error'}`)
+			throw new TaskPollingError(`fal.ai: Task failed — ${status.error || 'unknown error'}`, 'terminal')
 		}
 
 		// IN_QUEUE or IN_PROGRESS
+		assertPendingStatus(status.status)
 		return { done: false, taskId }
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({ url })
+		const response = await pollRequest({ url })
 		const timestamp = Date.now()
 		const fileName = `vid_${timestamp}.mp4`
 		const filePath = `${this.outputDir}/${fileName}`
@@ -286,7 +289,7 @@ export class FalVideoProvider implements VideoProvider {
 			await adapter.mkdir(this.outputDir)
 		}
 
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 }

@@ -1,3 +1,4 @@
+import { errorMessage } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- BFL responses are runtime-shaped API payloads. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -187,7 +188,7 @@ export async function testBflConnection(apiKey: string): Promise<{ ok: boolean; 
 		if (resp.status === 200) return { ok: true, message: 'Connected.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err instanceof Error ? err.message : String(err)}` }
+		return { ok: false, message: `Network error: ${err instanceof Error ? errorMessage(err) : String(err)}` }
 	}
 }
 
@@ -323,7 +324,7 @@ export async function colorMatchImage(referenceDataUri: string, targetBytes: Arr
 	canvas.height = target.height
 	const ctx = canvas.getContext('2d')
 	if (!ctx) throw new Error('BFL: could not encode color matched image')
-	ctx.putImageData(new ImageData(output, target.width, target.height), 0, 0)
+	ctx.putImageData(new ImageData(new Uint8ClampedArray(output), target.width, target.height), 0, 0)
 	return canvasToPng(canvas)
 }
 

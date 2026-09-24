@@ -92,7 +92,7 @@ try {
 	process.__soniloRequest = async () => response(402, { error: { message: 'Insufficient credits' } })
 	await assert.rejects(() => provider.generateAudio('ambient', { mode: 'music', duration: 5 }), /Insufficient credits/)
 	process.__soniloRequest = async () => response(429, { error: { message: 'Concurrent limit' } })
-	assert.deepEqual(await provider.checkStatus('sonilo:rate-limited'), { done: false, taskId: 'sonilo:rate-limited' })
+	await assert.rejects(() => provider.checkStatus('sonilo:rate-limited'), error => error.kind === 'retryable')
 	console.log('Sonilo offline checks passed.')
 
 	if (live) {

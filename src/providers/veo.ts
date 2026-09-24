@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { VideoProvider, GenerateVideoResult } from './types'
 import type { App } from 'obsidian'
@@ -104,7 +105,7 @@ export class VeoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const response = await requestUrl({
+		const response = await pollRequest({
 			url: `${BASE_URL}/${taskId}`,
 			method: 'GET',
 			headers: {
@@ -114,7 +115,9 @@ export class VeoProvider implements VideoProvider {
 		})
 
 		const data = response.json
+		if (response.status < 400 && data?.done === true && data.error) throw new TaskPollingError(`Veo: ${data.error.message || 'Task failed'}`, 'terminal')
 		throwForGoogleError('Veo', response)
+		if (!data || (data.done !== false && data.done !== true && typeof data.name !== 'string')) throw new Error('Veo: malformed operation response')
 
 		if (data.done) {
 			// Extract video URI
@@ -134,7 +137,7 @@ export class VeoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const response = await requestUrl({
+		const response = await pollRequest({
 			url,
 			headers: {
 				'x-goog-api-key': this.apiKey,
@@ -151,7 +154,7 @@ export class VeoProvider implements VideoProvider {
 			await adapter.mkdir(this.outputDir)
 		}
 
-		await adapter.writeBinary(filePath, response.arrayBuffer)
+		await writeTaskResult(adapter, filePath, response.arrayBuffer)
 		return filePath
 	}
 }

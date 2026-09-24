@@ -17,14 +17,14 @@ function toHex(buffer: ArrayBuffer): string {
 
 async function sha256Hex(data: string | Uint8Array): Promise<string> {
 	const buf = typeof data === 'string' ? new TextEncoder().encode(data) : data
-	const hash = await crypto.subtle.digest('SHA-256', buf)
+	const hash = await crypto.subtle.digest('SHA-256', new Uint8Array(buf))
 	return toHex(hash)
 }
 
 async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
 	const cryptoKey = await crypto.subtle.importKey(
 		'raw',
-		key instanceof ArrayBuffer ? key : key.buffer,
+		key instanceof ArrayBuffer ? key : new Uint8Array(key).buffer,
 		{ name: 'HMAC', hash: 'SHA-256' },
 		false,
 		['sign'],

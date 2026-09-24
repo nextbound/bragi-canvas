@@ -1,3 +1,4 @@
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type { GenerateVideoResult, VideoProvider } from './types'
@@ -70,7 +71,7 @@ function dataUriToBytes(dataUri: string): { bytes: Uint8Array; ext: string; mime
 }
 
 function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-	return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+	return new Uint8Array(bytes).buffer
 }
 
 function videoExtFromUrl(url: string): string {
@@ -177,7 +178,7 @@ export class Token360VideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: `${BASE_URL}/videos/${encodeURIComponent(taskId)}`,
 			method: 'GET',
 			headers: { 'Authorization': `Bearer ${this.apiKey}` },
@@ -194,8 +195,9 @@ export class Token360VideoProvider implements VideoProvider {
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (FAILED_STATUSES.has(normalized)) {
-			throw new Error(`Token360 video: ${extractFailure(data)}`)
+			throw new TaskPollingError(`Token360 video: ${extractFailure(data)}`, 'terminal')
 		}
+		assertPendingStatus(normalized)
 		return { done: false, taskId }
 	}
 
@@ -256,11 +258,11 @@ export class Token360VideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/token360_video_${Date.now()}.${videoExtFromUrl(url)}`
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 }

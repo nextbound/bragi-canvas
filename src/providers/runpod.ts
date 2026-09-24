@@ -1,3 +1,4 @@
+import { errorMessage } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- RunPod queue responses are runtime-shaped API payloads. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -188,7 +189,7 @@ export async function testRunPodConnection(apiKey: string): Promise<{ ok: boolea
 		if (resp.status < 500) return { ok: true, message: 'Connected.' }
 		return { ok: false, message: `Unexpected status ${resp.status}.` }
 	} catch (err: unknown) {
-		return { ok: false, message: `Network error: ${err instanceof Error ? err.message : String(err)}` }
+		return { ok: false, message: `Network error: ${err instanceof Error ? errorMessage(err) : String(err)}` }
 	}
 }
 

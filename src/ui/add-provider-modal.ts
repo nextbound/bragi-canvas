@@ -1,3 +1,4 @@
+import { errorMessage } from '../task-errors'
 import { Modal, Setting, Notice, setIcon, setTooltip } from 'obsidian'
 import type BragiCanvas from '../main'
 import { describeProviderModelSupport, settingsWithProviderCredentialDraft, type ProviderCredentialDraft } from '../provider-model-prefs'
@@ -256,7 +257,7 @@ export class AddProviderModal extends Modal {
 						if (res.ok) new Notice(`${currentSpec.name}: ${res.message}`)
 						else new Notice(`${currentSpec.name}: ${res.message}`, 6000)
 					} catch (err: unknown) {
-						const message = err instanceof Error ? err.message : String(err)
+						const message = err instanceof Error ? errorMessage(err) : String(err)
 						new Notice(`${currentSpec.name}: test failed — ${message}`, 6000)
 					} finally {
 						test.disabled = false

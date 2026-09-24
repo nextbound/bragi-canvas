@@ -20,7 +20,7 @@ export function getOrderedImages(canvas: Canvas, node: CanvasNode): string[] {
 	const upstream = getUpstreamInputs(canvas, node)
 	const uniqueImages = [...new Set(upstream.images)]
 
-	const nodeData = node.getData() as unknown
+	const nodeData = node.getData()
 	const savedOrder: string[] | undefined = nodeData.bragiImageOrder || nodeData.ovidImageOrder
 
 	if (savedOrder && savedOrder.length > 0) {
@@ -51,7 +51,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 	}
 
 	const nodeData = node.getData()
-	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && (nodeData as unknown).file?.endsWith('.md'))) {
+	if (nodeData.type !== 'text' && !(nodeData.type === 'file' && nodeData.file?.endsWith('.md'))) {
 		return
 	}
 
@@ -153,7 +153,7 @@ export function updateRefThumbnails(canvas: Canvas, node: CanvasNode, app: App):
 			newOrder.splice(toIdx, 0, draggedPath)
 
 			// Save to node metadata (drop legacy key so it doesn't drift)
-			const data = node.getData() as unknown
+			const data = node.getData()
 			const rest = { ...data }
 			delete rest.ovidImageOrder
 			node.setData({ ...rest, bragiImageOrder: newOrder })
@@ -191,7 +191,7 @@ export function refreshAllThumbnails(canvas: Canvas, app: App): void {
 
 	for (const node of nodes) {
 		const data = node.getData()
-		if (data.type === 'text' || (data.type === 'file' && (data as unknown).file?.endsWith('.md'))) {
+		if (data.type === 'text' || (data.type === 'file' && data.file?.endsWith('.md'))) {
 			updateRefThumbnails(canvas, node, app)
 		}
 	}

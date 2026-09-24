@@ -1,3 +1,5 @@
+import { errorMessage } from '../task-errors'
+import { writeTaskResult, pollRequest, TaskPollingError } from '../task-errors'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { stringParam } from './params'
@@ -102,7 +104,7 @@ export function suchuangTaskState(value: unknown): TaskState {
 	const status = stringParam(raw, '').trim().toLowerCase()
 	if (status === '0' || status === '1' || status === 'init' || status === 'initializing' || status === 'pending' || status === 'running' || status === 'processing') return 'pending'
 	if (status === '2' || status === 'success' || status === 'succeeded' || status === 'completed' || status === 'done') return 'succeeded'
-	if (status === '3' || status === 'failed' || status === 'failure' || status === 'error') return 'failed'
+	if (status === '3' || status === 'failed' || status === 'failure' || status === 'error' || status === 'cancelled' || status === 'canceled') return 'failed'
 	return 'unknown'
 }
 
@@ -253,7 +255,7 @@ export class SuchuangVideoProvider implements VideoProvider {
 	}
 
 	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
-		const resp = await requestUrl({
+		const resp = await pollRequest({
 			url: buildUrl(DETAIL_PATH, this.apiKey, { id: taskId }),
 			method: 'GET',
 			headers: {
@@ -269,11 +271,11 @@ export class SuchuangVideoProvider implements VideoProvider {
 		if (state === 'failed') {
 			const data = recordParam(asRecord(resp.json)?.data)
 			const detail = stringifyDetail(data?.message) || providerMessage(resp.json) || 'no reason provided'
-			throw new Error(`SuChuang Gemini Omni: task failed — ${detail}`)
+			throw new TaskPollingError(`SuChuang Gemini Omni: task failed — ${detail}`, 'terminal')
 		}
 
 		const videoUrl = extractSuchuangVideoUrl(resp.json)
-		if (state !== 'succeeded' && !videoUrl) return { done: false, taskId }
+		if (state !== 'succeeded' && !videoUrl) throw new Error('SuChuang: unknown task status')
 		if (!videoUrl) {
 			throw new Error(`SuChuang Gemini Omni: completed task has no video URL — ${JSON.stringify(resp.json).substring(0, 240)}`)
 		}
@@ -282,14 +284,14 @@ export class SuchuangVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await requestUrl({ url })
+		const resp = await pollRequest({ url })
 		const fileName = `suchuang_google_omni_${Date.now()}.${videoExtension(url)}`
 		const filePath = `${this.outputDir}/${fileName}`
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) {
 			await adapter.mkdir(this.outputDir)
 		}
-		await adapter.writeBinary(filePath, resp.arrayBuffer)
+		await writeTaskResult(adapter, filePath, resp.arrayBuffer)
 		return filePath
 	}
 
@@ -340,7 +342,7 @@ export async function testSuchuangConnection(apiKey: string): Promise<{ ok: bool
 		if (resp.status >= 400) return { ok: false, message: `Unexpected status ${resp.status}.` }
 		return { ok: true, message: 'Connected.' }
 	} catch (err: unknown) {
-		const message = err instanceof Error ? err.message : String(err)
+		const message = err instanceof Error ? errorMessage(err) : String(err)
 		return { ok: false, message: `Network error: ${message}` }
 	}
 }

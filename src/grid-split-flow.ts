@@ -1,3 +1,4 @@
+import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Notice } from 'obsidian'
 import type BragiCanvas from './main'
@@ -17,7 +18,7 @@ function extToMime(ext: string): string {
 }
 
 export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canvas, node: CanvasNode): Promise<void> {
-	const data = node.getData() as unknown
+	const data = node.getData()
 	const imgPath: string | undefined = data.file
 	if (!imgPath) { new Notice('This node has no image file'); return }
 
@@ -68,8 +69,8 @@ export async function splitImageNodeIntoTiles(plugin: BragiCanvas, canvas: Canva
 	let cursorY = srcY
 
 	const current = canvas.getData()
-	const newNodes: unknown[] = []
-	const newEdges: unknown[] = []
+	const newNodes: AllCanvasNodeData[] = []
+	const newEdges: CanvasEdgeData[] = []
 
 	for (let i = 0; i < tileFiles.length; i++) {
 		const nodeId = generateId()

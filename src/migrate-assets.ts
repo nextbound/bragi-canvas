@@ -1,3 +1,4 @@
+import { errorMessage } from './task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { App, Modal, Notice, TFile, TFolder } from 'obsidian'
 import type BragiCanvas from './main'
@@ -104,7 +105,7 @@ class AssetsMigrationModal extends Modal {
 			text: `Bragi Canvas used to scatter generated images and videos next to each canvas. The active canvas references ${totalFiles} old file${totalFiles === 1 ? '' : 's'} in ${this.folders.length} nearby folder${this.folders.length === 1 ? '' : 's'}.`,
 		})
 		contentEl.createEl('p', {
-			text: `We can move them into a single hidden folder so your vault stays clean. Your canvases will keep working — references are updated automatically, and a backup is saved first.`,
+			text: `We can copy them into a single folder so your vault stays clean. Your canvases will keep working — references in this canvas are updated, the original files remain available to other notes, and a backup is saved first.`,
 		})
 
 		const details = contentEl.createEl('details')
@@ -143,7 +144,7 @@ class AssetsMigrationModal extends Modal {
 					await this.plugin.saveSettings()
 					this.close()
 				} catch (err: unknown) {
-					new Notice(`Tidy up failed: ${err.message || err}`)
+					new Notice(`Tidy up failed: ${errorMessage(err)}`)
 					migrate.disabled = false
 					later.disabled = false
 					dontAsk.disabled = false
@@ -168,7 +169,7 @@ function ext(name: string): string {
 	return i > 0 ? name.substring(i) : ''
 }
 
-async function performMigration(plugin: BragiCanvas, folders: TFolder[], canvasPath: string, legacyPaths: string[]): Promise<void> {
+export async function performMigration(plugin: BragiCanvas, _folders: TFolder[], canvasPath: string, legacyPaths: string[]): Promise<void> {
 	const app = plugin.app
 	const adapter = app.vault.adapter
 	const notice = new Notice('Tidying up…', 0)
@@ -191,9 +192,10 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[], canvasP
 		await adapter.write(`${backupDir}/${canvasPath.replace(/\//g, '__')}`, originalCanvasText)
 		notice.setMessage(`Backed up ${basename(canvasPath)}…`)
 
-		// 3. Move files: oldPath → NEW_ASSETS_DIR/<name>, collision-safe. Build remap.
+		// 3. Copy files: oldPath → NEW_ASSETS_DIR/<name>, collision-safe. Build remap.
 		const pathRemap = new Map<string, string>()  // oldVaultPath → newVaultPath
-		let moved = 0
+		let copied = 0
+		let failed = 0
 		const usedNames = new Set<string>()
 		// Seed usedNames with existing files in _bragi/assets
 		try {
@@ -206,11 +208,11 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[], canvasP
 		for (const oldPath of legacyPaths) {
 			const name = oldPath.split('/').pop()!
 			let targetName = name
-			if (usedNames.has(targetName)) {
+			if (usedNames.has(targetName) || await adapter.exists(`${NEW_ASSETS_DIR}/${targetName}`)) {
 				const base = withoutExt(name)
 				const e = ext(name)
 				let i = 2
-				while (usedNames.has(`${base}_${i}${e}`)) i++
+				while (usedNames.has(`${base}_${i}${e}`) || await adapter.exists(`${NEW_ASSETS_DIR}/${base}_${i}${e}`)) i++
 				targetName = `${base}_${i}${e}`
 			}
 			usedNames.add(targetName)
@@ -218,15 +220,16 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[], canvasP
 			try {
 				const bin = await adapter.readBinary(oldPath)
 				await adapter.writeBinary(newPath, bin)
-				await adapter.remove(oldPath)
+				// Preserve originals: other canvases and notes may still reference them.
 				pathRemap.set(oldPath, newPath)
 				plugin.rememberGeneratedAsset(newPath, canvasPath)
-				moved++
+				copied++
 			} catch (err: unknown) {
+				failed++
 				console.error(`Bragi: failed to migrate ${oldPath}:`, err)
 			}
 		}
-		notice.setMessage(`Moved ${moved} file${moved === 1 ? '' : 's'}. Updating the active canvas…`)
+		notice.setMessage(`Copied ${copied} file${copied === 1 ? '' : 's'}. Updating the active canvas…`)
 
 		// 4. Rewrite active canvas JSON file references
 		let rewroteCanvases = 0
@@ -248,21 +251,13 @@ async function performMigration(plugin: BragiCanvas, folders: TFolder[], canvasP
 				rewroteCanvases++
 			}
 		} catch (err: unknown) {
-			console.error(`Bragi: failed to rewrite ${canvasPath}:`, err)
+			throw new Error(`Files were copied, but the canvas could not be updated: ${err instanceof Error ? errorMessage(err) : String(err)}. Original files are unchanged.`)
 		}
 
-		// 5. Remove now-empty legacy folders
-		for (const folder of folders) {
-			try {
-				const entries = await adapter.list(folder.path)
-				if (entries.files.length === 0 && entries.folders.length === 0) {
-					await adapter.rmdir(folder.path, false)
-				}
-			} catch { /* leave it */ }
-		}
 
+		if (failed) throw new Error(`Copied ${copied} files; ${failed} could not be copied. Successful references were updated. Original files are unchanged.`)
 		notice.hide()
-		new Notice(`All tidied up — moved ${moved} file${moved === 1 ? '' : 's'}, updated ${rewroteCanvases} active canvas. A backup was saved in case anything needs fixing.`, 10000)
+		new Notice(`Copied ${copied} file${copied === 1 ? '' : 's'} and updated ${rewroteCanvases} canvas. Originals and a canvas backup were preserved.`, 10000)
 	} catch (err) {
 		notice.hide()
 		throw err
