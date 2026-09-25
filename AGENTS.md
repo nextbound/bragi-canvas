@@ -1,4 +1,4 @@
-# AGENT.md
+# Bragi Canvas plugin instructions
 
 This repository is an Obsidian community plugin. Treat Obsidian Community review compatibility as a hard release requirement, not as a post-release cleanup task.
 
@@ -10,12 +10,17 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - Before merging plugin changes, confirm the paired skill branch has been updated for any MCP tool, model/provider, generation behavior, params, return shape, or gotcha changes.
 - Cross-reference paired plugin and skill PRs/branches when merging. Do not merge only one side of a coupled change.
 
+## Cross-repository changes
+
+- Follow `docs/change-checklist.md`: review skill, website/docs and Worker impact; update affected surfaces and explain when no update is needed in the PR.
+- Changes to public behavior are not complete until the companion updates are accounted for. Plugin fixes may release first with a linked website follow-up and target date.
+
 ## Required Before Release
 
-- Run `npm run lint:obsidian`.
-- Run `npm run build`.
+- Run `npm run verify` on the release commit; use `docs/obsidian-review-checklist.md` as the full release checklist.
+- For catalog changes, also run `npm run audit:catalog`.
 - Verify `manifest.json`, `package.json`, `package-lock.json`, and `versions.json` are version-aligned.
-- Update the root `CHANGELOG.md` for every version bump.
+- Update this repository's `CHANGELOG.md` for every version bump and the coordination workspace changelog when present.
 - Verify the release tag is plain semver with no `v` prefix, for example `1.12.14`.
 - Verify the GitHub release has separate `manifest.json`, `main.js`, and `styles.css` assets. Do not upload a zip instead.
 
@@ -26,12 +31,12 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - Do not leave unused imports, variables, functions, or debug `console.log` calls.
 - Avoid `as any`. Prefer typed runtime boundaries or narrow local casts with comments.
 - Keep CSS scoped to Bragi classes such as `.bragi-*` or `.bragi-canvas-*`.
-- Do not use `!important` unless a reviewer-approved exception is unavoidable.
+- Avoid `!important`; explain any unavoidable, narrowly scoped exception in the PR.
 - Do not duplicate CSS selectors; Obsidian's backend CSS lint reports them.
 - Do not hardcode `.obsidian` paths. Use Obsidian APIs and `Vault.configDir` where applicable.
 - Use `Plugin.loadData()` and `Plugin.saveData()` for plugin data.
 - Use `normalizePath()` for user-controlled vault paths.
-- Do not bundle provider API keys or secrets. Bragi Relay configuration is allowed only through the existing user/runtime configuration path.
+- Never bundle user/provider credentials or service administration secrets. The existing built-in Relay client configuration is distributed publicly; do not treat its token as private or as isolation between clients. This is not permission to add other embedded credentials.
 
 ## Bragi-Specific Release Notes
 
@@ -99,7 +104,7 @@ All "this provider differs from the base model" facts live in the model's `suppo
 - Before uploading a reference image, preserve PNG/JPEG bytes as-is and convert every other image format to PNG. Keep this normalization in the shared upload preparation helper instead of adding provider-specific WebP/GIF/BMP branches.
 - Keep upload endpoints and model-input URL endpoints conceptually separate. The relay upload API endpoint is only for writing bytes; the model request must receive the returned fetchable asset URL, not the upload endpoint.
 - Use a provider's own upload/File API only when that provider cannot consume a Bragi Relay HTTPS URL, or when it explicitly requires provider-native file IDs/URIs for the requested feature.
-- Do not write provider keys, relay tokens, uploaded asset URLs, or temporary media files into the repository. Keep live-test outputs summarized and redacted.
+- Do not commit user/provider keys, custom Relay tokens, uploaded asset URLs, or temporary media files. Keep live-test outputs summarized and redacted; the existing built-in Relay configuration is the limited exception described above.
 
 ## Reference Checklist
 
