@@ -1,4 +1,4 @@
-import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
+import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus, withTimeout } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and gateway payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
@@ -405,18 +405,19 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages as string[] : []
 		const refAudios: string[] = Array.isArray(params?.refAudios) ? params.refAudios as string[] : []
 		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos as string[] : []
-		const imageUrls = await Promise.all(refImages.map(ref => uploadRefMedia('SV NewAPI video', ref)))
-		const audioUrls = await Promise.all(refAudios.map(ref => uploadRefMedia('SV NewAPI video', ref)))
-		const videoUrls = await Promise.all(refVideos.map(ref => uploadRefMedia('SV NewAPI video', ref)))
+		const prepareRef = (ref: string) => withTimeout(uploadRefMedia('SV NewAPI video', ref), 180000, new Error('Reference upload timed out after 3 minutes. Video generation has not started.'))
+		const imageUrls = await Promise.all(refImages.map(prepareRef))
+		const audioUrls = await Promise.all(refAudios.map(prepareRef))
+		const videoUrls = await Promise.all(refVideos.map(prepareRef))
 		const body = buildVideoBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
 
-		const resp = await requestUrl({
+		const resp = await withTimeout(requestUrl({
 			url: `${this.baseUrl}/v1/videos`,
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
 			throw: false,
 			body: JSON.stringify(body),
-		})
+		}), 90000, new Error('SVRouter did not confirm video submission within 90 seconds. The request may have been accepted; check the provider before submitting again.'))
 		if (resp.status >= 400) throw new Error(parseProviderError('SV NewAPI video', resp))
 
 		const taskId = extractTaskId(resp.json)
@@ -424,7 +425,7 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
-	async checkStatus(taskId: string): Promise<GenerateVideoResult> {
+	async checkStatus(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateVideoResult> {
 		const resp = await pollRequest({
 			url: `${this.baseUrl}/v1/videos/${encodeURIComponent(taskId)}`,
 			method: 'GET',
@@ -437,6 +438,7 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		const videoUrl = extractVideoUrl(resp.json)
 		if (DONE_STATUSES.has(normalized) || videoUrl) {
 			if (!videoUrl) throw new Error('SV NewAPI video: completed task has no video URL')
+			onProgress?.('downloading')
 			return { done: true, filePath: await this.downloadVideo(videoUrl) }
 		}
 		if (FAILED_STATUSES.has(normalized)) {
@@ -447,7 +449,7 @@ export class SvNewApiVideoProvider implements VideoProvider {
 	}
 
 	private async downloadVideo(url: string): Promise<string> {
-		const resp = await pollRequest({ url })
+		const resp = await pollRequest({ url }, 180000)
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/svnewapi_video_${Date.now()}.${videoExtFromUrl(url)}`

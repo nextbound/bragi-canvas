@@ -1,10 +1,12 @@
 import { Notice } from 'obsidian'
 import type { AudioProvider, VideoProvider } from './providers/types'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
-import { markNodeFailed, detachGeneratingOverlay } from './canvas-ops'
+import { markNodeFailed, detachGeneratingOverlay, setGeneratingStatus } from './canvas-ops'
 import { classifyTaskError, errorMessage } from './task-errors'
 
-export type TaskState = 'waiting-canvas' | 'polling' | 'retrying' | 'needs-attention' | 'ready-to-apply'
+export const TASK_CHECK_WINDOW_MS = 15 * 60 * 1000
+export const TASK_MAX_AUTO_RETRIES = 5
+export type TaskState = 'waiting-canvas' | 'polling' | 'downloading' | 'retrying' | 'needs-attention' | 'ready-to-apply'
 export interface TaskSnapshot {
 	taskId: string
 	providerName: string
@@ -21,6 +23,7 @@ export interface TaskSnapshot {
 	nextRetryAt?: number
 	lastError?: string
 	filePath?: string
+	checkDeadlineAt?: number
 }
 interface TaskRuntime {
 	provider?: VideoProvider | AudioProvider
@@ -35,7 +38,7 @@ interface PendingTask extends TaskRuntime {
 	placeholder: CanvasNode
 	sourceNode: CanvasNode
 }
-const STATES = new Set<TaskState>(['waiting-canvas', 'polling', 'retrying', 'needs-attention', 'ready-to-apply'])
+const STATES = new Set<TaskState>(['waiting-canvas', 'polling', 'downloading', 'retrying', 'needs-attention', 'ready-to-apply'])
 export const taskKey = (task: Pick<TaskSnapshot, 'providerName' | 'taskId'>): string => JSON.stringify([task.providerName, task.taskId])
 
 /** Pure legacy snapshot decoder. File/task state is separate from settings migrations. */
@@ -55,7 +58,8 @@ export function decodeTaskSnapshots(value: unknown): TaskSnapshot[] {
 			state: typeof raw.state === 'string' && STATES.has(raw.state as TaskState) ? raw.state as TaskState : 'waiting-canvas',
 		}
 		for (const field of ['filePath', 'lastError'] as const) if (typeof raw[field] === 'string') snapshot[field] = raw[field]
-		for (const field of ['retryCount', 'nextRetryAt'] as const) if (typeof raw[field] === 'number' && Number.isFinite(raw[field]) && raw[field] >= 0) snapshot[field] = raw[field]
+		for (const field of ['retryCount', 'nextRetryAt', 'checkDeadlineAt'] as const) if (typeof raw[field] === 'number' && Number.isFinite(raw[field]) && raw[field] >= 0) snapshot[field] = raw[field]
+		snapshot.checkDeadlineAt ??= snapshot.startedAt + TASK_CHECK_WINDOW_MS
 		result.set(taskKey(snapshot), snapshot)
 	}
 	return [...result.values()]
@@ -69,6 +73,7 @@ export class TaskQueue {
 	private epoch = 0
 	private stopped = false
 	onChange: (() => void | Promise<void>) | null = null
+	beforeResume: (() => void) | null = null
 	onComplete: ((filePath: string, canvasPath: string) => void | Promise<void>) | null = null
 	isCanvasLive: ((canvas: Canvas, path: string) => boolean) | null = null
 
@@ -92,13 +97,14 @@ export class TaskQueue {
 	async addTask(task: PendingTask): Promise<void> {
 		const key = taskKey(task.snapshot)
 		if (this.tasks.has(key)) return
-		this.tasks.set(key, { snapshot: { ...task.snapshot, state: 'polling' }, runtime: task })
+		this.tasks.set(key, { snapshot: { ...task.snapshot, state: 'polling', checkDeadlineAt: Date.now() + TASK_CHECK_WINDOW_MS }, runtime: task })
 		try { await this.persist() } catch (error) {
 			const saved = this.tasks.get(key)!
 			saved.snapshot.state = 'needs-attention'
 			saved.snapshot.lastError = `Could not save task: ${errorMessage(error)}`
 			new Notice('Task accepted, but could not be saved. Fix storage and use resume checking.')
 		}
+		this.render(this.tasks.get(key)!)
 		this.start()
 	}
 	hasTask(taskId: string, providerName?: string): boolean {
@@ -113,17 +119,20 @@ export class TaskQueue {
 			if (task.snapshot.canvasPath !== path) continue
 			if (task.runtime?.canvas === canvas && task.snapshot.state !== 'needs-attention') continue
 			const provider = makeProvider(task.snapshot)
+			task.runtime = { canvas, provider: provider ?? undefined }
 			if (!task.snapshot.filePath && !provider?.checkStatus) {
 				task.snapshot.state = 'needs-attention'
 				task.snapshot.lastError = 'Restore the provider connection, then resume checking.'
+				this.render(task)
 				continue
 			}
-			task.runtime = { canvas, provider: provider ?? undefined }
 			if (task.snapshot.state === 'waiting-canvas') task.snapshot.state = task.snapshot.filePath ? 'ready-to-apply' : 'polling'
+			this.render(task)
 		}
 		this.start()
 	}
 	resume(placeholderId?: string, canvasPath?: string): void {
+		this.beforeResume?.()
 		for (const task of this.tasks.values()) {
 			if (placeholderId && task.snapshot.placeholderNodeId !== placeholderId) continue
 			if (canvasPath && task.snapshot.canvasPath !== canvasPath) continue
@@ -132,20 +141,54 @@ export class TaskQueue {
 			delete task.snapshot.lastError
 			delete task.snapshot.nextRetryAt
 			task.snapshot.retryCount = 0
+			task.snapshot.checkDeadlineAt = Date.now() + TASK_CHECK_WINDOW_MS
+			this.render(task)
 		}
 		void this.persist().catch(error => console.error('Bragi task save:', error))
 		this.start()
 	}
 	private async persist(): Promise<void> { await this.onChange?.() }
+	private isPaused(task: TaskRecord): boolean { return task.snapshot.state === 'needs-attention' }
 	private live(task: TaskRecord): boolean {
 		return !this.stopped && !!task.runtime && (this.isCanvasLive?.(task.runtime.canvas, task.snapshot.canvasPath) ?? true)
+	}
+	private render(task: TaskRecord): void {
+		if (!this.live(task)) return
+		const node = task.runtime!.canvas.nodes.get(task.snapshot.placeholderNodeId)
+		if (!node) return
+		const { state, lastError, nextRetryAt, retryCount } = task.snapshot
+		const paused = state === 'needs-attention'
+		const retrying = state === 'retrying'
+		const label = paused ? 'Checking paused' : retrying ? 'Waiting to retry'
+			: state === 'downloading' ? 'Downloading result' : state === 'ready-to-apply' ? 'Saving result' : 'Waiting for provider'
+		setGeneratingStatus(node, {
+			label,
+			paused: paused || retrying,
+			detail: paused ? lastError : retrying ? `Connection interrupted. Retry ${retryCount}/${TASK_MAX_AUTO_RETRIES}.` : undefined,
+			retryAt: retrying ? nextRetryAt : undefined,
+			onResume: paused ? () => this.resume(task.snapshot.placeholderNodeId, task.snapshot.canvasPath) : undefined,
+		})
+	}
+	private async pause(task: TaskRecord, message: string): Promise<void> {
+		task.snapshot.state = 'needs-attention'
+		task.snapshot.lastError = message
+		delete task.snapshot.nextRetryAt
+		this.render(task)
+		await this.persist()
 	}
 
 	async pollAll(): Promise<void> {
 		if (this.stopped) return
 		const epoch = this.epoch
 		await Promise.all([...this.tasks.entries()].map(async ([key, task]) => {
-			if (this.inFlight.has(key) || task.snapshot.state === 'needs-attention') return
+			if (task.snapshot.state === 'needs-attention') return
+			// The deadline also stops the spinner while an HTTP or storage call is still in flight.
+			// Its eventual result remains eligible for recovery; never submit a replacement task.
+			if (Date.now() >= (task.snapshot.checkDeadlineAt ?? task.snapshot.startedAt + TASK_CHECK_WINDOW_MS)) {
+				await this.pause(task, 'No result after 15 minutes of checking. The provider may still be working. Your task is saved; resume checking to continue.')
+				return
+			}
+			if (this.inFlight.has(key)) return
 			if (!this.live(task)) {
 				task.runtime = undefined
 				if (!task.snapshot.filePath) task.snapshot.state = 'waiting-canvas'
@@ -157,19 +200,31 @@ export class TaskQueue {
 			try {
 				if (!task.snapshot.filePath) {
 					if (!runtime.provider?.checkStatus) throw new Error('Restore the provider connection, then resume checking.')
-					const result = await runtime.provider.checkStatus(task.snapshot.taskId)
+					task.snapshot.state = 'polling'
+					delete task.snapshot.nextRetryAt
+					this.render(task)
+					const result = await runtime.provider.checkStatus(task.snapshot.taskId, phase => {
+						if (epoch !== this.epoch || task.runtime !== runtime || task.snapshot.state === 'needs-attention') return
+						task.snapshot.state = phase
+						this.render(task)
+					})
 					if (epoch !== this.epoch) return
 					if (!result.done) {
+						if (this.isPaused(task)) return
+						const recovered = !!task.snapshot.retryCount || !!task.snapshot.lastError
 						task.snapshot.state = 'polling'
 						task.snapshot.retryCount = 0
 						delete task.snapshot.nextRetryAt
 						delete task.snapshot.lastError
+						this.render(task)
+						if (recovered) await this.persist()
 						return
 					}
 					if (!result.filePath) throw new Error('Completed task did not provide an output file.')
 					task.snapshot.filePath = result.filePath
 				}
 				task.snapshot.state = 'ready-to-apply'
+				this.render(task)
 				// Durably record the download before attempting Canvas changes.
 				await this.persist()
 				if (epoch !== this.epoch || task.runtime !== runtime || !this.live(task)) return
@@ -182,6 +237,7 @@ export class TaskQueue {
 			} catch (error) {
 				if (epoch !== this.epoch) return
 				const classified = classifyTaskError(error)
+				if (this.isPaused(task)) return
 				task.snapshot.lastError = classified.message.slice(0, 500)
 				if (classified.kind === 'terminal') {
 					const placeholder = runtime.canvas.nodes.get(task.snapshot.placeholderNodeId)
@@ -193,6 +249,7 @@ export class TaskQueue {
 						} catch (saveError) {
 							task.snapshot.state = 'needs-attention'
 							task.snapshot.lastError = `Remote task failed; could not save its failure: ${errorMessage(saveError)}`
+							this.render(task)
 							await this.persist()
 							return
 						}
@@ -205,10 +262,15 @@ export class TaskQueue {
 					task.snapshot.retryCount = retry + 1
 					task.snapshot.nextRetryAt = Date.now() + Math.max(Math.min(5000 * 2 ** Math.min(retry, 4), 60000), classified.retryAfterMs || 0)
 					task.snapshot.state = 'retrying'
+					if (task.snapshot.retryCount > TASK_MAX_AUTO_RETRIES) {
+						await this.pause(task, `Automatic checks stopped after ${TASK_MAX_AUTO_RETRIES} retries. ${classified.message}. Your task is saved; resume checking when the connection recovers.`)
+						return
+					}
 				} else {
 					task.snapshot.state = 'needs-attention'
 					new Notice(`${task.snapshot.modelName}: ${errorMessage(error)}. Use Resume checking after fixing the issue.`)
 				}
+				if (this.tasks.has(key)) this.render(task)
 				await this.persist()
 			} finally { this.inFlight.delete(key) }
 		}))

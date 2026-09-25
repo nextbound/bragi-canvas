@@ -1,5 +1,5 @@
 import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
-import { errorMessage } from './task-errors'
+import { errorMessage, withTimeout } from './task-errors'
 import type { CanvasView } from './types/canvas-internal'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import { Plugin, Notice, requestUrl, Menu, Modal, Setting, normalizePath } from 'obsidian'
@@ -10,7 +10,7 @@ import { prepareReferenceUpload } from './providers/image-upload-prep'
 import { getProvider } from './providers/registry'
 import { getConnectedConfiguredProviderIds, getRefDelivery, resolveApiModelId } from './provider-model-prefs'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
-import { getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
+import { setGeneratingStatus, getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
 import { patchPlaceholderContextMenu, unpatchPlaceholderContextMenu } from './placeholder-context-menu'
 import { openPanoramaViewer } from './panorama'
@@ -88,6 +88,7 @@ export default class BragiCanvas extends Plugin {
 		registerBragiIcons()
 		await this.loadSettings()
 		this.taskQueue.onChange = () => this.saveSettings()
+		this.taskQueue.beforeResume = () => this.tryPatchCanvas()
 		this.taskQueue.isCanvasLive = (canvas, path) => this.app.workspace.getLeavesOfType('canvas').some(leaf => {
 			const view = leaf.view as unknown as { canvas?: Canvas; file?: { path: string } }
 			return view.canvas === canvas && view.file?.path === path
@@ -727,7 +728,9 @@ export default class BragiCanvas extends Plugin {
 		vaultPath: string,
 	): Promise<string> {
 		const { delivery } = getRefDelivery(model, activeProvider, modality)
-		const binary = await this.app.vault.adapter.readBinary(vaultPath)
+		const read = this.app.vault.adapter.readBinary(vaultPath)
+		const bounded = activeProvider === 'svnewapi' && model.type === 'video'
+		const binary = await (bounded ? withTimeout(read, 60000, new Error('Could not read the reference within 60 seconds. Video generation has not started.')) : read)
 		const mime = modality === 'image'
 			? imageMimeType(vaultPath)
 			: modality === 'video'
@@ -740,7 +743,8 @@ export default class BragiCanvas extends Plugin {
 		// native_asset reaches here only when no provider-native asset flow ran
 		// (e.g. credentials missing) — fall back to relay so generation still works.
 		if (delivery === 'relay' || delivery === 'native_asset') {
-			return uploadRef(undefined, binary, `ref.${ext}`, mime)
+			const upload = uploadRef(undefined, binary, `ref.${ext}`, mime)
+			return bounded ? withTimeout(upload, 180000, new Error('Reference upload timed out after 3 minutes. Video generation has not started.')) : upload
 		}
 
 		// inline / passthrough: hand the provider a data URI; normalize images to PNG/JPEG.
@@ -766,6 +770,10 @@ export default class BragiCanvas extends Plugin {
 		try {
 
 			// Read reference images in user-defined order (from thumbnail drag)
+			const showStage = (label: string) => {
+				if (this.getCanvasPath(canvas) === canvasPath) setGeneratingStatus(placeholder, { label })
+			}
+			showStage('Preparing inputs')
 			const uniqueImages = getOrderedImages(canvas, node)
 			const uniqueVideos = [...new Set(upstream.videos)]
 			const uniqueAudios = [...new Set(upstream.audios)]
@@ -854,7 +862,7 @@ export default class BragiCanvas extends Plugin {
 					refImages.push(`asset://${assetIdMap[imgPath]}`)
 				} else if (svNewApiAssetCreds) {
 					try {
-						refImages.push(await ensureSvNewApiAsset(this, canvas, imgPath, apiModelId, svNewApiAssetCreds))
+						refImages.push(await ensureSvNewApiAsset(this, canvas, imgPath, apiModelId, svNewApiAssetCreds, showStage))
 					} catch (e) {
 						if (e instanceof SvNewApiAssetUnsupportedError) {
 							refImages.push(await this.prepareReferenceMedia(activeProvider, model, 'image', imgPath))
@@ -907,7 +915,7 @@ export default class BragiCanvas extends Plugin {
 							refVideos.push(await ensureTokenRouterModelArkAsset(this, canvas, videoPath, tokenRouterModelArkCreds))
 						} else if (svNewApiAssetCreds) {
 							try {
-								refVideos.push(await ensureSvNewApiAsset(this, canvas, videoPath, apiModelId, svNewApiAssetCreds))
+								refVideos.push(await ensureSvNewApiAsset(this, canvas, videoPath, apiModelId, svNewApiAssetCreds, showStage))
 							} catch (e) {
 								if (e instanceof SvNewApiAssetUnsupportedError) {
 									refVideos.push(await this.prepareReferenceMedia(activeProvider, model, 'video', videoPath))
@@ -939,6 +947,7 @@ export default class BragiCanvas extends Plugin {
 				const imgParams = activeProvider === 'legnext'
 					? { ...params, modelId: model.id }
 					: { ...params, modelId: apiModelId, refImages }
+				showStage('Generating image')
 				const genResult = await provider.generateImage(finalPrompt, imgParams)
 
 				this.rememberGeneratedAsset(genResult.filePath, canvasPath)
@@ -952,6 +961,7 @@ export default class BragiCanvas extends Plugin {
 					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support video generation`)
 					return
 				}
+				showStage('Submitting video')
 				const videoResult = await provider.generateVideo(finalPrompt, { ...params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs })
 
 				if (videoResult.done && videoResult.filePath) {
@@ -989,6 +999,7 @@ export default class BragiCanvas extends Plugin {
 					if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, `${activeProvider} doesn't support text generation`)
 					return
 				}
+				showStage('Generating text')
 				const { text: textResult } = await provider.generateText(finalPrompt, { modelId: apiModelId, refImages, refVideos, refAudios, refPdfs })
 
 				if (this.getCanvasPath(canvas) !== canvasPath) {
@@ -1060,6 +1071,7 @@ export default class BragiCanvas extends Plugin {
 				delete audioParams.voiceRefAudioIndex
 				delete audioParams.voiceDesignTextIndex
 				delete audioParams.voiceLabel
+				showStage('Generating audio')
 				const audioResult = await provider.generateAudio(finalPrompt, {
 					...audioParams,
 					mode: mode as 'tts' | 'music' | 'video-to-music' | 'sound-effect',

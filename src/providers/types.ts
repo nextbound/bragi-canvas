@@ -16,7 +16,7 @@ export interface ImageProvider {
 export interface VideoProvider {
 	name: string
 	generateVideo(prompt: string, options?: Record<string, unknown>): Promise<GenerateVideoResult>
-	checkStatus?(taskId: string): Promise<GenerateVideoResult>
+	checkStatus?(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateVideoResult>
 }
 
 export type GenerateAudioResult =
@@ -87,7 +87,7 @@ export interface VoiceChangeOptions {
 export interface AudioProvider {
 	name: string
 	generateAudio(prompt: string, options: { mode: 'tts' | 'music' | 'video-to-music' | 'sound-effect', modelId?: string, [k: string]: unknown }): Promise<GenerateAudioResult>
-	checkStatus?(taskId: string): Promise<GenerateAudioResult>
+	checkStatus?(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateAudioResult>
 	listVoices?(options?: ListVoicesOptions): Promise<VoiceOption[]>
 	cloneVoice?(options: VoiceCloneOptions): Promise<VoiceCloneResult>
 	designVoice?(options: VoiceDesignOptions): Promise<VoiceDesignResult>

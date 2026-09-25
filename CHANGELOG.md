@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Show generation stages, retry countdowns and paused reasons on placeholders. Stop the loader and shimmer while retrying or paused, with a circular **Resume checking** icon beside the bottom model pill for retained tasks.
+- Pause automatic task checks after five failed retries or a 15-minute checking window. Keep the accepted task ID, persisted deadline and downloaded results; resume checks without submitting another generation.
+- Bound SVRouter reference preparation, video submission and status/download requests. Explain that reference registration failures happen before video submission, while retaining upstream error details.
+- Expose download state, retry count, deadline and pause diagnostics through both MCP task inspection tools.
+
 ## 1.40.1
 
 - Keep pending audio and video tasks across settings changes and restarts, including tasks belonging to closed canvases. Temporary network and rate-limit failures retry the original task; interrupted downloads and canvas saves can be resumed.

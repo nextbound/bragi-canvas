@@ -3,6 +3,7 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './providers/upload'
 import { SVROUTER_BASE_URL } from './providers/svnewapi'
+import { withTimeout } from './task-errors'
 
 // SV NewAPI (new-api gateway) asset-library flow. Unlike the direct byteplus /
 // tokenrouter / token360 flows which call the provider's asset API themselves, this
@@ -133,7 +134,7 @@ function responseJson(resp: { text?: string; json?: unknown }): unknown {
 }
 
 async function postJson(creds: SvNewApiAssetCreds, path: string, body: unknown): Promise<GatewayResp> {
-	const resp = await requestUrl({
+	const resp = await withTimeout(requestUrl({
 		url: `${creds.baseUrl}${path}`,
 		method: 'POST',
 		headers: {
@@ -142,7 +143,7 @@ async function postJson(creds: SvNewApiAssetCreds, path: string, body: unknown):
 		},
 		body: JSON.stringify(body),
 		throw: false,
-	})
+	}), 60000, new Error('SVRouter reference request timed out after 60 seconds. Video generation has not started. Try again when the service recovers.'))
 	return { status: resp.status, json: responseJson(resp), text: resp.text }
 }
 
@@ -152,6 +153,9 @@ async function createGatewayAsset(creds: SvNewApiAssetCreds, model: string, url:
 		throw new SvNewApiAssetUnsupportedError('gateway/channel does not support asset registration')
 	}
 	if (r.status < 200 || r.status >= 300) {
+		if (r.status === 408 || r.status === 429 || r.status >= 500) {
+			throw new Error(`SVRouter could not register the reference (HTTP ${r.status}). Video generation has not started. Try again when the service recovers. ${gatewayErrorMessage(r.json, r.text, '')}`.trim())
+		}
 		throw new Error(`SV NewAPI asset register failed: ${gatewayErrorMessage(r.json, r.text, `HTTP ${r.status}`)}`)
 	}
 	const body = asRecord(r.json)
@@ -194,6 +198,7 @@ export async function ensureSvNewApiAsset(
 	filePath: string,
 	model: string,
 	creds: SvNewApiAssetCreds,
+	onProgress?: (label: string) => void,
 ): Promise<string> {
 	const { assetType, ext, mime } = assetFileInfo(filePath)
 	const node = findNodeByPath(canvas, filePath)
@@ -202,6 +207,7 @@ export async function ensureSvNewApiAsset(
 	if (node) {
 		const cached = getCachedAssetId(node)
 		if (cached) {
+			onProgress?.('Checking reference')
 			try {
 				const { status } = await getGatewayAssetStatus(creds, model, cached)
 				if (status === 'Active') return `asset://${cached}`
@@ -217,12 +223,15 @@ export async function ensureSvNewApiAsset(
 	}
 
 	// 2. Upload to Bragi temp storage so the gateway (and upstream) can fetch it
-	const binary = await plugin.app.vault.adapter.readBinary(filePath)
-	const publicUrl = await uploadRef(undefined, binary, `ref.${ext}`, mime)
+	onProgress?.('Uploading reference')
+	const binary = await withTimeout(plugin.app.vault.adapter.readBinary(filePath), 60000, new Error('Could not read the reference within 60 seconds. Video generation has not started.'))
+	const publicUrl = await withTimeout(uploadRef(undefined, binary, `ref.${ext}`, mime), 180000, new Error('Reference upload timed out after 3 minutes. Video generation has not started.'))
 
 	// 3. Register via the gateway and poll to Active
+	onProgress?.('Registering reference')
 	const { id, status } = await createGatewayAsset(creds, model, publicUrl, assetType)
 	if (status !== 'Active') {
+		onProgress?.('Waiting for reference approval')
 		await waitForActive(creds, model, id)
 	}
 	if (node) setCachedAssetId(node, id)
