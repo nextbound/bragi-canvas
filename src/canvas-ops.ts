@@ -4,10 +4,10 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import {
 	createGeneratingOverlay,
 	findGeneratingOverlay,
-	formatGeneratingElapsed,
 	stopGeneratingOverlayAnimation,
 	updateGeneratingOverlay,
 	type GeneratingOverlayElements,
+	type GeneratingStatus,
 } from './generating-overlay'
 import { clearIncomingRefAttachments } from './generating-node'
 import { stopSquare19Loader } from './dotm-square-19'
@@ -181,6 +181,7 @@ interface GeneratingEntry {
 	startedAt: number
 	overlay: GeneratingOverlayElements
 	nodeEl: HTMLElement
+	status: GeneratingStatus
 }
 
 const generatingRegistry = new Map<string, GeneratingEntry>()
@@ -191,7 +192,7 @@ function ensureTicker(): void {
 	tickInterval = window.setInterval(() => {
 		if (generatingRegistry.size === 0) { stopTicker(); return }
 		for (const entry of generatingRegistry.values()) {
-			entry.overlay.elapsedEl.textContent = formatGeneratingElapsed(entry.startedAt)
+			updateGeneratingOverlay(entry.overlay, entry.modelName, entry.startedAt, entry.status)
 		}
 	}, 1000)
 }
@@ -204,7 +205,7 @@ function stopTicker(): void {
  * Attach (or replace) the generating overlay on a placeholder's DOM element.
  * Idempotent — calling twice just updates the existing overlay.
  */
-function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt: number): void {
+function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt: number, onResume?: () => void): void {
 	const nodeEl = node.nodeEl || node.containerEl
 	if (!nodeEl) return
 	clearIncomingRefAttachments(node)
@@ -218,9 +219,40 @@ function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt:
 		overlay = createGeneratingOverlay()
 		nodeEl.appendChild(overlay.overlayEl)
 	}
-	updateGeneratingOverlay(overlay, modelName, startedAt)
-	generatingRegistry.set(node.id, { modelName, startedAt, overlay, nodeEl })
+	const data = node.getData()
+	const status: GeneratingStatus = {
+		label: typeof data.bragiGenStatus === 'string' ? data.bragiGenStatus : 'Generating',
+		detail: typeof data.bragiGenDetail === 'string' ? data.bragiGenDetail : undefined,
+		paused: data.bragiGenPaused === true,
+		retryAt: typeof data.bragiGenRetryAt === 'number' ? data.bragiGenRetryAt : undefined,
+		onResume: onResume || generatingRegistry.get(node.id)?.status.onResume,
+	}
+	nodeEl.classList.toggle('bragi-checking-paused', !!status.paused)
+	nodeEl.classList.toggle('bragi-generating-compact', typeof data.height === 'number' && data.height < 200)
+	updateGeneratingOverlay(overlay, modelName, startedAt, status)
+	generatingRegistry.set(node.id, { modelName, startedAt, overlay, nodeEl, status })
 	ensureTicker()
+}
+
+/** Update the persistent placeholder presentation without changing its task identity. */
+export function setGeneratingStatus(node: CanvasNode, status: GeneratingStatus): void {
+	const data = node.getData()
+	if (data.type === 'file') return
+	const rest = { ...data }
+	delete rest.bragiGenerationFailed
+	delete rest.bragiGenFailureTitle
+	delete rest.bragiGenError
+	const fields = { bragiGenerating: true, bragiGenStatus: status.label, bragiGenDetail: status.detail || '', bragiGenPaused: !!status.paused, bragiGenRetryAt: status.retryAt || 0 }
+	if (data.bragiGenerationFailed || Object.entries(fields).some(([key, value]) => data[key] !== value)) {
+		node.setData({ ...rest, ...fields })
+	}
+	const nodeEl = node.nodeEl || node.containerEl
+	nodeEl?.classList.remove('bragi-generation-failed')
+	nodeEl?.classList.add('bragi-generating')
+	nodeEl?.querySelector('.bragi-failed-overlay')?.remove()
+	const previous = generatingRegistry.get(node.id)
+	if (previous) previous.status.onResume = status.onResume
+	attachGeneratingOverlay(node, typeof data.bragiGenModelName === 'string' ? data.bragiGenModelName : 'Model', typeof data.bragiGenStartedAt === 'number' ? data.bragiGenStartedAt : Date.now(), status.onResume)
 }
 
 /** Apply generating shimmer + overlay to an existing text node (preview / rehydrate). */
@@ -349,6 +381,10 @@ export function styleFailedPlaceholder(node: CanvasNode, title: string, errorMsg
 	delete rest.ovidGenerating
 	delete rest.bragiGenerating
 	delete rest.bragiGenStartedAt
+	delete rest.bragiGenStatus
+	delete rest.bragiGenDetail
+	delete rest.bragiGenPaused
+	delete rest.bragiGenRetryAt
 	node.setData({
 		...rest,
 		color: '',

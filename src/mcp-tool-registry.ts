@@ -642,6 +642,8 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					state: s.state || 'waiting-canvas',
 					nextRetryAt: s.nextRetryAt,
 					lastError: s.lastError,
+					retryCount: s.retryCount,
+					checkDeadlineAt: s.checkDeadlineAt,
 				})))
 			},
 		}),
@@ -1017,6 +1019,11 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					placeholderNodeId: snap.placeholderNodeId,
 					canvasPath: snap.canvasPath,
 					elapsedMs: Date.now() - snap.startedAt,
+					state: snap.state || 'waiting-canvas',
+					nextRetryAt: snap.nextRetryAt,
+					lastError: snap.lastError,
+					retryCount: snap.retryCount,
+					checkDeadlineAt: snap.checkDeadlineAt,
 				})
 			},
 		}),

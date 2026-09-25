@@ -5,7 +5,7 @@ export {TaskQueue} from './src/task-queue'; export * from './src/task-errors';
 `)
 globalThis.window = {setInterval:()=>1,clearInterval:()=>{}}
 globalThis.__notices=[]
-const snapshot = (canvasPath='A.canvas',providerName='test') => ({taskId:'same-id',providerName,apiModelId:'test',modelName:'Test',canvasPath,sourceNodeId:'source',placeholderNodeId:'result',outputDir:'assets',startedAt:1})
+const snapshot = (canvasPath='A.canvas',providerName='test') => ({taskId:'same-id',providerName,apiModelId:'test',modelName:'Test',canvasPath,sourceNodeId:'source',placeholderNodeId:'result',outputDir:'assets',startedAt:Date.now()})
 const makeCanvas = () => {
 	let data={nodes:[{id:'source',type:'text',text:'prompt',x:0,y:0,width:100,height:100},{id:'result',type:'text',text:'Working',x:150,y:0,width:100,height:100}],edges:[]}
 	return {nodes:new Map([['result',{id:'result'}]]),removeNode(node){ this.nodes.delete(node.id) },getData:()=>structuredClone(data),importData(d){ assert.ok(!this.nodes.has('result') || data.nodes.find(n=>n.id==='result').type === 'file', 'Text runtime must be removed before importing a file with the same ID'); data=d },requestSave:async()=>{}}
@@ -24,7 +24,7 @@ try {
 	q=new TaskQueue();q.restore([snapshot()]);const c=makeCanvas();const ids=[]
 	q.bindCanvas(c,'A.canvas',()=>({checkStatus:async id=>{ids.push(id);throw new TaskPollingError('HTTP 503','retryable')}}))
 	const now=Date.now;let clock=100000;Date.now=()=>clock
-	try {for(const delay of [5000,10000,20000,40000,60000,60000]){await q.pollAll();const task=q.getSnapshots()[0];assert.equal(task.nextRetryAt,clock+delay);await q.pollAll();clock+=delay}assert.deepEqual(ids,Array(6).fill('same-id'))}finally{Date.now=now;q.stop()}
+	try {for(const delay of [5000,10000,20000,40000,60000]){await q.pollAll();const task=q.getSnapshots()[0];assert.equal(task.nextRetryAt,clock+delay);await q.pollAll();clock+=delay}await q.pollAll();assert.equal(q.getSnapshots()[0].state,'needs-attention');assert.equal(c.nodes.get('result').presentation.paused,true);assert.deepEqual(ids,Array(6).fill('same-id'))}finally{Date.now=now;q.stop()}
 
 	// A downloaded file is persisted before application and reused after a save failure.
 	q=new TaskQueue();q.restore([snapshot()]);let downloads=0,saveFails=true,persisted=false

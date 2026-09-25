@@ -164,7 +164,7 @@ try {
 			buildApi.onLoad({ filter: /.*/, namespace: 'mock-canvas-ops' }, () => ({
 				contents: `
 					export function replacePlaceholderWithFile(...args) { process.__bragiTaskReplacements.push(args) }
-					export function detachGeneratingOverlay() {}; export function markNodeFailed(...args) { process.__bragiTaskFailures.push(args) }
+					export function detachGeneratingOverlay() {}; export function setGeneratingStatus() {}; export function markNodeFailed(...args) { process.__bragiTaskFailures.push(args) }
 				`,
 				loader: 'js',
 			}))

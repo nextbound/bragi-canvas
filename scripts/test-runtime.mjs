@@ -20,7 +20,7 @@ export async function requestUrl(options){return globalThis.__request(options)};
 		name:'test-boundaries',setup(api){
 			api.onResolve({filter:/^obsidian$/},()=>({path:stub,external:true}))
 			api.onResolve({filter:/^\.\/canvas-ops$/},args=>args.importer.endsWith('task-queue.ts')?{path:'canvas-failure',namespace:'test'}:undefined)
-			api.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export function markNodeFailed(node,message){node.failure=message};export function detachGeneratingOverlay(){}',loader:'js'}))
+			api.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export function markNodeFailed(node,message){node.failure=message};export function detachGeneratingOverlay(){}; export function setGeneratingStatus(node,status){node.presentation=status}',loader:'js'}))
 		}
 	}]})
 	return { module:await import(pathToFileURL(outfile).href), cleanup:()=>rm(dir,{recursive:true,force:true}) }
