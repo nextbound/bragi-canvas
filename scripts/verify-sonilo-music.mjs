@@ -57,13 +57,13 @@ async function poll(provider, taskId, label) {
 
 try {
 	const { SoniloProvider, buildSoniloRequest, encodeMultipartFields, testSoniloConnection } = await bundle('src/providers/sonilo.ts', 'sonilo.mjs')
-	assert.deepEqual(buildSoniloRequest('  海边钢琴  ', { mode: 'music', duration: 5, output_format: 'mp3' }), {
-		path: '/text-to-music', fields: { mode: 'async', output_format: 'mp3', variants_num: '1', prompt: '海边钢琴', duration: '5' },
+	assert.deepEqual(buildSoniloRequest('  Seaside piano 🎹  ', { mode: 'music', duration: 5, output_format: 'mp3' }), {
+		path: '/text-to-music', fields: { mode: 'async', output_format: 'mp3', variants_num: '1', prompt: 'Seaside piano 🎹', duration: '5' },
 	})
 	assert.deepEqual(buildSoniloRequest('ambient', { mode: 'video-to-music', refVideos: ['https://example.com/a.mp4'], prompt_influence: 0.3 }), {
 		path: '/video-to-music', fields: { mode: 'async', output_format: 'mp3', variants_num: '1', video_url: 'https://example.com/a.mp4', prompt: 'ambient', prompt_influence: '0.3' },
 	})
-	assert.match(new TextDecoder().decode(encodeMultipartFields({ prompt: '海边钢琴' }, 'test')), /海边钢琴/)
+	assert.match(new TextDecoder().decode(encodeMultipartFields({ prompt: 'Seaside piano 🎹' }, 'test')), /Seaside piano 🎹/)
 	assert.throws(() => buildSoniloRequest('x', { mode: 'music', duration: 4 }), /duration/)
 	assert.throws(() => buildSoniloRequest('x', { mode: 'video-to-music', refVideos: [] }), /one upstream video/)
 

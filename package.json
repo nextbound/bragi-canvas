@@ -50,7 +50,8 @@
     "test:generation-context": "node scripts/verify-generation-context.mjs",
     "check:version": "node scripts/check-version.mjs",
     "sync:dev-vault": "node scripts/sync-dev-vault.mjs",
-    "verify": "npm run typecheck && npm run lint:obsidian && npm test && npm run check:catalog && npm run check:version && npm run build"
+    "verify": "npm run check:english && npm run typecheck && npm run lint:obsidian && npm test && npm run check:catalog && npm run check:version && npm run build",
+    "check:english": "node scripts/check-english.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

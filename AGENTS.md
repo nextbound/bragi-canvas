@@ -1,5 +1,7 @@
 # Bragi Canvas plugin instructions
 
+- All maintained project content must be English, including source comments, built-in prompts, test fixtures, configuration descriptions, internal docs and agent instructions. Do not add Chinese prose or hide it with Unicode escapes. Run `npm run check:english` before committing; it is also part of `verify`. This applies to authored project files, not user input, upstream responses, dependencies, archived worktrees or demo-vault data.
+
 This repository is an Obsidian community plugin. Treat Obsidian Community review compatibility as a hard release requirement, not as a post-release cleanup task.
 
 ## Branch Workflow
