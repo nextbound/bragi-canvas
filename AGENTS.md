@@ -22,7 +22,7 @@ This repository is an Obsidian community plugin. Treat Obsidian Community review
 - Run `npm run verify` on the release commit; use `docs/obsidian-review-checklist.md` as the full release checklist.
 - For catalog changes, also run `npm run audit:catalog`.
 - Verify `manifest.json`, `package.json`, `package-lock.json`, and `versions.json` are version-aligned.
-- Update this repository's `CHANGELOG.md` for every version bump and the coordination workspace changelog when present.
+- Update this repository's `CHANGELOG.md` for every version bump. It is the single release-history source for the workspace and public website notes; preserve release dates and keep unshipped work under `Unreleased`.
 - Verify the release tag is plain semver with no `v` prefix, for example `1.12.14`.
 - Verify the GitHub release has separate `manifest.json`, `main.js`, and `styles.css` assets. Do not upload a zip instead.
 
