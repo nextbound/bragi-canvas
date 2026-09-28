@@ -4,7 +4,7 @@ import { testRuntime } from './test-runtime.mjs'
 const { module: { TaskQueue, TASK_CHECK_WINDOW_MS, TaskPollingError, pollRequest, withTimeout }, cleanup } = await testRuntime(`
 export * from './src/task-queue'; export * from './src/task-errors';
 `)
-globalThis.window = { setInterval: () => 1, clearInterval: () => {} }
+globalThis.window = { setInterval: () => 1, clearInterval: () => {}, setTimeout, clearTimeout }
 const realNow = Date.now
 let clock = realNow()
 Date.now = () => clock
@@ -124,6 +124,18 @@ try {
 	assert.equal(auth.queue.getSnapshots()[0].state, 'polling')
 	auth.queue.stop()
 
+	// Focus changes and closing a popout must not cancel background request deadlines.
+	let createdTimers = 0, clearedTimers = 0
+	const mainWindow = globalThis.window
+	mainWindow.setTimeout = (...args) => { createdTimers++; return setTimeout(...args) }
+	mainWindow.clearTimeout = timer => { clearedTimers++; clearTimeout(timer) }
+	globalThis.activeWindow = { setTimeout: () => { throw new Error('Popout timer used') }, clearTimeout: () => { throw new Error('Popout timer cleared') } }
+	const focusChange = withTimeout(Promise.resolve('focused elsewhere'), 50, new Error('timeout'))
+	globalThis.activeWindow = { closed: true }
+	assert.equal(await focusChange, 'focused elsewhere')
+	assert.equal(createdTimers, 1)
+	assert.equal(clearedTimers, 1)
+
 	// Hung HTTP calls time out without replay; successful calls clear their deadline timer.
 	let requests = 0
 	globalThis.__request = () => { requests++; return new Promise(() => {}) }
@@ -135,8 +147,10 @@ try {
 	await assert.rejects(lateFailure, /timeout/)
 	rejectLate(new Error('late network error'))
 	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(createdTimers, clearedTimers, 'Every resolved, rejected or expired deadline must be cleared')
 	console.log('Task wait states: bounded retries, deadline watchdog, paused UI, resume identity, late recovery, download phase and HTTP timeouts passed.')
 } finally {
 	Date.now = realNow
+	delete globalThis.activeWindow
 	await cleanup()
 }

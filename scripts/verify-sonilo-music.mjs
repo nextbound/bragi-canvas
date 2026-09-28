@@ -1,3 +1,4 @@
+import './test-window.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

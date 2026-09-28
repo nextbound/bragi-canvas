@@ -3,7 +3,7 @@ import { testRuntime } from './test-runtime.mjs'
 const { module: {TaskQueue, TaskPollingError, pollRequest, retryAfterMs}, cleanup } = await testRuntime(`
 export {TaskQueue} from './src/task-queue'; export * from './src/task-errors';
 `)
-globalThis.window = {setInterval:()=>1,clearInterval:()=>{}}
+globalThis.window = {setInterval:()=>1,clearInterval:()=>{},setTimeout,clearTimeout}
 globalThis.__notices=[]
 const snapshot = (canvasPath='A.canvas',providerName='test') => ({taskId:'same-id',providerName,apiModelId:'test',modelName:'Test',canvasPath,sourceNodeId:'source',placeholderNodeId:'result',outputDir:'assets',startedAt:Date.now()})
 const makeCanvas = () => {
