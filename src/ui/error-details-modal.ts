@@ -2,20 +2,28 @@ import { Modal, type App } from 'obsidian'
 import type { CanvasNode } from '../types/canvas-internal'
 
 export function getNodeErrorDetails(node: CanvasNode): string {
-	const d = node.getData() as { bragiGenError?: string }
-	const error = d.bragiGenError?.trim()
-	return error || 'No error details available.'
+	const d = node.getData()
+	const detail = d.bragiGenerating === true ? d.bragiGenDetail : d.bragiGenError
+	return typeof detail === 'string' && detail.trim() ? detail.trim() : 'No details available.'
+}
+
+export function getNodeDetailsTitle(node: CanvasNode): string {
+	return node.getData().bragiGenerating === true ? 'Checking details' : 'Error details'
+}
+
+export function openNodeDetails(node: CanvasNode): void {
+	new ErrorDetailsModal(node.app, getNodeErrorDetails(node), getNodeDetailsTitle(node)).open()
 }
 
 export class ErrorDetailsModal extends Modal {
-	constructor(app: App, private readonly errorMessage: string) {
+	constructor(app: App, private readonly errorMessage: string, private readonly heading = 'Error details') {
 		super(app)
 	}
 
 	onOpen(): void {
 		const { contentEl, titleEl, modalEl } = this
 		modalEl.classList.add('bragi-modal')
-		titleEl.setText('Error details')
+		titleEl.setText(this.heading)
 
 		const body = contentEl.createEl('pre', { cls: 'bragi-error-details-body' })
 		body.textContent = this.errorMessage
