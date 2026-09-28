@@ -4,6 +4,8 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
+- Keep DashScope voice-design previews within the CosyVoice and Qwen text limits, normalize whitespace, and supply Chinese or English language hints from the preview without shortening the speech text.
+
 - Show generation stages, retry countdowns and paused reasons on placeholders. Stop the loader and shimmer while retrying or paused, with a circular **Resume checking** icon beside the bottom model pill for retained tasks.
 - Pause automatic task checks after five failed retries or a 15-minute checking window. Keep the accepted task ID, persisted deadline and downloaded results; resume checks without submitting another generation.
 - Bound SVRouter reference preparation, video submission and status/download requests. Explain that reference registration failures happen before video submission, while retaining upstream error details.
