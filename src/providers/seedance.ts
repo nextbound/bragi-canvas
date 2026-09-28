@@ -1,6 +1,6 @@
 import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
-import type { VideoProvider, GenerateVideoResult } from './types'
+import type { VideoProvider, GenerateVideoResult, VideoGenerationContext } from './types'
 import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import { uploadRef } from './upload'
@@ -96,9 +96,14 @@ function assertSeedanceInputs(
 	}
 }
 
-export function buildSeedanceRequestBody(prompt: string, params: Record<string, unknown> = {}): SeedanceRequestBody {
-	const modelId = stringParam(params, 'modelId', 'doubao-seedance-2-0-260128')
-	const is25 = isSeedance25ModelId(modelId)
+export function buildSeedanceRequestBody(prompt: string, params: Record<string, unknown>, context: VideoGenerationContext): SeedanceRequestBody {
+	const catalogModelId = context?.catalogModelId
+	if (!['seedance-2.0', 'seedance-2.0-fast', 'seedance-2.5'].includes(catalogModelId)) {
+		throw new Error('Seedance requires a supported catalog model identity.')
+	}
+	const modelId = stringParam(params, 'modelId', '')
+	if (!modelId.trim()) throw new Error('Seedance API model ID is required.')
+	const is25 = isSeedance25ModelId(catalogModelId)
 	const genMode = stringParam(params, 'genMode', 'text-to-video')
 	const duration = Number.parseInt(stringParam(params, 'duration', is25 ? '-1' : '5'), 10)
 	const ratio = stringParam(params, 'ratio', is25 ? 'adaptive' : '16:9')
@@ -109,7 +114,7 @@ export function buildSeedanceRequestBody(prompt: string, params: Record<string, 
 	const refVideos = stringArrayParam(params, 'refVideos')
 	const generateAudio = params.generate_audio !== 'false' && params.generate_audio !== false
 
-	assertSeedanceInputs(modelId, genMode, duration, ratio, resolution, outputFormat, refImages, refAudios, refVideos)
+	assertSeedanceInputs(catalogModelId, genMode, duration, ratio, resolution, outputFormat, refImages, refAudios, refVideos)
 	if (genMode === 'text-to-video' && !prompt.trim()) throw new Error(`${is25 ? 'Seedance 2.5' : 'Seedance'} text-to-video mode requires a prompt.`)
 
 	const content: SeedanceContent[] = []
@@ -157,10 +162,10 @@ export class SeedanceProvider implements VideoProvider {
 		this.baseUrl = normalizeSeedanceEndpoint(baseUrl, VOLCENGINE_SEEDANCE_ENDPOINT)
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+	async generateVideo(prompt: string, params: Record<string, unknown> | undefined, context: VideoGenerationContext): Promise<GenerateVideoResult> {
 		const requestParams = params || {}
 		// Validate before any reference upload so an invalid task cannot create orphaned assets.
-		buildSeedanceRequestBody(prompt, requestParams)
+		buildSeedanceRequestBody(prompt, requestParams, context)
 		const refImages = stringArrayParam(requestParams, 'refImages')
 		const preparedImages: string[] = []
 
@@ -184,7 +189,7 @@ export class SeedanceProvider implements VideoProvider {
 			preparedImages.push(imageUrl)
 		}
 
-		const requestBody = buildSeedanceRequestBody(prompt, { ...requestParams, refImages: preparedImages })
+		const requestBody = buildSeedanceRequestBody(prompt, { ...requestParams, refImages: preparedImages }, context)
 		const response = await requestUrl({
 			url: this.baseUrl,
 			method: 'POST',
