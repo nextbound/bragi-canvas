@@ -10,6 +10,7 @@ import {
 	type GeneratingStatus,
 } from './generating-overlay'
 import { clearIncomingRefAttachments } from './generating-node'
+import { openNodeDetails } from './ui/error-details-modal'
 import { stopSquare19Loader } from './dotm-square-19'
 import {
 	createFailedOverlay,
@@ -226,6 +227,7 @@ function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt:
 		paused: data.bragiGenPaused === true,
 		retryAt: typeof data.bragiGenRetryAt === 'number' ? data.bragiGenRetryAt : undefined,
 		onResume: onResume || generatingRegistry.get(node.id)?.status.onResume,
+		onDetails: () => openNodeDetails(node),
 	}
 	nodeEl.classList.toggle('bragi-checking-paused', !!status.paused)
 	nodeEl.classList.toggle('bragi-generating-compact', typeof data.height === 'number' && data.height < 200)
@@ -366,10 +368,10 @@ function attachFailedOverlay(node: CanvasNode, title: string, modelName?: string
 	let overlay = findFailedOverlay(nodeEl)
 	if (!overlay) {
 		nodeEl.querySelectorAll('.bragi-failed-overlay').forEach(el => el.remove())
-		overlay = createFailedOverlay(title, modelName)
+		overlay = createFailedOverlay(title, modelName, () => openNodeDetails(node))
 		nodeEl.appendChild(overlay.overlayEl)
 	} else {
-		updateFailedOverlay(overlay, title, modelName)
+		updateFailedOverlay(overlay, title, modelName, () => openNodeDetails(node))
 	}
 }
 

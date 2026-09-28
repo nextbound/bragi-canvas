@@ -48,6 +48,11 @@ export function registerBragiIcons(): void {
 		'<path d="M18 13.2H18.012" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
 	))
 
+	// Tabler Icons: exclamation-mark (MIT). Footer details use the bare symbol.
+	addIcon('bragi-details-mark', icon24(
+		'<path d="M12 19v.01M12 15V5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+	))
+
 	// 04 — Edit (pencil)
 	addIcon('bragi-edit', figmaIcon(
 		'<path d="M5.67272 24.4638L4.5 31.5L11.5363 30.3273C12.7582 30.1237 13.8859 29.5434 14.7618 28.6674L30.6297 12.7993C31.7901 11.6388 31.7901 9.75735 30.6296 8.59689L27.403 5.37036C26.2425 4.20987 24.3609 4.20988 23.2003 5.3704L7.33262 21.2385C6.45671 22.1143 5.87636 23.242 5.67272 24.4638Z" stroke="#161616" stroke-width="2" stroke-linejoin="round"/>' +

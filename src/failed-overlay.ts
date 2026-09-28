@@ -1,10 +1,13 @@
 /** Failed / interrupted placeholder overlay — icon + title + optional model pill. */
 
+import { setIcon, setTooltip } from 'obsidian'
+
 export interface FailedOverlayElements {
 	overlayEl: HTMLDivElement
 	titleEl: HTMLDivElement
 	modelPillEl: HTMLDivElement
 	modelEl: HTMLSpanElement
+	detailsEl: HTMLButtonElement
 }
 
 function createFailedIcon(): HTMLDivElement {
@@ -37,22 +40,32 @@ function createFailedIcon(): HTMLDivElement {
 	return icon
 }
 
-export function createFailedOverlay(title: string, modelName?: string): FailedOverlayElements {
+export function createFailedOverlay(title: string, modelName?: string, onDetails?: () => void): FailedOverlayElements {
 	const overlayEl = createDiv({ cls: 'bragi-failed-overlay' })
 	const center = overlayEl.createDiv({ cls: 'bragi-failed-center' })
 	center.appendChild(createFailedIcon())
 	const titleEl = center.createDiv({ cls: 'bragi-failed-title', text: title })
-	const modelPillEl = overlayEl.createDiv({ cls: 'bragi-generating-model-pill bragi-failed-model-pill' })
+	const footer = overlayEl.createDiv({ cls: 'bragi-generating-footer' })
+	const modelPillEl = footer.createDiv({ cls: 'bragi-generating-model-pill bragi-failed-model-pill' })
 	const modelEl = modelPillEl.createSpan({ cls: 'bragi-generating-model' })
-	updateFailedOverlay({ overlayEl, titleEl, modelPillEl, modelEl }, title, modelName)
-	return { overlayEl, titleEl, modelPillEl, modelEl }
+	const detailsEl = footer.createEl('button', { cls: 'bragi-placeholder-action bragi-placeholder-details' })
+	detailsEl.type = 'button'
+	detailsEl.setAttr('aria-label', 'Error details')
+	setIcon(detailsEl, 'bragi-details-mark')
+	setTooltip(detailsEl, 'Error details', { placement: 'top' })
+	detailsEl.addEventListener('pointerdown', event => event.stopPropagation())
+	updateFailedOverlay({ overlayEl, titleEl, modelPillEl, modelEl, detailsEl }, title, modelName, onDetails)
+	return { overlayEl, titleEl, modelPillEl, modelEl, detailsEl }
 }
 
 export function updateFailedOverlay(
 	elements: FailedOverlayElements,
 	title: string,
 	modelName?: string,
+	onDetails?: () => void,
 ): void {
+	elements.detailsEl.onclick = event => { event.stopPropagation(); onDetails?.() }
+	elements.detailsEl.classList.toggle('bragi-hidden', !onDetails)
 	elements.titleEl.textContent = title
 	if (modelName) {
 		elements.modelEl.textContent = modelName
@@ -69,6 +82,7 @@ export function findFailedOverlay(nodeEl: HTMLElement): FailedOverlayElements | 
 	const titleEl = overlayEl.querySelector<HTMLDivElement>('.bragi-failed-title')
 	const modelPillEl = overlayEl.querySelector<HTMLDivElement>('.bragi-failed-model-pill')
 	const modelEl = modelPillEl?.querySelector<HTMLSpanElement>('.bragi-generating-model')
-	if (!titleEl || !modelPillEl || !modelEl) return null
-	return { overlayEl, titleEl, modelPillEl, modelEl }
+	const detailsEl = overlayEl.querySelector<HTMLButtonElement>('.bragi-placeholder-details')
+	if (!detailsEl || !titleEl || !modelPillEl || !modelEl) return null
+	return { overlayEl, titleEl, modelPillEl, modelEl, detailsEl }
 }

@@ -9,6 +9,7 @@ export interface GeneratingStatus {
 	paused?: boolean
 	retryAt?: number
 	onResume?: () => void
+	onDetails?: () => void
 }
 
 export interface GeneratingOverlayElements {
@@ -20,6 +21,7 @@ export interface GeneratingOverlayElements {
 	detailEl: HTMLDivElement
 	pausedEl: HTMLDivElement
 	resumeEl: HTMLButtonElement
+	detailsEl: HTMLButtonElement
 }
 
 export function createGeneratingOverlay(): GeneratingOverlayElements {
@@ -38,13 +40,19 @@ export function createGeneratingOverlay(): GeneratingOverlayElements {
 	const footer = overlayEl.createDiv({ cls: 'bragi-generating-footer' })
 	const pill = footer.createDiv({ cls: 'bragi-generating-model-pill' })
 	const modelEl = pill.createSpan({ cls: 'bragi-generating-model' })
-	const resumeEl = footer.createEl('button', { cls: 'bragi-generating-resume bragi-hidden' })
+	const detailsEl = footer.createEl('button', { cls: 'bragi-placeholder-action bragi-placeholder-details bragi-hidden' })
+	detailsEl.type = 'button'
+	detailsEl.setAttr('aria-label', 'Checking details')
+	setIcon(detailsEl, 'bragi-details-mark')
+	setTooltip(detailsEl, 'Checking details', { placement: 'top' })
+	detailsEl.addEventListener('pointerdown', event => event.stopPropagation())
+	const resumeEl = footer.createEl('button', { cls: 'bragi-placeholder-action bragi-generating-resume bragi-hidden' })
 	resumeEl.type = 'button'
 	resumeEl.setAttr('aria-label', 'Resume checking')
 	setIcon(resumeEl, 'rotate-cw')
 	setTooltip(resumeEl, 'Resume checking', { placement: 'top' })
 	resumeEl.addEventListener('pointerdown', event => event.stopPropagation())
-	return { overlayEl, loaderEl, modelEl, elapsedEl, statusEl, detailEl, pausedEl, resumeEl }
+	return { overlayEl, loaderEl, modelEl, elapsedEl, statusEl, detailEl, pausedEl, resumeEl, detailsEl }
 }
 
 export function formatGeneratingElapsed(startedAt: number): string {
@@ -65,10 +73,12 @@ export function updateGeneratingOverlay(
 		: status.label
 	elements.detailEl.textContent = status.detail || ''
 	elements.detailEl.title = status.detail || ''
-	elements.detailEl.classList.toggle('bragi-hidden', !status.detail)
+	elements.detailEl.classList.toggle('bragi-hidden', !status.detail || !!status.paused)
 	elements.elapsedEl.classList.toggle('bragi-hidden', !!status.paused)
 	elements.loaderEl.classList.toggle('bragi-hidden', !!status.paused)
 	elements.pausedEl.classList.toggle('bragi-hidden', !status.paused)
+	elements.detailsEl.classList.toggle('bragi-hidden', !status.paused || !status.onDetails)
+	elements.detailsEl.onclick = event => { event.stopPropagation(); status.onDetails?.() }
 	elements.resumeEl.classList.toggle('bragi-hidden', !status.onResume)
 	elements.resumeEl.onclick = event => { event.stopPropagation(); status.onResume?.() }
 	if (status.paused) stopSquare19Loader(elements.loaderEl)
@@ -89,6 +99,7 @@ export function findGeneratingOverlay(nodeEl: HTMLElement): GeneratingOverlayEle
 	const detailEl = overlayEl.querySelector<HTMLDivElement>('.bragi-generating-detail')
 	const pausedEl = overlayEl.querySelector<HTMLDivElement>('.bragi-generating-paused-icon')
 	const resumeEl = overlayEl.querySelector<HTMLButtonElement>('.bragi-generating-resume')
-	if (!loaderEl || !modelEl || !elapsedEl || !statusEl || !detailEl || !pausedEl || !resumeEl) return null
-	return { overlayEl, loaderEl, modelEl, elapsedEl, statusEl, detailEl, pausedEl, resumeEl }
+	const detailsEl = overlayEl.querySelector<HTMLButtonElement>('.bragi-placeholder-details')
+	if (!detailsEl || !loaderEl || !modelEl || !elapsedEl || !statusEl || !detailEl || !pausedEl || !resumeEl) return null
+	return { overlayEl, loaderEl, modelEl, elapsedEl, statusEl, detailEl, pausedEl, resumeEl, detailsEl }
 }
