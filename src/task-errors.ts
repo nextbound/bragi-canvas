@@ -35,12 +35,11 @@ export function retryAfterMs(value: string | undefined, now = Date.now()): numbe
 
 /** Bound waiting without replaying the operation. A late response is observed but not applied. */
 export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, error: Error): Promise<T> {
-	let timer: ReturnType<typeof setTimeout>
-	// Network deadlines belong to the plugin runtime, even if the initiating popout closes.
-	// eslint-disable-next-line obsidianmd/prefer-active-window-timers -- Keep HTTP deadlines independent of popout lifetime.
-	const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(error), timeoutMs) })
-	// eslint-disable-next-line obsidianmd/prefer-active-window-timers -- Clear on the same runtime that created the deadline.
-	return Promise.race([operation, timeout]).finally(() => clearTimeout(timer))
+	// Background request deadlines belong to the plugin's main window, not a transient popout.
+	const timerWindow = window
+	let timer: number
+	const timeout = new Promise<never>((_, reject) => { timer = timerWindow.setTimeout(() => reject(error), timeoutMs) })
+	return Promise.race([operation, timeout]).finally(() => timerWindow.clearTimeout(timer))
 }
 
 /** Polling and result downloads only. Never retries or submits a generation. */

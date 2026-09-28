@@ -1,3 +1,4 @@
+import './test-window.mjs'
 import { build } from 'esbuild'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

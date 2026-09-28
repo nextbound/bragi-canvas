@@ -6,6 +6,10 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
+## 1.40.3 — 2026-09-28
+
+- Bind background request deadlines and cleanup to the plugin main window without disabling the Obsidian timer rule. Preserve timeout and retry behavior when focus moves to or a user closes a popout window.
+
 ## 1.40.2 — 2026-09-28
 
 - Preserve the selected Seedance model's capabilities when BytePlus uses a custom API model ID or inference endpoint. Keep existing Wan and HappyHorse routing unchanged.
