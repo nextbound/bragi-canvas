@@ -4,14 +4,16 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
-- Keep DashScope voice-design previews within the CosyVoice and Qwen text limits, normalize whitespace, and supply Chinese or English language hints from the preview without shortening the speech text.
+- Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
-- Show generation stages, retry countdowns and paused reasons on placeholders. Stop the loader and shimmer while retrying or paused, with a circular **Resume checking** icon beside the bottom model pill for retained tasks.
-- Pause automatic task checks after five failed retries or a 15-minute checking window. Keep the accepted task ID, persisted deadline and downloaded results; resume checks without submitting another generation.
-- Bound SVRouter reference preparation, video submission and status/download requests. Explain that reference registration failures happen before video submission, while retaining upstream error details.
-- Expose download state, retry count, deadline and pause diagnostics through both MCP task inspection tools.
+## 1.40.2 — 2026-09-28
 
-- Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and was not shipped in 1.39.0.
+- Preserve the selected Seedance model's capabilities when BytePlus uses a custom API model ID or inference endpoint. Keep existing Wan and HappyHorse routing unchanged.
+- Keep DashScope voice-design previews within CosyVoice and Qwen text limits without shortening the final speech text.
+- Show generation stages and retry countdowns, stop animation during retries or pauses, and show a pause icon when checking needs attention. Open checking or error details from either the top toolbar or the button beside the model name.
+- Pause automatic checks after five failed retries or a 15-minute checking window. Resume checking the accepted task without submitting another generation.
+- Bound SVRouter reference preparation, submission, status and download requests while retaining upstream error details. Reference registration failures are identified before video submission.
+- Include download state, retry count, deadline and pause diagnostics in MCP task inspection.
 
 ## 1.40.1 — 2026-09-24
 
