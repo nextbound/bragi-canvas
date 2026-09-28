@@ -35,6 +35,8 @@ const HAPPYHORSE_VIDEO_EDIT = 'happyhorse-1.0-video-edit'
 const HAPPYHORSE_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4', '4:5', '5:4', '21:9', '9:21']
 const VIDEO_DONE_STATUSES = new Set(['SUCCEEDED', 'SUCCESS', 'COMPLETED'])
 const VIDEO_FAILED_STATUSES = new Set(['FAILED', 'FAILURE', 'ERROR', 'CANCELED', 'CANCELLED', 'UNKNOWN'])
+const COSY_VOICE_DESIGN_PREVIEW_TEXT_MAX = 200
+const QWEN_VOICE_DESIGN_PREVIEW_TEXT_MAX = 1024
 
 type UnknownRecord = Record<string, unknown>
 
@@ -178,6 +180,31 @@ function safePayloadSnippet(value: unknown): string {
 	} catch {
 		return ''
 	}
+}
+
+function compactPreviewText(text: string): string {
+	return text.replace(/\s+/g, ' ').trim()
+}
+
+function limitTextByCodePoint(text: string, maxLength: number): string {
+	const chars = Array.from(text)
+	if (chars.length <= maxLength) return text
+	return chars.slice(0, maxLength).join('').trimEnd()
+}
+
+function voiceDesignPreviewText(text: string, qwen: boolean): string {
+	return limitTextByCodePoint(
+		compactPreviewText(text),
+		qwen ? QWEN_VOICE_DESIGN_PREVIEW_TEXT_MAX : COSY_VOICE_DESIGN_PREVIEW_TEXT_MAX,
+	)
+}
+
+function inferVoiceDesignLanguage(text: string): 'zh' | 'en' | undefined {
+	const latinCount = text.match(/[A-Za-z]/g)?.length || 0
+	const cjkCount = text.match(/[\u3400-\u9FFF]/g)?.length || 0
+	if (latinCount > cjkCount) return 'en'
+	if (cjkCount > 0) return 'zh'
+	return undefined
 }
 
 function outputDirectoryPath(outputDir: string): string {
@@ -937,20 +964,24 @@ export class DashScopeAudioProvider implements AudioProvider {
 	async designVoice(options: VoiceDesignOptions): Promise<VoiceDesignResult> {
 		const modelId = options.modelId
 		const qwen = isQwenModel(modelId)
+		const previewText = voiceDesignPreviewText(options.previewText, qwen)
+		const language = inferVoiceDesignLanguage(previewText)
 		const input: UnknownRecord = qwen
 			? {
 				action: 'create',
 				target_model: modelId,
 				preferred_name: sanitizeQwenName(options.voiceNamePrefix || options.promptHash),
 				voice_prompt: options.voicePrompt,
-				preview_text: options.previewText,
+				preview_text: previewText,
+				...(language ? { language } : {}),
 			}
 			: {
 				action: 'create_voice',
 				target_model: modelId,
 				prefix: sanitizeCosyPrefix(options.voiceNamePrefix || options.promptHash),
 				voice_prompt: options.voicePrompt,
-				preview_text: options.previewText,
+				preview_text: previewText,
+				...(language ? { language_hints: [language] } : {}),
 			}
 
 		const resp = await requestUrl({
