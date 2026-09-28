@@ -1,14 +1,14 @@
 # Bragi package format
 
-这份文档说明 Bragi Canvas 当前使用的 `.bragi` 导入/导出格式，方便外部工具合成 `.bragi` 文件并导入到 Obsidian Canvas。
+This document describes the `.bragi` import/export format so external tools can create packages for Obsidian Canvas.
 
-核心结论：`.bragi` 是一个 JSON 数据文件，不是插件更新包，也不是压缩包。它只能描述画布数据和画布资源，导入时资源只会写入 vault 内的 `_bragi/assets`。
+A `.bragi` file is JSON canvas data, not a plugin update or compressed archive. It describes canvas content and assets; imports write assets only into `_bragi/assets` inside the vault.
 
-实现参考：`src/import-export.ts`。
+Implementation: `src/import-export.ts`.
 
-## 顶层结构
+## Top-level structure
 
-最小结构：
+Minimal structure:
 
 ```json
 {
@@ -26,20 +26,20 @@
 }
 ```
 
-字段含义：
+Fields:
 
-- `format`：必须是 `bragi-canvas-package`。
-- `version`：当前必须是 `2`。
-- `exportDate`：导出时间，建议使用 ISO 字符串。
-- `canvasName`：原始画布名称，不带 `.canvas` 后缀。
-- `nodeCount`：`canvas.nodes` 的数量。
-- `assetCount`：`assets` 的数量。
-- `canvas`：Obsidian Canvas 数据。
-- `assets`：包内资源列表，用 base64 存储。
+- `format`: must be `bragi-canvas-package`.
+- `version`: must currently be `2`.
+- `exportDate`: export time, preferably an ISO timestamp.
+- `canvasName`: original canvas name without the `.canvas` extension.
+- `nodeCount`: number of entries in `canvas.nodes`.
+- `assetCount`: number of entries in `assets`.
+- `canvas`: Obsidian Canvas data.
+- `assets`: packaged assets encoded as base64.
 
 ## canvas
 
-`canvas` 使用 Obsidian 原生 Canvas JSON 结构：
+`canvas` uses the native Obsidian Canvas JSON structure:
 
 ```json
 {
@@ -48,11 +48,11 @@
 }
 ```
 
-Bragi Canvas 会保留 Obsidian Canvas 支持的额外字段，所以 Bragi 自己的节点元数据也可以直接放在节点对象上。
+Bragi preserves additional fields supported by Obsidian Canvas, including Bragi metadata stored directly on nodes.
 
 ## assets
 
-资源用数组保存：
+Assets are stored as an array:
 
 ```json
 {
@@ -62,26 +62,26 @@ Bragi Canvas 会保留 Obsidian Canvas 支持的额外字段，所以 Bragi 自�
 }
 ```
 
-字段含义：
+Fields:
 
-- `path`：包内资源路径，必须以 `assets/` 开头。
-- `encoding`：当前必须是 `base64`。
-- `data`：资源文件的 base64 内容，不要带 `data:image/...` 前缀。
+- `path`: package-relative asset path, starting with `assets/`.
+- `encoding`: must currently be `base64`.
+- `data`: base64 file content without a `data:image/...` prefix.
 
-导入时，`assets/ref.png` 会被写入 vault 的 `_bragi/assets/ref.png`。如果同名文件已存在，会自动变成类似 `_bragi/assets/ref_2.png`，并且文件节点里的路径会改写到实际路径。
+On import, `assets/ref.png` is written to `_bragi/assets/ref.png` in the vault. A collision produces a name such as `_bragi/assets/ref_2.png`; the file node is updated to the actual path.
 
-资源路径安全规则：
+Asset path restrictions:
 
-- 必须以 `assets/` 开头。
-- 不能是绝对路径。
-- 不能包含 `..`、空路径段、反斜杠或空字符。
-- 不能包含插件 release 文件名：`main.js`、`manifest.json`、`styles.css`。
+- Must start with `assets/`.
+- Must not be absolute.
+- Must not contain `..`, empty segments, backslashes or null characters.
+- Must not contain plugin release filenames: `main.js`, `manifest.json` or `styles.css`.
 
-这些限制是为了明确 `.bragi` 只是一种画布数据导入格式，不是插件安装或更新机制。
+These restrictions keep `.bragi` a canvas data format rather than a plugin installation or update mechanism.
 
-## 节点通用规则
+## Common node fields
 
-每个节点都需要这些基础字段：
+Every node needs these basic fields:
 
 ```json
 {
@@ -94,18 +94,18 @@ Bragi Canvas 会保留 Obsidian Canvas 支持的额外字段，所以 Bragi 自�
 }
 ```
 
-必需字段：
+Required fields:
 
-- `id`：字符串，在当前 `canvas` 内唯一。
-- `type`：节点类型，可以是 `text`、`file`、`link`、`group`。
-- `x`、`y`：节点在画布上的位置。
-- `width`、`height`：节点尺寸。
+- `id`: string, unique within the canvas.
+- `type`: `text`, `file`, `link` or `group`.
+- `x`, `y`: canvas position.
+- `width`, `height`: node dimensions.
 
-可选字段：
+Optional fields:
 
-- `color`：Obsidian Canvas 节点颜色，通常是 `"1"` 到 `"6"`，也可以是十六进制颜色。Bragi 的 Mark 功能会切换成 `"6"`。
+- `color`: an Obsidian Canvas color, usually `"1"` through `"6"`, or a hex color. Bragi Mark toggles `"6"`.
 
-## 文本节点
+## Text nodes
 
 ```json
 {
@@ -119,11 +119,11 @@ Bragi Canvas 会保留 Obsidian Canvas 支持的额外字段，所以 Bragi 自�
 }
 ```
 
-文本节点额外必需字段：
+Additional required field:
 
-- `text`：节点文本内容。
+- `text`: node text content.
 
-## 文件节点
+## File nodes
 
 ```json
 {
@@ -137,29 +137,29 @@ Bragi Canvas 会保留 Obsidian Canvas 支持的额外字段，所以 Bragi 自�
 }
 ```
 
-文件节点额外必需字段：
+Additional required field:
 
-- `file`：vault 相对路径。对于 `.bragi` 包，建议写成包内资源路径，例如 `assets/ref.png`。
+- `file`: vault-relative file path. Packages should use an asset path such as `assets/ref.png`.
 
-如果 `file` 指向 `assets/...`，导入时 Bragi 会把它改写成实际的 `_bragi/assets/...` 路径。
+When `file` points to `assets/...`, import rewrites it to the actual `_bragi/assets/...` path.
 
-Bragi 当前识别的媒体类型：
+Currently recognized media types:
 
-- 图片：`.png`、`.jpg`、`.jpeg`、`.webp`、`.gif`
-- 视频：`.mp4`、`.mov`、`.webm`
-- 音频：`.mp3`、`.wav`
-- Markdown 提示词文件：`.md`
+- Images: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`
+- Videos: `.mp4`, `.mov`, `.webm`
+- Audio: `.mp3`, `.wav`
+- Markdown prompt files: `.md`
 
-文件节点可选字段：
+Optional file-node fields:
 
-- `subpath`：Obsidian 文件子路径，例如 `#Heading`。
-- `bragiAssetId`：手动设置的 BytePlus / Volcengine Asset ID，主要用于 Seedance face reference 工作流。
+- `subpath`: an Obsidian file subpath such as `#Heading`.
+- `bragiAssetId`: a manually assigned BytePlus/Volcengine Asset ID, primarily for Seedance face references.
 
-不要手动设置：
+Do not set manually:
 
-- `bragiAssetIds`：这是 Bragi 内部的多 provider asset 缓存字段，外部生成包时不要写，让插件自己生成。
+- `bragiAssetIds`: the internal cache of assets for multiple providers. External packages should let the plugin populate it.
 
-## 链接节点
+## Link nodes
 
 ```json
 {
@@ -173,11 +173,11 @@ Bragi 当前识别的媒体类型：
 }
 ```
 
-链接节点额外必需字段：
+Additional required field:
 
-- `url`：链接地址。
+- `url`: link address.
 
-## 分组节点
+## Group nodes
 
 ```json
 {
@@ -193,13 +193,13 @@ Bragi 当前识别的媒体类型：
 }
 ```
 
-分组节点可选字段：
+Optional group fields:
 
-- `label`：分组名称。
-- `background`：背景图片路径。如果它指向 `assets/...`，导入时会被改写成 `_bragi/assets/...` 下的实际路径。
-- `backgroundStyle`：可以是 `cover`、`ratio` 或 `repeat`。
+- `label`: group name.
+- `background`: background image path. An `assets/...` path is rewritten to its actual `_bragi/assets/...` location during import.
+- `backgroundStyle`: `cover`, `ratio` or `repeat`.
 
-## 连线规则
+## Edge rules
 
 ```json
 {
@@ -214,34 +214,34 @@ Bragi 当前识别的媒体类型：
 }
 ```
 
-必需字段：
+Required fields:
 
-- `id`：字符串，在当前 `canvas` 内唯一。
-- `fromNode`：起点节点 id。
-- `toNode`：终点节点 id。
+- `id`: string, unique within the canvas.
+- `fromNode`: source node ID.
+- `toNode`: destination node ID.
 
-可选字段：
+Optional fields:
 
 - `fromSide`：`top`、`right`、`bottom`、`left`
 - `toSide`：`top`、`right`、`bottom`、`left`
-- `fromEnd`：`none` 或 `arrow`
-- `toEnd`：`none` 或 `arrow`
+- `fromEnd`: `none` or `arrow`
+- `toEnd`: `none` or `arrow`
 - `color`
 - `label`
 
-如果想让某个节点作为 Bragi 生成的输入，它必须用有方向的连线指向目标节点：
+To use a node as generation input, connect it to the target with a directed edge:
 
-- `toNode` 必须是目标提示词/生成节点。
-- `toEnd` 建议写 `"arrow"`，也可以省略，省略时 Bragi 会按箭头端处理。
-- `fromEnd` 建议写 `"none"`，也可以省略。
+- `toNode` must identify the target prompt/generation node.
+- Prefer `toEnd: "arrow"`. If omitted, Bragi treats it as an arrow end.
+- Prefer `fromEnd: "none"`; it can also be omitted.
 
-Bragi 会忽略无方向连线和双向箭头连线，不会把它们当作生成输入。
+Bragi ignores undirected and bidirectional edges when collecting generation inputs.
 
-## Bragi 自定义节点字段
+## Bragi custom node fields
 
-这些字段都是可选的，直接存储在 Obsidian Canvas 节点对象上。
+These optional fields are stored directly on Obsidian Canvas nodes.
 
-### 输入顺序
+### Input order
 
 ```json
 {
@@ -251,25 +251,25 @@ Bragi 会忽略无方向连线和双向箭头连线，不会把它们当作生�
 }
 ```
 
-字段含义：
+Fields:
 
-- `bragiImageOrder`：上游图片引用的优先顺序。
-- `bragiTextOrder`：上游文本节点或 Markdown 节点的优先顺序，存的是节点 id。
-- `bragiAudioOrder`：上游音频引用的优先顺序。
+- `bragiImageOrder`: preferred order of upstream image references.
+- `bragiTextOrder`: preferred upstream text/Markdown order, stored as node IDs.
+- `bragiAudioOrder`: preferred upstream audio order.
 
-重要限制：
+Important limitation:
 
-当前导入器只会改写 `node.file` 和 `node.background`，不会改写 `bragiImageOrder`、`bragiAudioOrder`、`bragiTextOrder`。
+The importer rewrites only `node.file` and `node.background`, not `bragiImageOrder`, `bragiAudioOrder` or `bragiTextOrder`.
 
-所以外部生成 `.bragi` 时建议：
+Recommendations for externally generated packages:
 
-- 可以完全不写这些顺序字段。
-- 如果要写，只把它们当成提示信息，不要依赖它们一定正确。
-- 不要依赖 `bragiTextOrder` 在导入后还能对应原节点，因为导入时节点 id 会被重新生成。
-- 不要依赖路径顺序字段处理文件重名，因为如果导入时发生文件名冲突，Bragi 会给实际文件加后缀，但不会改写这些自定义路径字段。
-- 更稳的方式是把连线按你希望的输入顺序写进 `canvas.edges`，当保存的顺序字段不匹配时，Bragi 会回退到上游连线顺序。
+- These ordering fields can be omitted entirely.
+- If included, treat them as hints rather than guaranteed ordering.
+- Do not rely on `bragiTextOrder` matching imported nodes: import generates new node IDs.
+- Do not rely on path-order fields after filename collisions: imported files receive suffixes but these custom fields are not rewritten.
+- Prefer storing edges in the desired input order in `canvas.edges`. Bragi falls back to upstream edge order when saved ordering fields do not match.
 
-### 上次生成配置
+### Last generation settings
 
 ```json
 {
@@ -285,15 +285,15 @@ Bragi 会忽略无方向连线和双向箭头连线，不会把它们当作生�
 }
 ```
 
-Bragi 会用这个字段给某个节点预填生成栏配置。它是可选字段。
+This optional field prefills a node's generation bar.
 
-顶层 key 通常是生成类型，例如 `image`、`video`、`text`、`audio`。
+Top-level keys usually identify generation types: `image`, `video`, `text` or `audio`.
 
-注意：如果 `modelId` 在当前用户环境里不可用，UI 可能会忽略或无法直接使用它。
+If `modelId` is unavailable in the user's environment, the UI may ignore it or be unable to use it.
 
-### 不要写入运行中状态
+### Do not include running-task state
 
-外部生成 `.bragi` 时不要写这些字段：
+Do not write these fields when generating an external package:
 
 ```json
 {
@@ -303,11 +303,11 @@ Bragi 会用这个字段给某个节点预填生成栏配置。它是可选字�
 }
 ```
 
-这些字段表示“正在生成”的运行时状态。如果导入后没有对应的内存任务，Bragi 可能会把节点标记成 interrupted。
+These fields represent an in-progress generation. Without a corresponding in-memory task after import, Bragi may mark the node interrupted.
 
-## 最小可用包示例
+## Minimal working package
 
-下面这个 `.bragi` 文件包含一个图片资源和一个提示词节点：
+This example contains one image asset and one prompt node:
 
 ```json
 {
@@ -360,63 +360,63 @@ Bragi 会用这个字段给某个节点预填生成栏配置。它是可选字�
 }
 ```
 
-导入后：
+After import:
 
-- `assets/ref.png` 会被写入 `_bragi/assets/ref.png`。
-- 如果 `_bragi/assets/ref.png` 已存在，会改名成类似 `_bragi/assets/ref_2.png`。
-- 文件节点的 `file` 字段会被改写成实际路径。
-- 所有节点 id 和连线 id 都会被重新生成。
+- `assets/ref.png` is written to `_bragi/assets/ref.png`.
+- If that path exists, a name such as `_bragi/assets/ref_2.png` is used.
+- The file node's `file` field is updated to the actual path.
+- All node and edge IDs are regenerated.
 
-## 外部生成检查清单
+## External generation checklist
 
-从外部工具生成 `.bragi` 时，按这个清单做：
+When creating a `.bragi` package with another tool:
 
-1. 创建一个 UTF-8 JSON 文件，然后使用 `.bragi` 扩展名。
-2. 顶层 `format` 写 `bragi-canvas-package`。
-3. 顶层 `version` 写 `2`。
-4. 把 Obsidian Canvas 数据放进 `canvas`。
-5. 把资源文件转成 base64 后放进 `assets`。
-6. `canvas` 里的文件节点和分组背景都指向 `assets/...` 路径。
-7. 确保每个节点 id 在 `canvas` 内唯一。
-8. 确保每个连线 id 在 `canvas` 内唯一。
-9. 确保每条连线的 `fromNode` 和 `toNode` 都能找到对应节点。
-10. 如果要作为 Bragi 生成输入，使用指向目标节点的有向连线，并设置 `toEnd: "arrow"`。
-11. 不要写绝对本地路径，例如 `/Users/...` 或 `C:\...`。
-12. 不要写 `bragiGenerating` 这类运行中状态字段。
-13. 不要把插件 release 文件放进 `assets`。
-14. 同时测试两种导入方式：
-    - 合并到当前打开的画布。
-    - 作为新画布导入。
+1. Create a UTF-8 JSON file with the `.bragi` extension.
+2. Set the top-level `format` to `bragi-canvas-package`.
+3. Set the top-level `version` to `2`.
+4. Put Obsidian Canvas data in `canvas`.
+5. Encode asset files as base64 and put them in `assets`.
+6. Point file nodes and group backgrounds to `assets/...` paths.
+7. Ensure every node ID is unique within the canvas.
+8. Ensure every edge ID is unique within the canvas.
+9. Ensure each edge's `fromNode` and `toNode` reference existing nodes.
+10. Use directed edges pointing at the target with `toEnd: "arrow"` for generation inputs.
+11. Do not use absolute paths such as `/Users/...` or `C:\...`.
+12. Do not include runtime fields such as `bragiGenerating`.
+13. Do not place plugin release files in `assets`.
+14. Test both import modes:
+    - Merge into the open canvas.
+    - Import as a new canvas.
 
-## 导入行为细节
+## Import behavior
 
-### 合并到当前画布
+### Merge into the open canvas
 
-Bragi 会：
+Bragi performs these steps:
 
-1. 把资源写入 `_bragi/assets`。
-2. 改写文件节点和分组背景路径。
-3. 重新生成所有导入节点和连线的 id，避免和当前画布冲突。
-4. 把连线的 `fromNode` 和 `toNode` 改写成新的节点 id。
-5. 把导入的节点整体移动到当前画布内容右侧，并留出 200 px 间距。
-6. 把导入节点和连线追加到当前画布。
+1. Write assets into `_bragi/assets`.
+2. Rewrite file-node and group-background paths.
+3. Regenerate imported node and edge IDs to avoid collisions.
+4. Remap edge `fromNode` and `toNode` values to the new IDs.
+5. Move imported content to the right of the existing canvas content, leaving a 200 px gap.
+6. Append the imported nodes and edges.
 
-### 作为新画布导入
+### Import as a new canvas
 
-Bragi 会：
+Bragi performs these steps:
 
-1. 把资源写入 `_bragi/assets`。
-2. 改写文件节点和分组背景路径。
-3. 重新生成所有节点和连线的 id。
-4. 用 `.bragi` 文件名创建新的 `.canvas` 文件。
-5. 如果同名画布已存在，会追加 `_1`、`_2` 这样的后缀。
-6. 打开新创建的画布。
+1. Write assets into `_bragi/assets`.
+2. Rewrite file-node and group-background paths.
+3. Regenerate all node and edge IDs.
+4. Create a `.canvas` file named after the `.bragi` file.
+5. Add a suffix such as `_1` or `_2` if the canvas filename exists.
+6. Open the new canvas.
 
-## 当前限制
+## Current limitations
 
-- 当前只支持格式版本 `2`。
-- 当前导入器没有完整 JSON Schema validation，但会校验顶层格式、资源列表和资源路径安全。
-- 当前只会自动改写 `node.file` 和 `node.background`。
-- 导入时总会重新生成节点 id，所以任何存了节点 id 的自定义字段都不会被自动重映射。
-- 资源文件重名时会自动加后缀，但自定义字段里的路径不会跟着更新。
-- 如果 `canvas` 引用了 `assets` 里的某个文件，但 `assets` 里实际没有这个文件，导入可能完成，但文件节点会变成断开的引用。
+- Only format version `2` is supported.
+- The importer validates the top-level format, asset list and path safety, but does not implement full JSON Schema validation.
+- Only `node.file` and `node.background` are rewritten automatically.
+- Node IDs always change on import; custom fields containing node IDs are not automatically remapped.
+- Filename collisions add suffixes without updating paths in custom fields.
+- If canvas data references an asset missing from `assets`, import may finish with a broken file reference.

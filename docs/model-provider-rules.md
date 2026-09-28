@@ -6,7 +6,7 @@ Use these checks when adding a built-in model/provider pairing:
 - Put provider-specific model IDs in `supportedProviders`; runtime code should receive the API model ID through `params.modelId`.
 - Add `makeImage`, `makeVideo`, `makeText`, or `makeAudio` on the provider spec only for modalities the provider can actually run.
 - Keep model params aligned with provider validation so saved settings or stale UI state fail with a clear message.
-- For async video, return `{ done: false, taskId }` from `generateVideo`, implement `checkStatus`, and download the completed asset into `outputDir`. There is no polling timeout — a task runs until it succeeds or fails; the user can delete the placeholder node or rerun.
+- For async video, return `{ done: false, taskId }` from `generateVideo` and implement `checkStatus`. Async audio/video tasks keep their original provider, task ID, canvas and output directory across retries and restarts. Retry temporary failures by checking the existing task, never by submitting another generation. Unclear responses, credential failures and local write failures must remain recoverable through `needs-attention` / **Resume checking**. Only explicit remote failure or cancellation is terminal; deleting a node or closing a canvas must not cause a new paid submission. Persist a downloaded result before applying it to the canvas. See `obsidian-review-checklist.md`.
 - Upload local upstream media with the built-in Bragi temporary relay before sending it to providers that require public URLs.
 
 ## Modeling provider differences

@@ -10,7 +10,7 @@ const DEFAULT_TARGET_LONG_EDGE = 2048
 const DEFAULT_SAFETY_TOLERANCE = 5
 const DEFAULT_OUTPUT_FORMAT = 'png'
 
-export const BFL_DENOISE_PROMPT = '加强明暗对比，干净的质感，平滑的阴影，控制的细节，极简的纹理，高清晰度，精细的边缘，平滑的渐变--无噪点、颗粒感、瑕疵、高频细节、脏污的纹理、过度锐化、斑驳、混乱的细节。保持当前所有元素不变，色彩不变'
+export const BFL_DENOISE_PROMPT = 'Enhance light and shadow contrast, clean surfaces, smooth shadows, controlled detail, minimal texture, high clarity, precise edges and smooth gradients. Remove noise, grain, artifacts, high-frequency detail, dirty textures, oversharpening, blotches and cluttered detail. Preserve every existing element and all colors.'
 
 interface BflSubmitResponse {
 	id?: string
