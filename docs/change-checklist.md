@@ -34,8 +34,8 @@ Do not report a failed or skipped check as passed.
    plugin, check its three assets, and open the Community release check page.
 2. After the stable release exists, update the website's `releases.json`, public
    changelog and released catalog, plus the docs identified above. Never publish
-   Unreleased changes as a released version; use the published plugin tag as the
-   source of truth. The workspace changelog can provide additional context.
+   Unreleased changes as a released version; derive public notes from the plugin
+   `CHANGELOG.md` and verify released entries against the published plugin tag.
 3. Run website `npm run verify` and `npm run check:releases`, review the preview,
    then deploy the merged website change and check installation, version and search.
 
