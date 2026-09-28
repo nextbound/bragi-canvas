@@ -143,7 +143,7 @@ try {
 
 	await assert.rejects(
 		mod.runSvNewApiPlainTextAssetError(),
-		/SV NewAPI asset register failed: error code: 502/,
+		/HTTP 502.*Video generation has not started.*error code: 502/,
 		'SV NewAPI asset registration should preserve plain-text gateway errors',
 	)
 

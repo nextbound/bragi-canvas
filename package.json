@@ -45,6 +45,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:task-recovery": "node scripts/verify-task-recovery.mjs",
+    "test:task-wait-states": "node scripts/verify-task-wait-states.mjs",
     "test:mcp-boundary": "node scripts/verify-mcp-boundary.mjs",
     "test:migration": "node scripts/verify-migration.mjs",
     "test:generation-context": "node scripts/verify-generation-context.mjs",

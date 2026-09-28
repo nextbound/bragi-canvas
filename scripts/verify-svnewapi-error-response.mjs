@@ -23,7 +23,7 @@ const obsidianStub = {
 const providerStub = {
 	name: 'provider-stub',
 	setup(build) {
-		build.onResolve({ filter: /^\.\/upload$/ }, () => ({ path: 'upload', namespace: 'provider-stub' }))
+		build.onResolve({ filter: /^\.\/(?:providers\/)?upload$/ }, () => ({ path: 'upload', namespace: 'provider-stub' }))
 		build.onResolve({ filter: /^\.\/openai-image-size$/ }, () => ({ path: 'openai-image-size', namespace: 'provider-stub' }))
 		build.onResolve({ filter: /^\.\/seedream$/ }, () => ({ path: 'seedream', namespace: 'provider-stub' }))
 		build.onLoad({ filter: /^upload$/, namespace: 'provider-stub' }, () => ({
@@ -47,6 +47,19 @@ try {
 	const providerPath = path.resolve('src/providers/svnewapi.ts')
 	await writeFile(entry, `
 		import { SvNewApiVideoProvider } from ${JSON.stringify(providerPath)}
+		import { ensureSvNewApiAsset } from ${JSON.stringify(path.resolve('src/svnewapi-asset-flow.ts'))}
+
+		export async function runAssetRegisterFailure() {
+			const stages = [], requests = []
+			globalThis.__bragiRequestUrl = async options => {
+				requests.push(options.url)
+				return { status: 502, json: { error: 'upstream unavailable, request id: req_asset' }, text: '' }
+			}
+			try {
+				await ensureSvNewApiAsset({ app: { vault: { adapter: { readBinary: async () => new ArrayBuffer(1) } } } }, { nodes: new Map() }, 'reference.png', 'sv-seedance-2.5', { baseUrl: 'https://gateway.test', apiKey: 'key' }, stage => stages.push(stage))
+			} catch (error) { return { message: error.message, stages, requests } }
+			throw new Error('Expected asset registration to fail')
+		}
 
 		const provider = () => new SvNewApiVideoProvider('key', {}, 'out', 'https://gateway.test')
 
@@ -124,6 +137,12 @@ try {
 	})
 
 	const mod = await import(pathToFileURL(outfile).href)
+	const assetFailure = await mod.runAssetRegisterFailure()
+	assert.match(assetFailure.message, /HTTP 502/)
+	assert.match(assetFailure.message, /Video generation has not started/)
+	assert.match(assetFailure.message, /request id: req_asset/)
+	assert.deepEqual(assetFailure.stages, ['Uploading reference', 'Registering reference'])
+	assert.deepEqual(assetFailure.requests, ['https://gateway.test/v1/assets'], 'Asset failures must not submit a video')
 	const expectedJsonMessage = `SV NewAPI video: ${jsonError}`
 	await assert.rejects(
 		mod.runJsonError(),

@@ -33,12 +33,23 @@ export function retryAfterMs(value: string | undefined, now = Date.now()): numbe
 	return Number.isFinite(delay) && delay >= 0 ? delay : undefined
 }
 
+/** Bound waiting without replaying the operation. A late response is observed but not applied. */
+export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, error: Error): Promise<T> {
+	let timer: ReturnType<typeof setTimeout>
+	// Network deadlines belong to the plugin runtime, even if the initiating popout closes.
+	// eslint-disable-next-line obsidianmd/prefer-active-window-timers -- Keep HTTP deadlines independent of popout lifetime.
+	const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(error), timeoutMs) })
+	// eslint-disable-next-line obsidianmd/prefer-active-window-timers -- Clear on the same runtime that created the deadline.
+	return Promise.race([operation, timeout]).finally(() => clearTimeout(timer))
+}
+
 /** Polling and result downloads only. Never retries or submits a generation. */
-export async function pollRequest(options: RequestUrlParam | string): Promise<RequestUrlResponse> {
+export async function pollRequest(options: RequestUrlParam | string, timeoutMs = 120000): Promise<RequestUrlResponse> {
 	const params = typeof options === 'string' ? { url: options } : options
 	let response: RequestUrlResponse
 	try {
-		response = await requestUrl({ ...params, throw: false })
+		response = await withTimeout(requestUrl({ ...params, throw: false }), timeoutMs,
+			new TaskPollingError('The provider request timed out. Checking will retry without submitting a new generation.', 'retryable'))
 	} catch (error) {
 		throw classifyTaskError(error)
 	}

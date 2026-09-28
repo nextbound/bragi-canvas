@@ -144,7 +144,7 @@ assert.match(
 
 assert.match(
 	mainSource,
-	/if \(delivery === 'relay' \|\| delivery === 'native_asset'\) \{[\s\S]*return uploadRef\(undefined, binary/,
+	/if \(delivery === 'relay' \|\| delivery === 'native_asset'\) \{[\s\S]*const upload = uploadRef\(undefined, binary[\s\S]*return bounded \? withTimeout\(upload,[^\n]* : upload/,
 	'prepareReferenceMedia must upload relay/native_asset refs as relay URLs (no-groupId TokenRouter Seedance falls back to relay, not data URIs or asset://)',
 )
 
