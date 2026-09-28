@@ -54,12 +54,12 @@ try {
 	assert.deepEqual(await provider.generateVideo('A paper boat sails', {
 		modelId: 'dreamina-seedance-2-5-260628',
 		genMode: 'text-to-video',
-	}), { done: false, taskId: 'custom-task-25' })
+	}, { catalogModelId: 'seedance-2.5' }), { done: false, taskId: 'custom-task-25' })
 	assert.equal(requests[0].url, 'https://gateway.example.test/custom/seedance/tasks')
 	assert.deepEqual(await provider.generateVideo('A paper boat sails', {
 		modelId: 'dreamina-seedance-2-0-260128',
 		genMode: 'text-to-video',
-	}), { done: false, taskId: 'custom-task-20' })
+	}, { catalogModelId: 'seedance-2.0' }), { done: false, taskId: 'custom-task-20' })
 	assert.equal(requests[1].url, 'https://gateway.example.test/custom/seedance/tasks')
 
 	process.__bragiBytePlusEndpointRequestHandler = async (request) => {

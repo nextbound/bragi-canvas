@@ -13,9 +13,14 @@ export interface ImageProvider {
 	generateImage(prompt: string, options?: Record<string, unknown>): Promise<GenerateImageResult>
 }
 
+export interface VideoGenerationContext {
+	/** Stable catalog identity for capability checks; never serialize into provider requests. */
+	catalogModelId: string
+}
+
 export interface VideoProvider {
 	name: string
-	generateVideo(prompt: string, options?: Record<string, unknown>): Promise<GenerateVideoResult>
+	generateVideo(prompt: string, options: Record<string, unknown> | undefined, context: VideoGenerationContext): Promise<GenerateVideoResult>
 	checkStatus?(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateVideoResult>
 }
 

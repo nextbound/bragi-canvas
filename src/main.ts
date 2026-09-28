@@ -962,7 +962,11 @@ export default class BragiCanvas extends Plugin {
 					return
 				}
 				showStage('Submitting video')
-				const videoResult = await provider.generateVideo(finalPrompt, { ...params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs })
+				const videoResult = await provider.generateVideo(
+					finalPrompt,
+					{ ...params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs },
+					{ catalogModelId: model.id },
+				)
 
 				if (videoResult.done && videoResult.filePath) {
 					// Rare: synchronous completion
