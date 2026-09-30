@@ -4,10 +4,13 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
+- Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
+
+## 1.41.0 — 2026-09-30
+
 - Add Seedream 5.0 Pro (`seedream-5.0-pro`) and Seedream 5.0 Flash (`seedream-5.0-flash`) image generation on Volcengine and BytePlus. Both take text plus up to 10 reference images at 1K, 1.5K or 2K. Pro also has a Fast speed mode.
 - Let every Volcengine and BytePlus model use a custom model ID or inference endpoint (`ep-...`). The ID was previously locked for all Volcengine models; BytePlus already allowed it. Seedance and Seedream keep the selected model's capabilities with a custom ID.
 - Save Seedream images with the extension of the returned bytes (`.jpg` for the default JPEG output) instead of always using `.png`, and show upstream Volcengine / BytePlus error codes and messages instead of a generic request failure.
-- Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 - Keep a generation that fails while other generations on the same canvas are starting marked as **Generation Failed** with the provider's error. Previously, another placeholder's save could reload the canvas from disk, the failed placeholder then reverted to generating, and it was later marked **Generation Interrupted** without the error.
 
 ## 1.40.3 — 2026-09-28
