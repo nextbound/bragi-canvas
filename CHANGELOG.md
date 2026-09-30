@@ -5,6 +5,7 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 ## Unreleased
 
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
+- Keep a generation that fails while other generations on the same canvas are starting marked as **Generation Failed** with the provider's error. Previously, another placeholder's save could reload the canvas from disk, the failed placeholder then reverted to generating, and it was later marked **Generation Interrupted** without the error.
 
 ## 1.40.3 — 2026-09-28
 
