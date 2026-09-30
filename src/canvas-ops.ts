@@ -188,6 +188,20 @@ interface GeneratingEntry {
 const generatingRegistry = new Map<string, GeneratingEntry>()
 let tickInterval: number | null = null
 
+// Failure messages recorded this session, by placeholder ID. A stale canvas
+// snapshot applied after a failure (a disk reload, undo) can restore
+// `bragiGenerating`; the sweep then reapplies the real failure instead of
+// reporting the placeholder as interrupted.
+const recordedFailures = new Map<string, string>()
+
+/**
+ * Resolve the canvas's current runtime node for a placeholder captured when a
+ * generation started, so late results never land on a detached node object.
+ */
+function livePlaceholder(node: CanvasNode, canvas: Canvas | undefined = node.canvas): CanvasNode {
+	return canvas?.nodes.get(node.id) ?? node
+}
+
 function ensureTicker(): void {
 	if (tickInterval) return
 	tickInterval = window.setInterval(() => {
@@ -237,9 +251,11 @@ function attachGeneratingOverlay(node: CanvasNode, modelName: string, startedAt:
 }
 
 /** Update the persistent placeholder presentation without changing its task identity. */
-export function setGeneratingStatus(node: CanvasNode, status: GeneratingStatus): void {
+export function setGeneratingStatus(placeholder: CanvasNode, status: GeneratingStatus): void {
+	const node = livePlaceholder(placeholder)
 	const data = node.getData()
 	if (data.type === 'file') return
+	recordedFailures.delete(node.id)
 	const rest = { ...data }
 	delete rest.bragiGenerationFailed
 	delete rest.bragiGenFailureTitle
@@ -302,27 +318,19 @@ export function stopGeneratingTicker(): void {
 }
 
 /**
- * Force the current in-memory canvas state to disk, bypassing Obsidian's
- * debounced requestSave(). The canvas's `getData()` already reflects the
- * placeholder node's custom fields (we called setData just before this).
- * We write the same JSON format Obsidian uses. Silent on failure.
+ * Save the canvas now instead of after Obsidian's debounced save, so a new
+ * `bragiGenerating` placeholder reaches disk even if Obsidian reloads within
+ * seconds. Silent on failure.
  *
- * This is the belt-and-braces guarantee that `bragiGenerating` reaches disk
- * even if the user hard-reloads Obsidian within ~500ms of starting generation.
+ * Save through the view, never with `vault.adapter.write`: Obsidian treats an
+ * adapter write as an external edit and reloads the whole canvas from disk a
+ * few milliseconds later. That reload reverted a concurrent generation's
+ * failure back to `bragiGenerating`, and the sweep then reported it as
+ * interrupted.
  */
-function persistPlaceholderFields(canvas: Canvas, _nodeId: string, _modelName: string, _startedAt: number): void {
-	const anyCanvas = canvas
-	const app = anyCanvas.view?.app || anyCanvas.app
-	const filePath: string | undefined = anyCanvas.view?.file?.path
-	if (!app || !filePath) return
-	void (async () => {
-		try {
-			const data = canvas.getData()
-			await app.vault.adapter.write(filePath, JSON.stringify(data, null, '\t'))
-		} catch (err) {
-			console.debug('Bragi: persistPlaceholderFields skipped', err)
-		}
-	})()
+function flushCanvasSave(canvas: Canvas): void {
+	void canvas.requestSave()
+	void canvas.view?.save?.().catch((err: unknown) => console.debug('Bragi: canvas save skipped', err))
 }
 
 /**
@@ -331,6 +339,8 @@ function persistPlaceholderFields(canvas: Canvas, _nodeId: string, _modelName: s
  * iff it has `bragiGenerating: true` in canvas JSON but is not currently
  * tracked by an in-memory registry (TaskQueue or sync generation set). Ghosts
  * are marked red with an "interrupted" message — we never delete user data.
+ * A placeholder whose generation already failed this session gets its recorded
+ * failure back instead, and is not counted.
  *
  * Tracked placeholders (still running in this session) get their overlay and
  * shimmer class re-attached — the DOM elements are new on every canvas
@@ -353,6 +363,12 @@ export function sweepInterruptedPlaceholders(
 			const modelName = d.bragiGenModelName || 'model'
 			const startedAt = typeof d.bragiGenStartedAt === 'number' ? d.bragiGenStartedAt : Date.now()
 			attachGeneratingOverlay(node, modelName, startedAt)
+			continue
+		}
+		const failure = recordedFailures.get(node.id)
+		if (failure !== undefined) {
+			// This generation already failed; a stale snapshot brought the flag back.
+			markNodeFailed(node, failure)
 			continue
 		}
 		markNodeInterrupted(node)
@@ -477,12 +493,8 @@ export function createPlaceholderNode(
 	// immediate save — requestSave is debounced and would otherwise miss the
 	// write if the user reloads within ~1s of starting generation.
 	node.setData({ ...node.getData(), color: '', bragiGenerating: true, bragiGenModelName: modelName, bragiGenStartedAt: startedAt })
-	// Fire-and-forget the flush promise; we can't await here without making
-	// the caller async. Also touch the canvas JSON directly as a belt-and-
-	// braces insurance against Obsidian's debounced requestSave missing the
-	// write window when the user reloads quickly.
-	void canvas.requestSave()
-	persistPlaceholderFields(canvas, node.id, modelName, startedAt)
+	// Fire-and-forget: the caller stays synchronous.
+	flushCanvasSave(canvas)
 
 	const nodeEl = node.nodeEl || node.containerEl
 	if (nodeEl) nodeEl.classList.add('bragi-generating')
@@ -500,19 +512,20 @@ export function replacePlaceholderWithFile(
 	filePath: string,
 	sourceNode: CanvasNode
 ): void {
+	const live = livePlaceholder(placeholder, canvas)
 	// Reuse the placeholder's exact position AND size — it was sized to match the
 	// output when we created it, so there's no reason to reflow now. This avoids
 	// a second collision-avoidance pass that used to shove the node around.
-	const pd = placeholder.getData()
-	const x = placeholder.x ?? pd.x
-	const y = placeholder.y ?? pd.y
+	const pd = live.getData()
+	const x = live.x ?? pd.x
+	const y = live.y ?? pd.y
 	const width = pd.width ?? 400
 	const height = pd.height ?? 300
 
 	// Clean up overlay + ticker before the node disappears
-	detachGeneratingOverlay(placeholder.id, placeholder.nodeEl || placeholder.containerEl)
+	detachGeneratingOverlay(live.id, live.nodeEl || live.containerEl)
 	// Remove placeholder first
-	canvas.removeNode(placeholder)
+	canvas.removeNode(live)
 
 	const currentData = canvas.getData()
 
@@ -551,8 +564,13 @@ export function replacePlaceholderWithFile(
  * Mark a node as failed. Clears generating flags and overlay; stores the error
  * in node metadata (not visible on the node — for a future details UI).
  */
-export function markNodeFailed(node: CanvasNode, errorMsg: string): void {
+export function markNodeFailed(placeholder: CanvasNode, errorMsg: string): void {
+	const node = livePlaceholder(placeholder)
+	recordedFailures.set(node.id, errorMsg)
 	styleFailedPlaceholder(node, 'Generation Failed', errorMsg)
+	// Refresh the canvas save snapshot: the pending debounced save still holds
+	// the data captured while this node was generating.
+	void node.canvas?.requestSave()
 }
 
 /**

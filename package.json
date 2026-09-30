@@ -51,6 +51,7 @@
     "test:mcp-boundary": "node scripts/verify-mcp-boundary.mjs",
     "test:migration": "node scripts/verify-migration.mjs",
     "test:generation-context": "node scripts/verify-generation-context.mjs",
+    "test:placeholder-failure-race": "node scripts/verify-placeholder-failure-race.mjs",
     "check:version": "node scripts/check-version.mjs",
     "sync:dev-vault": "node scripts/sync-dev-vault.mjs",
     "verify": "npm run check:english && npm run typecheck && npm run lint:obsidian && npm test && npm run check:catalog && npm run check:version && npm run build",
