@@ -7,6 +7,9 @@ export interface ProviderForValidation {
 
 const REF_MODALITIES: RefModality[] = ['image', 'video', 'audio', 'pdf']
 const NATIVE_ASSET_PROVIDERS = new Set(['byteplus', 'token360', 'tokenrouter'])
+// Volcengine and BytePlus Ark accept a custom inference endpoint (`ep-...`) anywhere a
+// model ID goes, so every model on them must keep the API model ID editable.
+const ENDPOINT_ID_PROVIDERS = new Set(['bytedance', 'byteplus'])
 
 /**
  * Static, no-network validation of the model/provider catalog. Run by
@@ -44,6 +47,9 @@ export function validateCatalog(models: ModelConfig[], providers: ProviderForVal
 			}
 			if (cfg.aggregated && cfg.editableApiModelId) {
 				errors.push(`${pwhere}: aggregated providers must not also set editableApiModelId (the id editor is locked for aggregated models)`)
+			}
+			if (ENDPOINT_ID_PROVIDERS.has(providerId) && cfg.editableApiModelId !== true) {
+				errors.push(`${pwhere}: Volcengine / BytePlus entries must set editableApiModelId so users can switch to a custom inference endpoint`)
 			}
 			if (cfg.modes) {
 				for (const mode of cfg.modes) {

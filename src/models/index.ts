@@ -2,7 +2,7 @@ import type { ModelConfig, GenerationType, Mode } from './types'
 import { gptImage, gptImageOfficial, gptImage25 } from './gpt-image'
 import { flux2Klein9b } from './flux'
 import { nanoBananaPro, nanoBanana2 } from './nano-banana'
-import { seedream5, seedream5Lite, seedream45 } from './seedream'
+import { seedream5Pro, seedream5Flash, seedream5, seedream5Lite, seedream45 } from './seedream'
 import { seedance25, seedance2, seedance2Fast } from './seedance'
 import { kling3, klingOmni3, kling26 } from './kling'
 import { happyHorse11 } from './happyhorse'
@@ -41,6 +41,8 @@ export const ALL_MODELS: ModelConfig[] = [
 	midjourneyV8,
 	midjourneyNiji7,
 	lumaUni1,
+	seedream5Pro,
+	seedream5Flash,
 	seedream5,
 	seedream5Lite,
 	seedream45,
