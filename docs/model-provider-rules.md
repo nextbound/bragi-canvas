@@ -15,7 +15,7 @@ Use these checks when adding a built-in model/provider pairing:
 Everything that makes a provider differ from the base model lives in its `supportedProviders[providerId]` entry (`ProviderConfig`) or in a param's `providerOverrides`. Do not fork a whole second model entry for a "neutered" provider.
 
 - `apiModelId` — the upstream model id this provider uses. The id editor in settings is **locked (static label) by default**.
-- `editableApiModelId?: boolean` — opt-in. Set `true` to expose the pencil editor for providers that accept arbitrary upstream model ids. BytePlus is the case in point: a model can be addressed by its public id (`seedream-5-0-lite-260128`) or by a custom inference endpoint (`ep-20260601093313-4dt9g`), so all four BytePlus entries set it. Ignored when `aggregated` is set.
+- `editableApiModelId?: boolean` — opt-in. Set `true` to expose the pencil editor for providers that accept arbitrary upstream model ids. Volcengine and BytePlus are the case in point: a model can be addressed by its public id (`seedream-5-0-lite-260128`) or by a custom inference endpoint (`ep-20260601093313-4dt9g`), so every entry on both providers sets it. `npm run check:catalog` fails when a `bytedance` or `byteplus` entry leaves it off. Ignored when `aggregated` is set.
 - The rule lives in exactly one place — `isApiModelIdEditable(model, providerId)` in `src/models/index.ts` — and both the settings pencil and `pruneApiModelIdOverrides()` consume it. Do not copy the `aggregated` / opt-in check into a UI or a migration; a second copy is how the editor and the stored overrides drift apart.
 - Overrides are stored per provider×model in `apiModelIdOverrides`, and `resolveApiModelId` prefers them over the catalog id unconditionally. That makes an unreachable override dangerous: it keeps rewriting requests while the UI offers no way to see or clear it. `pruneApiModelIdOverrides()` therefore runs on every load and drops overrides whose model left the catalog, whose provider dropped the model, or whose pairing is not editable.
 - `aggregated?: boolean` — the provider routes the model to multiple upstream ids internally. The key can be the mode (DashScope Wan 2.7 -> t2v/i2v/r2v/videoedit; HappyHorse 1.1 -> the same four; DashScope voice -> tts/enrollment models) or a param (APIMart GPT Image 2.5 -> `variant` picks flare/sunburst). Reach for this whenever the catalog `apiModelId` is a display-only umbrella that upstream will not accept on its own; forking one catalog entry per upstream build is the wrong answer, because speed/quality builds of one model are a switch inside it, not separate models. Routing stays hard-coded in the provider; the catalog only marks it. Aggregated locks the id editor and shows a static label. Must not also set `editableApiModelId`.
@@ -33,6 +33,7 @@ Example: Wan 2.7 (`src/models/wan.ts`) is one model with DashScope (aggregated, 
 - a `model.modes` entry is offered by no provider (orphan mode);
 - a `providerOverrides` key references a provider not in `supportedProviders`;
 - an entry sets both `aggregated` and `editableApiModelId`, or `aggregated` has an empty `apiModelId`;
+- a `bytedance` (Volcengine) or `byteplus` entry does not set `editableApiModelId: true`;
 - a DashScope voice model with `clone`/`design`/`modelIds` does not mark its DashScope entry `aggregated: true`.
 
 When you add a model/provider, run the check; if it fails, fix the catalog rather than the script.
@@ -100,6 +101,16 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Duration defaults to Auto (`-1`) and accepts `-1` or 4–30 seconds. Video edit only accepts `-1`. Ratio defaults to `adaptive`; first-frame, first-last-frame, video-extend, and video-edit only accept `adaptive`. Text/reference generation also accepts `16:9`, `4:3`, `1:1`, `3:4`, `9:16`, and `21:9`.
 - Output resolution is 480p, 720p, or 1080p. Output format is MP4 or MOV; preserve a `.mov` extension when the completed task returns a MOV URL.
 - Volcengine sends local reference media through temporary HTTPS relay URLs and passes manually bound `bytedance` `asset://` IDs through unchanged. With BytePlus native asset credentials, reference media uses the existing `asset://` flow; without those credentials, Bragi falls back to relay URLs. Face-containing media may still require a provider-approved asset.
+
+## Volcengine and BytePlus Seedream 5.0 Pro / Flash
+
+- Bragi model IDs: `seedream-5.0-pro` and `seedream-5.0-flash`. Volcengine IDs: `doubao-seedream-5-0-pro-260628` and `doubao-seedream-5-0-flash-260915`. BytePlus IDs: `dola-seedream-5-0-pro-260628` and `dola-seedream-5-0-flash-260915`. Use `GET {host}/api/v3/models` to confirm IDs, because the prose name is not callable. A `404 ModelNotOpen` response means the account has not activated that model. Like every Volcengine / BytePlus entry, both keep the model ID editable for custom `ep-...` endpoints.
+- Both go through `SeedreamProvider` on `POST {host}/api/v3/images/generations`. They make one image from text plus 0–10 reference images, and more than 10 returns `400 InvalidParameter`. Older Seedream models accept 14.
+- Never send `sequential_image_generation`: Pro and Flash reject it with `400 InvalidParameter`. Leaving it out is equivalent to `disabled` for Lite, 4.5 and 4.0. Streaming and web search are unsupported too.
+- `resolution` is `1K` / `1.5K` / `2K` (default `2K`). Explicit pixel sizes must stay within 921,600–4,624,220 total pixels. 1K and 1.5K use the documented Pro / Flash table in `SEEDREAM_SIZE_MAP`. The shared 2K row, which Lite and 4.5 also use, stays under the Pro / Flash ceiling. One map therefore works for custom `ep-` endpoint IDs without model detection.
+- Only Pro accepts `optimize_prompt_options.mode = fast`, exposed as the `optimizeMode` Speed param. Flash accepts only `standard` and returns `400` for `fast`. `standard` is the upstream default, so Bragi omits the field unless Fast is selected.
+- Every Seedream 5.x model returns JPEG unless `output_format` is set. The provider names the saved file after the returned bytes (`.jpg` / `.png`).
+- Layer decomposition (`layer_decomposition`, which returns a base image plus up to 16 layers) and transparent `background` output are not wired. They need multi-output canvas placement and alpha-only input validation.
 
 ## Kling 3.0 Omni
 
