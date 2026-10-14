@@ -20,6 +20,7 @@ import { ElevenLabsProvider } from './elevenlabs'
 import { MiniMaxProvider } from './minimax'
 import { MurekaProvider, testMurekaConnection } from './mureka'
 import { SoniloProvider, testSoniloConnection } from './sonilo'
+import { BreezeBlueProvider, testBreezeBlueConnection } from './breezeblue'
 import { LegnextProvider } from './legnext'
 import { APIMartProvider } from './apimart'
 import { SuchuangVideoProvider, testSuchuangConnection } from './suchuang'
@@ -448,6 +449,15 @@ export const PROVIDERS: ProviderSpec[] = [
 		isConfigured: (s) => !!s.providers.sonilo,
 		makeAudio: ({ settings, app, outputDir }) => new SoniloProvider(settings.providers.sonilo, app, outputDir),
 		testConnection: (d) => testSoniloConnection(d.sonilo || ''),
+	},
+	{
+		id: 'breezeblue',
+		name: 'BreezeBlue',
+		docUrl: 'https://docs.breezeblue.ai/guides/voice-design',
+		fields: [{ key: 'breezeblue', label: 'API key', placeholder: 'BreezeBlue API key', type: 'password' }],
+		isConfigured: (s) => !!s.providers.breezeblue,
+		makeAudio: ({ settings, app, outputDir }) => new BreezeBlueProvider(settings.providers.breezeblue, app, outputDir),
+		testConnection: (d) => testBreezeBlueConnection(d.breezeblue || ''),
 	},
 	{
 		id: 'dashscope',

@@ -10,6 +10,14 @@ Use these checks when adding a built-in model/provider pairing:
 - For async video, return `{ done: false, taskId }` from `generateVideo` and implement `checkStatus`. Async audio/video tasks keep their original provider, task ID, canvas and output directory across retries and restarts. Retry temporary failures by checking the existing task, never by submitting another generation. Unclear responses, credential failures and local write failures must remain recoverable through `needs-attention` / **Resume checking**. Only explicit remote failure or cancellation is terminal; deleting a node or closing a canvas must not cause a new paid submission. Persist a downloaded result before applying it to the canvas. See `obsidian-review-checklist.md`.
 - Upload local upstream media with the built-in Bragi temporary relay before sending it to providers that require public URLs.
 
+## BreezeBlue voice previews
+
+- `breeze-tts-2-multilingual` supports Design only through BreezeBlue's synchronous `/v1/voice-previews/design` endpoint. The upstream text supplies `voice_description`; the current node supplies preview `text`. Both must contain 3–500 Unicode characters.
+- `preview_count` selects 1–3 candidates per request, default 1. Each encoded preview becomes a separate vault audio file and canvas node for downstream video references.
+- Preview generation does not call the save-voice or TTS endpoints and does not store temporary voice IDs. `language_code` and `guidance_scale` are omitted. There is no automatic retry of a billable synchronous generation.
+- The provider's connection check reads `/v1/models` without generating audio. Settings schema 15 adds its blank API-key field through the common load/import validator; models and provider connections remain opt-in.
+- No API Worker or asset-relay change is needed: candidate audio arrives inline and downstream video uploads use the existing reference preparation flow.
+
 ## Modeling provider differences
 
 Everything that makes a provider differ from the base model lives in its `supportedProviders[providerId]` entry (`ProviderConfig`) or in a param's `providerOverrides`. Do not fork a whole second model entry for a "neutered" provider.

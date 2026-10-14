@@ -270,6 +270,25 @@ export const dashScopeQwenVoice: ModelConfig = {
 	},
 }
 
+export const breezeVoiceDesign: ModelConfig = {
+	id: 'breeze-tts-2-multilingual',
+	name: 'Breeze TTS 2 Multilingual',
+	type: 'audio',
+	supportedProviders: { breezeblue: { apiModelId: 'breeze-tts-2-multilingual' } },
+	modes: ['tts'],
+	params: [
+		...dashScopeVoiceParams(),
+		{
+			id: 'preview_count',
+			label: 'Candidates',
+			type: 'select',
+			options: [{ label: '1 candidate', value: '1' }, { label: '2 candidates', value: '2' }, { label: '3 candidates', value: '3' }],
+			default: '1',
+		},
+	],
+	voiceConfig: { builtin: false, clone: false, design: true, designOutput: 'audio-previews' },
+}
+
 export const grokTTS: ModelConfig = {
 	id: 'grok-tts',
 	name: 'Grok',

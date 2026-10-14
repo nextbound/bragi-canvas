@@ -484,6 +484,14 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 							type: m.type,
 							provider,
 							modes: getProviderModes(m, provider),
+								...(m.voiceConfig ? {
+									voiceSources: [
+										...(m.voiceConfig.builtin ? ['builtin'] : []),
+										...(m.voiceConfig.clone ? ['reference'] : []),
+										...(m.voiceConfig.design ? ['design'] : []),
+									],
+									...(m.voiceConfig.design ? { voiceDesignOutput: m.voiceConfig.designOutput || 'voice-id' } : {}),
+								} : {}),
 							...(capability ? {
 								supportedInputs: listSupportedInputLabels(capability),
 								unsupportedInputs: listUnsupportedInputLabels(capability),

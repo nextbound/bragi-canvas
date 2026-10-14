@@ -6,6 +6,12 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
+## 1.42.0 — 2026-10-14
+
+- Add BreezeBlue Voice Design with Breeze TTS 2 Multilingual. Choose one, two or three candidates per request.
+- Keep the voice description in an upstream text node and the spoken preview script in the current node. Each candidate becomes a separate audio file for use as a video voice reference.
+- Generate reference audio directly from previews, without saving a formal voice or requesting another speech recording.
+
 ## 1.41.0 — 2026-09-30
 
 - Add Seedream 5.0 Pro (`seedream-5.0-pro`) and Seedream 5.0 Flash (`seedream-5.0-flash`) image generation on Volcengine and BytePlus. Both take text plus up to 10 reference images at 1K, 1.5K or 2K. Pro also has a Fast speed mode.

@@ -10,7 +10,7 @@ import { prepareReferenceUpload } from './providers/image-upload-prep'
 import { getProvider } from './providers/registry'
 import { getConnectedConfiguredProviderIds, getRefDelivery, resolveApiModelId } from './provider-model-prefs'
 import { TaskQueue, type TaskSnapshot } from './task-queue'
-import { setGeneratingStatus, getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
+import { setGeneratingStatus, getCanvasFromNode, createPlaceholderNode, replacePlaceholderWithFile, replacePlaceholderWithFiles, markNodeFailed, duplicateWithConnections, computeOutputSize, readAspectRatio, sweepInterruptedPlaceholders, rehydrateFailedPlaceholders, stopGeneratingTicker } from './canvas-ops'
 import { patchCanvasMenu, unpatchCanvasMenu, removeToolbarButtons, replaceCanvasControlIcons, replaceCanvasCardMenuIcons } from './toolbar'
 import { patchPlaceholderContextMenu, unpatchPlaceholderContextMenu } from './placeholder-context-menu'
 import { openPanoramaViewer } from './panorama'
@@ -677,7 +677,7 @@ export default class BragiCanvas extends Plugin {
 		const upstreamPrompts = await getOrderedPrompts(canvas, node, this.app)
 
 		// Merge prompts: upstream prompts + panel prompt
-		const voiceMode = selectedVoiceMode(result.params)
+		const voiceMode = selectedVoiceMode(result.params, model)
 		const allPrompts = model.type === 'audio' && voiceMode === 'design'
 			? [prompt].filter(Boolean)
 			: [...upstreamPrompts, prompt].filter(Boolean)
@@ -1061,8 +1061,25 @@ export default class BragiCanvas extends Plugin {
 					return
 				}
 				const audioParams: Record<string, unknown> = { ...params }
-				const voiceMode = selectedVoiceMode(audioParams)
+				const voiceMode = selectedVoiceMode(audioParams, model)
 				const audioModelId = modelIdForVoiceMode(model, apiModelId, voiceMode)
+				if (mode === 'tts' && voiceMode === 'design' && provider.generateVoicePreviews) {
+					const promptIndex = readVoiceDesignTextIndex(audioParams.voiceDesignTextIndex)
+					const voicePrompt = upstreamPrompts[promptIndex]?.trim()
+					if (!voicePrompt) throw new Error('Connect an upstream text node with a voice description.')
+					showStage('Generating voice previews')
+					const { filePaths } = await provider.generateVoicePreviews({
+						modelId: audioModelId,
+						voicePrompt,
+						previewText: finalPrompt,
+						previewCount: typeof audioParams.preview_count === 'string' || typeof audioParams.preview_count === 'number' ? audioParams.preview_count : undefined,
+					})
+					if (!filePaths.length) throw new Error('Voice design returned no audio candidates.')
+					for (const filePath of filePaths) this.rememberGeneratedAsset(filePath, canvasPath)
+					if (this.getCanvasPath(canvas) === canvasPath) replacePlaceholderWithFiles(canvas, placeholder, filePaths, node)
+					new Notice(`Audio ready (${filePaths.length} ${filePaths.length === 1 ? 'candidate' : 'candidates'})`)
+					return
+				}
 				let customVoiceRecord: CustomVoiceRecord | null = null
 				if (mode === 'tts' && voiceMode === 'reference') {
 					const refIndex = readVoiceRefAudioIndex(audioParams.voiceRefAudioIndex)
@@ -1560,9 +1577,10 @@ async function sha256Text(text: string): Promise<string> {
 	return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function selectedVoiceMode(params: Record<string, unknown>): VoiceSourceMode {
+function selectedVoiceMode(params: Record<string, unknown>, model?: ModelConfig): VoiceSourceMode {
 	if (params.voiceMode === 'reference') return 'reference'
 	if (params.voiceMode === 'design') return 'design'
+	if (params.voiceMode === undefined && model?.voiceConfig?.design && !model.voiceConfig.builtin && !model.voiceConfig.clone) return 'design'
 	return 'builtin'
 }
 
