@@ -4,6 +4,8 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
+- Generate one to three BreezeBlue voice candidates from an upstream voice description and the current node's script. Save each candidate as reference audio for video generation.
+
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
 ## 1.41.0 — 2026-09-30

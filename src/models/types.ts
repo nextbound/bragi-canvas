@@ -129,6 +129,8 @@ export interface ModelConfig {
 		builtin: boolean
 		clone: boolean
 		design?: boolean
+		/** Design may return reference audio directly instead of enrolling a reusable voice. */
+		designOutput?: 'audio-previews'
 		modelIds?: Partial<Record<VoiceSourceMode, string>>
 		sampleModelId?: string
 	}

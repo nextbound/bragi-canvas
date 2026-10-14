@@ -109,6 +109,7 @@ export interface BragiSettings {
 		minimax: string
 		mureka: string
 		sonilo: string
+		breezeblue: string
 		elevenlabs: string
 		legnext: string
 		tokenrouter: string
@@ -187,6 +188,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 		minimax: '',
 		mureka: '',
 		sonilo: '',
+		breezeblue: '',
 		elevenlabs: '',
 		legnext: '',
 		tokenrouter: '',

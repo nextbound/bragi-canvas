@@ -113,7 +113,7 @@ interface BBox { x: number; y: number; w: number; h: number }
  * @param excludeId — id of a node to ignore during overlap check (e.g. the placeholder being replaced)
  */
 export function findFreePosition(
-	canvas: Canvas,
+	canvas: Pick<Canvas, 'getData'>,
 	initialX: number,
 	initialY: number,
 	width: number,
@@ -512,6 +512,17 @@ export function replacePlaceholderWithFile(
 	filePath: string,
 	sourceNode: CanvasNode
 ): void {
+	replacePlaceholderWithFiles(canvas, placeholder, [filePath], sourceNode)
+}
+
+/** Replace one request placeholder with all completed audio candidates. */
+export function replacePlaceholderWithFiles(
+	canvas: Canvas,
+	placeholder: CanvasNode,
+	filePaths: string[],
+	sourceNode: CanvasNode,
+): void {
+	if (!filePaths.length) throw new Error('Generation returned no files.')
 	const live = livePlaceholder(placeholder, canvas)
 	// Reuse the placeholder's exact position AND size — it was sized to match the
 	// output when we created it, so there's no reason to reflow now. This avoids
@@ -529,32 +540,21 @@ export function replacePlaceholderWithFile(
 
 	const currentData = canvas.getData()
 
-	const nodeId = generateId()
-	const edgeId = generateId()
-
-	const newNode = {
-		id: nodeId,
-		type: 'file' as const,
-		file: filePath,
-		x,
-		y,
-		width,
-		height,
-		color: '',
-	}
-
-	const newEdge = {
-		id: edgeId,
-		fromNode: sourceNode.id,
-		fromSide: 'right',
-		toNode: nodeId,
-		toSide: 'left',
-		toEnd: 'none',
+	const newNodes: AllCanvasNodeData[] = []
+	const newEdges = []
+	for (const [index, filePath] of filePaths.entries()) {
+		const nodeId = generateId()
+		const position = index === 0 ? { x, y } : findFreePosition(
+			{ getData: () => ({ ...currentData, nodes: [...currentData.nodes, ...newNodes] }) },
+			x, y + index * (height + PLACEMENT_GAP), width, height,
+		)
+		newNodes.push({ id: nodeId, type: 'file', file: filePath, ...position, width, height, color: '' })
+		newEdges.push({ id: generateId(), fromNode: sourceNode.id, fromSide: 'right' as const, toNode: nodeId, toSide: 'left' as const, toEnd: 'none' as const })
 	}
 
 	canvas.importData({
-		nodes: [...currentData.nodes, newNode],
-		edges: [...currentData.edges, newEdge],
+		nodes: [...currentData.nodes, ...newNodes],
+		edges: [...currentData.edges, ...newEdges],
 	})
 
 	void canvas.requestSave()
