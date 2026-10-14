@@ -86,7 +86,7 @@ try {
 	// Execute the real canvas replacement without DOM overlays to verify all outputs and collision handling.
 	const canvasSource = await readFile('src/canvas-ops.ts', 'utf8')
 	const canvasAst = ts.createSourceFile('canvas-ops.ts', canvasSource, ts.ScriptTarget.Latest, true)
-	const geometryNames = new Set(['findFreePosition', 'replacePlaceholderWithFile', 'replacePlaceholderWithFiles'])
+	const geometryNames = new Set(['livePlaceholder', 'findFreePosition', 'replacePlaceholderWithFile', 'replacePlaceholderWithFiles'])
 	const geometryFunctions = canvasAst.statements.filter(node => ts.isFunctionDeclaration(node) && geometryNames.has(node.name?.text)).map(node => node.getText(canvasAst).replace(/^export /, '')).join('\n')
 	const geometryCode = ts.transpileModule(geometryFunctions, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
 	let nextId = 0
@@ -95,8 +95,9 @@ try {
 	const placeholderData = { id: 'pending', type: 'text', text: '', x: 450, y: 0, width: 400, height: 200 }
 	const placeholder = { id: 'pending', getData: () => placeholderData }
 	let data = { nodes: [{ id: 'source', type: 'text', x: 0, y: 0, width: 400, height: 200 }, placeholderData, { id: 'obstacle', type: 'text', x: 450, y: 220, width: 400, height: 200 }], edges: [{ id: 'pending-edge', fromNode: 'source', toNode: 'pending' }] }
-	const canvas = { getData: () => data, removeNode: node => { data = { nodes: data.nodes.filter(item => item.id !== node.id), edges: data.edges.filter(edge => edge.toNode !== node.id) } }, importData: next => { data = next }, requestSave: async () => {} }
-	replaceFiles(canvas, placeholder, ['one.wav', 'two.wav', 'three.wav'], sourceNode)
+	const canvas = { nodes: new Map([[placeholder.id, placeholder]]), getData: () => data, removeNode: node => { data = { nodes: data.nodes.filter(item => item.id !== node.id), edges: data.edges.filter(edge => edge.toNode !== node.id) } }, importData: next => { data = next }, requestSave: async () => {} }
+	const stalePlaceholder = { ...placeholder, getData: () => ({ ...placeholderData, x: 9999, y: 9999 }) }
+	replaceFiles(canvas, stalePlaceholder, ['one.wav', 'two.wav', 'three.wav'], sourceNode)
 	const outputs = data.nodes.filter(node => node.type === 'file')
 	assert.deepEqual(outputs.map(node => node.file), ['one.wav', 'two.wav', 'three.wav'])
 	assert.equal(outputs[0].x, placeholderData.x)
