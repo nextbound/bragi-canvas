@@ -34,6 +34,7 @@
     "test:svnewapi-image-refs": "node scripts/verify-svnewapi-image-refs.mjs",
     "test:seedream-5-pro-flash": "node scripts/verify-seedream-5-pro-flash.mjs",
     "test:svnewapi-video-params": "node scripts/verify-svnewapi-video-params.mjs",
+    "test:svnewapi-gpt25-reactor": "node scripts/verify-svnewapi-gpt25-reactor.mjs",
     "test:tokenrouter-modelark-assets": "node scripts/verify-tokenrouter-modelark-assets.mjs",
     "test:text-multimodal": "node scripts/verify-text-multimodal.mjs",
     "test:pika-provider": "node scripts/verify-pika-provider.mjs",

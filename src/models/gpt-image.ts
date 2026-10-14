@@ -104,6 +104,7 @@ export const gptImage25: ModelConfig = {
 	type: 'image',
 	supportedProviders: {
 		apimart: { apiModelId: 'gpt-image-2.5', aggregated: true },
+		svnewapi: { apiModelId: 'sv-gpt-image-2.5', aggregated: true },
 	},
 	modes: ['text-to-image'],
 	params: [
