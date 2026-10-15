@@ -80,6 +80,17 @@ export interface VoiceDesignResult {
 	previewUrl?: string
 }
 
+export interface VoicePreviewOptions {
+	modelId: string
+	voicePrompt: string
+	previewText: string
+	previewCount?: string | number
+}
+
+export interface VoicePreviewResult {
+	filePaths: string[]
+}
+
 export interface VoiceChangeOptions {
 	voiceId: string
 	modelId?: string
@@ -96,5 +107,6 @@ export interface AudioProvider {
 	listVoices?(options?: ListVoicesOptions): Promise<VoiceOption[]>
 	cloneVoice?(options: VoiceCloneOptions): Promise<VoiceCloneResult>
 	designVoice?(options: VoiceDesignOptions): Promise<VoiceDesignResult>
+	generateVoicePreviews?(options: VoicePreviewOptions): Promise<VoicePreviewResult>
 	changeVoice?(options: VoiceChangeOptions): Promise<GenerateAudioResult>
 }
