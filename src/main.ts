@@ -778,7 +778,7 @@ export default class BragiCanvas extends Plugin {
 			const uniqueImages = getOrderedImages(canvas, node)
 			const uniqueVideos = [...new Set(upstream.videos)]
 			const isReactorModel = activeProvider === 'svnewapi' && model.id === 'fast-h3-omni'
-			const uniqueAudios = isReactorModel ? [...new Set(getOrderedAudios(canvas, node))] : [...new Set(upstream.audios)]
+			const uniqueAudios = [...new Set(getOrderedAudios(canvas, node))]
 			const uniquePdfs = [...new Set(upstream.pdfs)]
 			if (activeProvider === 'svnewapi' && model.id === 'gpt-image-2.5' && uniqueImages.length > 16) {
 				throw new Error('SVRouter GPT Image 2.5 supports up to 16 reference images.')

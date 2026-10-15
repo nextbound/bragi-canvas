@@ -72,7 +72,7 @@ try {
 	const method = cls.members.find(m => m.name?.getText(ast) === 'runSingleGeneration').getText(ast)
 	const code = ts.transpileModule(`class Subject { ${method} }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
 	const failures = [], queued = []
-	const deps = { getOrderedImages: () => [], getSeedanceReferenceLimits, getAssetIds: () => ({}), getAssetIdsForFiles: () => ({}), getProvider: () => ({ makeVideo: () => provider }), setGeneratingStatus: () => {}, Notice: class {}, markNodeFailed: (_, error) => failures.push(error), errorMessage: String }
+	const deps = { getOrderedImages: () => [], getOrderedAudios: () => [], getSeedanceReferenceLimits, getAssetIds: () => ({}), getAssetIdsForFiles: () => ({}), getProvider: () => ({ makeVideo: () => provider }), setGeneratingStatus: () => {}, Notice: class {}, markNodeFailed: (_, error) => failures.push(error), errorMessage: String }
 	const Subject = new Function(...Object.keys(deps), code + ';return Subject')(...Object.values(deps))
 	const subject = new Subject()
 	subject.settings = { providers: {} }; subject.app = app; subject.getCanvasPath = () => 'test.canvas'
