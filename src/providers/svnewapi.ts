@@ -4,7 +4,7 @@ import type { App } from 'obsidian'
 import { requestUrl } from 'obsidian'
 import type {
 	ImageProvider, VideoProvider, AudioProvider,
-	GenerateImageResult, GenerateVideoResult, GenerateAudioResult,
+	GenerateImageResult, GenerateVideoResult, GenerateAudioResult, VideoGenerationContext,
 } from './types'
 import { uploadRef } from './upload'
 import { resolveOpenAIImageSize } from './openai-image-size'
@@ -30,7 +30,9 @@ const SV_IMAGE_BANANA_PRO = 'sv-nano-banana-pro'    // APIMart gemini-3-pro-imag
 // gpt-image-2 family on the APIMart channel (sv-gpt-image-2 and sv-gpt-image-2-official):
 // aspect-ratio `size` + 1k/2k/4k `resolution` tier — same shape as the direct APIMart provider.
 const SV_IMAGE_GPT_RE = /^sv-gpt-image-2(-official)?$/
-const SV_IMAGE_GPT_OFFICIAL = 'sv-gpt-image-2-official' // only this one honors `quality`
+const SV_IMAGE_GPT_OFFICIAL = 'sv-gpt-image-2-official' // GPT Image 2 channel that honors `quality`
+const SV_IMAGE_GPT_25 = 'sv-gpt-image-2.5'
+const SV_VIDEO_REACTOR = 'sv-fast-h3-omni'
 // byteplus seedance: params go in `metadata`, not top-level.
 const SV_VIDEO_SEEDANCE_RE = /^sv-seedance-2\.(?:0|5)(?:-|$)/
 // Seedream's Ark upstream enforces a per-tier minimum pixel count, so its `size` must come
@@ -237,6 +239,82 @@ async function uploadRefMedia(label: string, ref: string): Promise<string> {
 	return uploadRef(undefined, copyToArrayBuffer(decoded.bytes), `ref.${decoded.ext}`, decoded.mimeType)
 }
 
+function resolveSvImageModelId(modelId: string, variant: unknown): string {
+	if (modelId !== SV_IMAGE_GPT_25) return modelId
+	const selected = stringParam(variant).trim().toLowerCase()
+	return `${SV_IMAGE_GPT_25}-${selected === 'sunburst' ? 'sunburst' : 'flare'}`
+}
+
+function isGptImage25(modelId: string): boolean {
+	return modelId === `${SV_IMAGE_GPT_25}-flare` || modelId === `${SV_IMAGE_GPT_25}-sunburst`
+}
+
+/** New URL-only channels cannot consume provider-native asset ids or private URLs. */
+function requirePublicMediaUrl(value: string, httpsOnly = false): string {
+	let url: URL
+	try { url = new URL(value) } catch { throw new Error('SVRouter: reference media needs a public HTTP(S) URL.') }
+	const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
+	const privateV4 = /^(?:0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host)
+	const privateV6 = host.includes(':') && /^(?:::|fc|fd|fe[89ab])/.test(host)
+	if (!(httpsOnly ? url.protocol === 'https:' : ['https:', 'http:'].includes(url.protocol)) || url.username || url.password
+		|| (httpsOnly && url.port && url.port !== '443') || (!host.includes('.') && !host.includes(':'))
+		|| host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') || privateV4 || privateV6) {
+		throw new Error(`SVRouter: reference media needs a public ${httpsOnly ? 'HTTPS' : 'HTTP(S)'} URL reachable upstream.`)
+	}
+	return value
+}
+
+function validateUrlReference(ref: string, httpsOnly = false, imageOnly = false): void {
+	if (typeof ref !== 'string') throw new Error('SVRouter: reference media must be a URL or data URI.')
+	if (ref.startsWith(imageOnly ? 'data:image/' : 'data:')) return
+	requirePublicMediaUrl(ref, httpsOnly)
+}
+
+function validateGpt25Options(params: JsonRecord, refs: string[]): void {
+	if (refs.length > 16) throw new Error('SVRouter GPT Image 2.5 supports up to 16 reference images.')
+	const format = stringParam(params.output_format, 'png')
+	if (!['png', 'jpeg', 'webp'].includes(format)) throw new Error('SVRouter: output format must be PNG, JPEG or WebP.')
+	if (params.background === 'transparent' && format === 'jpeg') throw new Error('SVRouter: transparent backgrounds require PNG or WebP.')
+	if (params.output_compression !== undefined && (typeof params.output_compression !== 'number' || !Number.isInteger(params.output_compression) || params.output_compression < 0 || params.output_compression > 100)) {
+		throw new Error('SVRouter: output compression must be an integer from 0 to 100.')
+	}
+	refs.forEach(ref => validateUrlReference(ref, false, true))
+	if (params.mask_url !== undefined) {
+		if (!refs.length) throw new Error('SVRouter: a mask requires a reference image.')
+		validateUrlReference(stringParam(params.mask_url), false, true)
+	}
+}
+
+function reactorOptions(params: JsonRecord, images: string[], audios: string[], videos: string[]): JsonRecord {
+	for (const key of ['resolution', 'generate_audio', 'continue_from_clip_id']) {
+		if (params[key] !== undefined) throw new Error(`Reactor parameter ${key} is unsupported for independent jobs.`)
+	}
+	if (images.length > 9) throw new Error('Reactor supports up to 9 reference images.')
+	if (audios.length > 3) throw new Error('Reactor supports up to 3 reference audio files.')
+	if (videos.length) throw new Error('Reactor does not support video references or continuation between jobs.')
+	if (audios.length && !images.length) throw new Error('Reactor audio references require a reference image.')
+	const mode = stringParam(params.genMode, 'text-to-video')
+	if (!['text-to-video', 'first-frame', 'first-last-frame', 'image-ref'].includes(mode)) throw new Error('Reactor generation mode is unsupported.')
+	if (mode !== 'text-to-video' && !images.length) throw new Error('Reactor reference modes require an image.')
+	if (mode === 'first-last-frame' && images.length < 2) throw new Error('Reactor first-last-frame mode requires two images.')
+	const seconds = Number(params.seconds ?? params.duration ?? 14.375)
+	if (![5.875, 8, 10.125, 12.25, 14.375].includes(seconds)) throw new Error('Reactor duration must be 5.875, 8, 10.125, 12.25 or 14.375 seconds.')
+	const canvas = stringParam(params.canvas ?? params.aspect_ratio ?? params.aspectRatio ?? params.ratio, '16:9')
+	if (!['16:9', '1:1', '9:16', '4:3'].includes(canvas)) throw new Error('Reactor canvas ratio must be 16:9, 1:1, 9:16 or 4:3.')
+	images.forEach(ref => validateUrlReference(ref, true, true))
+	audios.forEach(ref => validateUrlReference(ref, true))
+	const metadata: JsonRecord = { seconds, canvas }
+	if (params.seed !== undefined) {
+		if (typeof params.seed === 'boolean' || !Number.isSafeInteger(Number(params.seed))) throw new Error('Reactor seed must be an integer.')
+		metadata.seed = Number(params.seed)
+	}
+	return metadata
+}
+
+function reactorPrompt(prompt: string): string {
+	return prompt.replace(/@Image(\d+)\b/g, '<Picture $1>').replace(/@Audio(\d+)\b/g, '<Audio $1>')
+}
+
 export class SvNewApiImageProvider implements ImageProvider {
 	name = 'SVRouter'
 	private apiKey: string
@@ -252,10 +330,12 @@ export class SvNewApiImageProvider implements ImageProvider {
 	}
 
 	async generateImage(prompt: string, params?: Record<string, unknown>): Promise<GenerateImageResult> {
-		const modelId = stringParam(params?.modelId)
+		const modelId = resolveSvImageModelId(stringParam(params?.modelId), params?.variant)
 		if (!modelId) throw new Error('SV NewAPI image: modelId required')
+		const gpt25 = isGptImage25(modelId)
 
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages as string[] : []
+		if (gpt25) validateGpt25Options(params || {}, refImages)
 		const body: JsonRecord = { model: modelId, prompt, n: 1 }
 		// Banana Pro (gemini-3-pro-image-preview) expects APIMart's shape:
 		// aspect-ratio `size` plus a 1k/2k/4k `resolution` tier. Seedream needs
@@ -273,6 +353,9 @@ export class SvNewApiImageProvider implements ImageProvider {
 			body.size = stringParam(params?.aspectRatio, '1:1')
 			const tier = stringParam(params?.imageSize ?? params?.resolution, '2K').toLowerCase()
 			body.resolution = tier === 'auto' ? '2k' : tier
+		} else if (gpt25) {
+			body.size = stringParam(params?.size ?? params?.aspectRatio, '1:1')
+			body.resolution = stringParam(params?.resolution ?? params?.imageSize, '2k').toLowerCase()
 		} else if (SV_IMAGE_SEEDREAM_RE.test(modelId)) {
 			body.size = resolveSeedreamImageSize(
 				stringParam(params?.resolution ?? params?.imageSize, '2K'),
@@ -284,7 +367,8 @@ export class SvNewApiImageProvider implements ImageProvider {
 				imageSize: params?.imageSize ?? params?.resolution,
 			})
 		}
-		// `quality` is forwarded ONLY for sv-gpt-image-2-official, whose upstream honors it.
+		// Within GPT Image 2, only the official route honors `quality`; GPT Image 2.5
+		// forwards its additional quality tiers in the separate branch below.
 		// Plain sv-gpt-image-2's upstream rejects the model UI's OpenAI-style enum
 		// ("invalid quality: medium, allowed: standard/hd/4k/ultra/high"), so omit it there
 		// and let that upstream default the quality.
@@ -292,11 +376,19 @@ export class SvNewApiImageProvider implements ImageProvider {
 			const quality = optionalString(params?.quality)
 			if (quality) body.quality = quality
 		}
+		if (gpt25) {
+			for (const key of ['quality', 'background', 'moderation', 'output_format', 'output_compression']) {
+				if (params?.[key] !== undefined) body[key] = params[key]
+			}
+		}
 		if (refImages.length > 0) {
 			const imageUrls = await Promise.all(refImages.map(ref => uploadRefMedia('SV NewAPI image', ref)))
-			body.image = imageUrls
+			if (!gpt25) body.image = imageUrls
+			if (gpt25) imageUrls.forEach(url => requirePublicMediaUrl(url))
 			body.image_urls = imageUrls
 		}
+
+		if (gpt25 && params?.mask_url !== undefined) body.mask_url = requirePublicMediaUrl(await uploadRefMedia('SVRouter image mask', stringParam(params.mask_url)))
 
 		return this.generateImageAsync(body)
 	}
@@ -378,7 +470,9 @@ export class SvNewApiImageProvider implements ImageProvider {
 
 		if (!isHttpUrl(source)) throw new Error('SV NewAPI image: unsupported image source')
 		const imageResp = await requestUrl({ url: source })
-		const filePath = `${this.outputDir}/svnewapi_${Date.now()}.${imageExtFromUrl(source)}`
+		const mime = stringParam(imageResp.headers?.['content-type'] || imageResp.headers?.['Content-Type']).split(';')[0].toLowerCase()
+		const ext = ['image/png', 'image/jpeg', 'image/webp'].includes(mime) ? extensionForMime(mime) : imageExtFromUrl(source)
+		const filePath = `${this.outputDir}/svnewapi_${Date.now()}.${ext}`
 		await adapter.writeBinary(filePath, imageResp.arrayBuffer)
 		return { filePath }
 	}
@@ -398,18 +492,23 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		this.baseUrl = baseUrl.replace(/\/$/, '')
 	}
 
-	async generateVideo(prompt: string, params?: Record<string, unknown>): Promise<GenerateVideoResult> {
+	async generateVideo(prompt: string, params?: Record<string, unknown>, context?: VideoGenerationContext): Promise<GenerateVideoResult> {
 		const modelId = stringParam(params?.modelId)
 		if (!modelId) throw new Error('SV NewAPI video: modelId required')
 
+		const reactor = context?.catalogModelId === 'fast-h3-omni'
+		if (modelId === SV_VIDEO_REACTOR && !reactor) throw new Error('Reactor requires its catalog model identity.')
 		const refImages: string[] = Array.isArray(params?.refImages) ? params.refImages as string[] : []
 		const refAudios: string[] = Array.isArray(params?.refAudios) ? params.refAudios as string[] : []
 		const refVideos: string[] = Array.isArray(params?.refVideos) ? params.refVideos as string[] : []
+		if (reactor) reactorOptions(params || {}, refImages, refAudios, refVideos)
 		const prepareRef = (ref: string) => withTimeout(uploadRefMedia('SV NewAPI video', ref), 180000, new Error('Reference upload timed out after 3 minutes. Video generation has not started.'))
 		const imageUrls = await Promise.all(refImages.map(prepareRef))
 		const audioUrls = await Promise.all(refAudios.map(prepareRef))
 		const videoUrls = await Promise.all(refVideos.map(prepareRef))
-		const body = buildVideoBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
+		const body = reactor
+			? this.buildReactorBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
+			: buildVideoBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
 
 		const resp = await withTimeout(requestUrl({
 			url: `${this.baseUrl}/v1/videos`,
@@ -425,6 +524,15 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
+	private buildReactorBody(modelId: string, prompt: string, params: JsonRecord, images: string[], audios: string[], videos: string[]): JsonRecord {
+		const metadata = reactorOptions(params, images, audios, videos)
+		if (images.length) metadata.reference_images = images
+		if (audios.length) metadata.reference_audios = audios
+		if (params.genMode === 'first-frame' || params.genMode === 'first-last-frame') metadata.first_frame_image = images[0]
+		if (params.genMode === 'first-last-frame') metadata.last_frame_image = images[1]
+		return { model: modelId, prompt: reactorPrompt(prompt), metadata }
+	}
+
 	async checkStatus(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateVideoResult> {
 		const resp = await pollRequest({
 			url: `${this.baseUrl}/v1/videos/${encodeURIComponent(taskId)}`,
@@ -436,6 +544,17 @@ export class SvNewApiVideoProvider implements VideoProvider {
 
 		const normalized = extractStatus(resp.json).toUpperCase()
 		const videoUrl = extractVideoUrl(resp.json)
+		const model = stringParam(unwrapData(resp.json).model)
+		if (model === SV_VIDEO_REACTOR || model === 'reactor/fast-h3-omni') {
+			if (FAILED_STATUSES.has(normalized)) throw new TaskPollingError(`SVRouter Reactor: ${extractFailure(resp.json, 'task failed')}`, 'terminal')
+			if (DONE_STATUSES.has(normalized)) {
+				onProgress?.('downloading')
+				const contentUrl = `${this.baseUrl}/v1/videos/${encodeURIComponent(taskId)}/content`
+				return { done: true, filePath: await this.downloadVideo(contentUrl, true) }
+			}
+			assertPendingStatus(normalized)
+			return { done: false, taskId }
+		}
 		if (DONE_STATUSES.has(normalized) || videoUrl) {
 			if (!videoUrl) throw new Error('SV NewAPI video: completed task has no video URL')
 			onProgress?.('downloading')
@@ -448,8 +567,8 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		return { done: false, taskId }
 	}
 
-	private async downloadVideo(url: string): Promise<string> {
-		const resp = await pollRequest({ url }, 180000)
+	private async downloadVideo(url: string, authenticated = false): Promise<string> {
+		const resp = await pollRequest({ url, ...(authenticated ? { headers: { Authorization: `Bearer ${this.apiKey}` } } : {}) }, 180000)
 		const adapter = this.app.vault.adapter
 		if (!await adapter.exists(this.outputDir)) await adapter.mkdir(this.outputDir)
 		const filePath = `${this.outputDir}/svnewapi_video_${Date.now()}.${videoExtFromUrl(url)}`

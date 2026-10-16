@@ -121,7 +121,7 @@ try {
 	let previewCalls = 0
 	const deps = {
 		getProvider: () => ({ makeAudio: () => ({ generateVoicePreviews: async input => { previewCalls++; assert.equal(input.voicePrompt, description); assert.equal(input.previewText, script); assert.equal(input.previewCount, '3'); return { filePaths: ['one.wav', 'two.wav', 'three.wav'] } }, generateAudio: () => assert.fail('Preview mode must not call TTS'), designVoice: () => assert.fail('Preview mode must not create a saved voice') }) }),
-		getOrderedImages: () => [], setGeneratingStatus: () => {}, replacePlaceholderWithFiles: (...args) => { applied = args },
+		getOrderedImages: () => [], getOrderedAudios: () => [], setGeneratingStatus: () => {}, replacePlaceholderWithFiles: (...args) => { applied = args },
 		Notice: class {}, errorMessage: String, markNodeFailed: () => assert.fail('Candidate generation should succeed'),
 		getCanvasFromNode: () => canvas, getUpstreamInputs: () => ({ images: [], audios: [], videos: [], pdfs: [] }),
 		getOrderedPrompts: async () => [description], computeOutputSize: () => ({ w: 400, h: 200 }), readAspectRatio: () => undefined,

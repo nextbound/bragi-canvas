@@ -689,7 +689,8 @@ export default class BragiCanvas extends Plugin {
 		}
 
 		if (this.getCanvasPath(canvas) !== canvasPath) throw new Error('Source canvas closed before generation started.')
-		const targetSize = computeOutputSize(model.type, readAspectRatio(result.params))
+		const ratioParams = model.id === 'fast-h3-omni' ? { ...result.params, aspectRatio: result.params.canvas } : result.params
+		const targetSize = computeOutputSize(model.type, readAspectRatio(ratioParams))
 		const placeholder = createPlaceholderNode(canvas, model.name, node, targetSize)
 		// Register as in-flight so the ghost sweeper doesn't flag it on reloads.
 		this.syncGenerating.add(placeholder.id)
@@ -776,8 +777,12 @@ export default class BragiCanvas extends Plugin {
 			showStage('Preparing inputs')
 			const uniqueImages = getOrderedImages(canvas, node)
 			const uniqueVideos = [...new Set(upstream.videos)]
-			const uniqueAudios = [...new Set(upstream.audios)]
+			const isReactorModel = activeProvider === 'svnewapi' && model.id === 'fast-h3-omni'
+			const uniqueAudios = [...new Set(getOrderedAudios(canvas, node))]
 			const uniquePdfs = [...new Set(upstream.pdfs)]
+			if (activeProvider === 'svnewapi' && model.id === 'gpt-image-2.5' && uniqueImages.length > 16) {
+				throw new Error('SVRouter GPT Image 2.5 supports up to 16 reference images.')
+			}
 			if (model.id === 'sonilo-music' && mode === 'video-to-music' && uniqueVideos.length !== 1) {
 				throw new Error('Sonilo video music needs exactly one upstream video.')
 			}
@@ -806,6 +811,12 @@ export default class BragiCanvas extends Plugin {
 			const isDashScopeWan3 = activeProvider === 'dashscope' && model.id === 'wan-3.0'
 			const isDashScopeWan = activeProvider === 'dashscope' && (model.id === 'wan-2.7' || isDashScopeWan3)
 			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
+			if (isReactorModel) {
+				if (uniqueImages.length > 9) throw new Error('Reactor supports up to 9 reference images.')
+				if (uniqueAudios.length > 3) throw new Error('Reactor supports up to 3 reference audio files.')
+				if (uniqueVideos.length) throw new Error('Reactor does not support reference videos or continuation between jobs.')
+				if (uniqueAudios.length && !uniqueImages.length) throw new Error('Reactor audio references require a reference image.')
+			}
 			const supportsMinimaxH3Refs = (activeProvider === 'apimart' || activeProvider === 'pika') && model.id === 'minimax-h3'
 			if (supportsMinimaxH3Refs && uniqueVideos.length > 0 && mode !== 'video-ref') {
 				throw new Error('MiniMax-H3 reference videos require video-ref mode.')
@@ -877,7 +888,7 @@ export default class BragiCanvas extends Plugin {
 			}
 
 			// Upload reference audios for providers/models that need public media URLs.
-			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs) && uniqueAudios.length > 0) {
+			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs || isReactorModel) && uniqueAudios.length > 0) {
 				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
 				for (const audioPath of audioRefs) {
 					if (bytePlusCreds) {

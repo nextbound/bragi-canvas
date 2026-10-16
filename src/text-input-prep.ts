@@ -2,6 +2,7 @@ import type { App } from 'obsidian'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { UpstreamInputs } from './edge-parser'
 import { getOrderedImages } from './ref-thumbnails'
+import { getOrderedAudios } from './audio-refs'
 import { uploadRef } from './providers/upload'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
 
@@ -139,7 +140,7 @@ export async function prepareTextInputs(
 
 	const refAudios: string[] = []
 	if (textInputKindSupported(capability, 'audio')) {
-		for (const audioPath of [...new Set(upstream.audios)]) {
+		for (const audioPath of [...new Set(getOrderedAudios(canvas, node))]) {
 			refAudios.push(await prepareMediaRef(ctx, audioPath, audioMimeType(audioPath), 'mp3'))
 		}
 	}

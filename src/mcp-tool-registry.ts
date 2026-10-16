@@ -12,6 +12,7 @@ import type { GenerationType, Mode, ModelParam } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
+import { getOrderedAudios } from './audio-refs'
 import type { TaskQueue, TaskSnapshot } from './task-queue'
 import type { BragiSettings } from './settings'
 import { getSeedanceAssetMediaKind, setNodeAssetId } from './asset-ids'
@@ -531,7 +532,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					prompts: upstream.prompts,
 					images: orderedImages,
 					videos: upstream.videos,
-					audios: upstream.audios,
+					audios: [...new Set(getOrderedAudios(canvas, node))],
 					pdfs: upstream.pdfs,
 					textRefs: textRefs.map(r => ({ nodeId: r.nodeId, preview: r.preview, kind: r.kind, mdPath: r.mdPath })),
 				})

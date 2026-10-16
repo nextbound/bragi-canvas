@@ -181,7 +181,7 @@ assert.match(
 
 assert.match(
 	mcpToolRegistrySource,
-	/audios: upstream\.audios[\s\S]*pdfs: upstream\.pdfs/,
+	/audios: [^\n]+,\s+pdfs: upstream\.pdfs/,
 	'MCP get_upstream must expose audio and PDF refs',
 )
 

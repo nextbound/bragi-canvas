@@ -6,6 +6,12 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
+## 1.43.0 — 2026-10-16
+
+- Add the SVRouter provider pairing to the existing GPT Image 2.5 model, preserving the Flare/Sunburst variant control and explicit model/provider selection.
+- Add Fast H3 Omni through a configured SVRouter Reactor worker, with exact fractional clip durations, image/audio references, frame controls, and authenticated MP4 download. Completed live MP4 validation remains unverified after an upstream GPU execution failure.
+- Keep MCP audio reference numbering aligned with the visible reference order and video/text generation, including duplicate connections and stale saved ordering.
+
 ## 1.42.0 — 2026-10-14
 
 - Add BreezeBlue Voice Design with Breeze TTS 2 Multilingual. Choose one, two or three candidates per request.

@@ -53,7 +53,7 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Explicit user-authored Midjourney flags win. Detect long and short aliases as complete tokens so `--s` does not collide with `--seed` and `--c` does not collide with `--cref`.
 - Completed image tasks prefer the first non-empty URL in `output.image_urls`; use `output.image_url` only as a backward-compatible grid fallback.
 
-## GPT Image 2.5 (APIMart)
+## GPT Image 2.5 (APIMart and SVRouter)
 
 - Bragi model ID: `gpt-image-2.5`, aggregated on APIMart. The upstream ids are `gpt-image-2.5-flare` (faster; everyday generation) and `gpt-image-2.5-sunburst` (editing precision), and the `variant` param picks one — `resolveApimartImageModelId` appends it, defaulting to `flare` for anything unrecognized. The bare `gpt-image-2.5` id is NOT callable, which is exactly why the entry is aggregated and the id editor stays locked.
 - The two builds share one endpoint, one request schema, one mode, and one param set, so they are a speed/quality switch inside one model rather than two models. Do not split them back into separate catalog entries.
@@ -63,6 +63,17 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - The request reuses the GPT Image 2 payload shape: the selected aspect ratio goes in `size` and the size tier goes in `resolution`. `resolution` accepts `1k` / `2k` / `4k` only, so the 2.5 models do not offer the Auto size tier.
 - Both 2.5 builds honor `quality`, which adds the `xhigh` and `max` tiers on top of `auto` / `low` / `medium` / `high`. `honorsQuality()` in `apimart.ts` gates the field to the official GPT Image 2 channel plus every `gpt-image-2.5*` id; the non-official `gpt-image-2` route still omits it.
 - Reference images ride the existing `image_urls` array through Bragi Relay, capped at 16.
+
+- SVRouter uses the same catalog model, marked aggregated with umbrella ID `sv-gpt-image-2.5`. Its provider resolves the selected variant to `sv-gpt-image-2.5-flare` or `sv-gpt-image-2.5-sunburst` and preserves aspect-ratio `size`, lowercase `resolution`, and `quality`. Never submit the umbrella ID or forward `variant` as an upstream field.
+- The pairing uses the existing SVRouter gateway token and asynchronous `/v1/images/tasks` path. APIMart keys remain on the gateway. Adding support does not enable the model, connect the provider, or change an existing active provider automatically.
+
+## Fast H3 Omni (SVRouter Reactor worker)
+
+- Bragi model ID: `fast-h3-omni`; gateway model ID: `sv-fast-h3-omni`. This is distinct from the existing APIMart/Pika MiniMax-H3 model because the Reactor command protocol, supported controls, and GPU-session billing differ.
+- Submit to `/v1/videos` and poll `/v1/videos/{task_id}` using the gateway token. Download successful results from the locally derived `/v1/videos/{task_id}/content` endpoint with the same token; never attach it to an upstream or arbitrary response URL.
+- Exact clip durations are `5.875`, `8`, `10.125`, `12.25`, and `14.375` seconds, transmitted as numeric `metadata.seconds`. Canvas is `16:9`, `1:1`, `9:16`, or `4:3`; output dimensions are fixed. Seed zero is a valid explicit seed.
+- Image-reference generation accepts up to nine images and three ordered audios through temporary HTTPS Relay URLs. Native prompt syntax names refs `<Picture 1>` / `<Audio 1>`. Audio requires an appearance image. First/last frame controls also require appearance references; video references, arbitrary resolution, and cross-session continuation are unsupported.
+- The worker owns the upstream Reactor API key and one bounded GPU session per job. The gateway reserves its configured session cap and settles measured GPU seconds; output clip length is a separate value. As of plugin 1.43.0, completed live MP4 validation remains unverified after an upstream GPU execution failure. Offline client tests do not establish gateway deployment or upstream availability.
 
 ## HappyHorse 1.1 (DashScope)
 
