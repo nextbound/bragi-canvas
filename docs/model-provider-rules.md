@@ -73,7 +73,7 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - Submit to `/v1/videos` and poll `/v1/videos/{task_id}` using the gateway token. Download successful results from the locally derived `/v1/videos/{task_id}/content` endpoint with the same token; never attach it to an upstream or arbitrary response URL.
 - Exact clip durations are `5.875`, `8`, `10.125`, `12.25`, and `14.375` seconds, transmitted as numeric `metadata.seconds`. Canvas is `16:9`, `1:1`, `9:16`, or `4:3`; output dimensions are fixed. Seed zero is a valid explicit seed.
 - Image-reference generation accepts up to nine images and three ordered audios through temporary HTTPS Relay URLs. Native prompt syntax names refs `<Picture 1>` / `<Audio 1>`. Audio requires an appearance image. First/last frame controls also require appearance references; video references, arbitrary resolution, and cross-session continuation are unsupported.
-- The worker owns the upstream Reactor API key and one bounded GPU session per job. The gateway reserves its configured session cap and settles measured GPU seconds; output clip length is a separate value. Completed live MP4 validation remains pending after an upstream GPU execution failure. Keep the integration in draft until that validation is complete.
+- The worker owns the upstream Reactor API key and one bounded GPU session per job. The gateway reserves its configured session cap and settles measured GPU seconds; output clip length is a separate value. As of plugin 1.43.0, completed live MP4 validation remains unverified after an upstream GPU execution failure. Offline client tests do not establish gateway deployment or upstream availability.
 
 ## HappyHorse 1.1 (DashScope)
 
