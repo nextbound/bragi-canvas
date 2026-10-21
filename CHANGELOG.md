@@ -6,6 +6,11 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
+## 1.43.1 — 2026-10-21
+
+- Repackage the verified 1.43.0 plugin for a new Obsidian Community release scan after the previous automated review could not complete.
+- Retain the existing runtime behavior, models, providers, dependencies, and validation limitations documented for 1.43.0.
+
 ## 1.43.0 — 2026-10-16
 
 - Add the SVRouter provider pairing to the existing GPT Image 2.5 model, preserving the Flare/Sunburst variant control and explicit model/provider selection.
