@@ -171,3 +171,15 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - SuChuang reference images must be sent as Bragi temporary relay URLs in the comma-separated `images` field, capped at 7 images.
 - SuChuang does not support reference videos for this endpoint.
 - Treat status `0` / `1` as pending, `2` as success, and `3` as failure.
+
+## Seedance 2.5 Draft Mode (1.44.0)
+
+BytePlus extends the existing `resolution` parameter through `providerOverrides` with `draft`. Other providers and Seedance versions keep their current choices. The default remains `720p`; ordinary `480p` is not a draft. Submission maps `draft` to `resolution: "480p"` plus `draft: true`, retaining the normal generation controls.
+
+The accepted task snapshot carries `seedanceDraft`; completion stores the validated marker as `bragiSeedanceDraft` on the video file node. It contains the provider, catalog model, task ID, original API model ID, local submission timestamp, and output format. It contains no credentials. Task restoration and result-save retries retain this marker.
+
+When Seedance 2.5 is enabled and its active configured provider is BytePlus, a marked video node offers **Generate 1080p**. The action creates a separate normal placeholder connected to the draft, retains the source, and uses the current BytePlus configuration with the original task and API model IDs. It submits only `model`, `content: [{ type: "draft_task", draft_task: { id } }]`, `resolution: "1080p"`, `output_format`, and `watermark: false`. It must not resend prompt, references, duration, ratio, seed, audio, or task-type fields. Pending submissions for the same source are deduplicated; completed outputs have no draft marker.
+
+BytePlus owns the seven-day validity period (measured from its task creation time) and account/model validation. Do not gate the action using the local timestamp or store an API key/account fingerprint in the canvas. Rejections use ordinary failed placeholders and error details. Draft and final generations are billed separately. The final action is UI-only; MCP uses the existing `generate` tool with `params.resolution: "draft"` to make drafts.
+
+Reference: [BytePlus Draft Mode](https://docs.byteplus.com/en/docs/ModelArk/2607688#2.5_draft_mode).

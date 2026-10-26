@@ -156,7 +156,7 @@ assert.match(
 
 assert.match(
 	mainSource,
-	/provider\.generateVideo\(\s*finalPrompt,\s*\{ \.\.\.params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs \},\s*\{ catalogModelId: model\.id \},?\s*\)/,
+	/provider\.generateVideo\(\s*finalPrompt,\s*\{ \.\.\.params, modelId: apiModelId, genMode: mode, refImages, refAudios, refVideos, refPdfs \},\s*\{ catalogModelId: model\.id, providerId: activeProvider \},?\s*\)/,
 	'video generation must pass only the current explicit reference arrays',
 )
 

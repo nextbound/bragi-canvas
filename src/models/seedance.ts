@@ -60,6 +60,16 @@ export const seedance25: ModelConfig = {
 			id: 'resolution',
 			label: 'Resolution',
 			type: 'select',
+			providerOverrides: {
+				byteplus: {
+					options: [
+						{ label: 'Draft', value: 'draft' },
+						{ label: '480p', value: '480p' },
+						{ label: '720p', value: '720p' },
+						{ label: '1080p', value: '1080p' },
+					],
+				},
+			},
 			options: [
 				{ label: '480p', value: '480p' },
 				{ label: '720p', value: '720p' },

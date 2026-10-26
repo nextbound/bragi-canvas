@@ -1,3 +1,5 @@
+import type { SeedanceDraftMetadata } from '../seedance-draft'
+
 export interface GenerateImageResult {
 	filePath: string
 }
@@ -16,11 +18,13 @@ export interface ImageProvider {
 export interface VideoGenerationContext {
 	/** Stable catalog identity for capability checks; never serialize into provider requests. */
 	catalogModelId: string
+	providerId?: string
 }
 
 export interface VideoProvider {
 	name: string
 	generateVideo(prompt: string, options: Record<string, unknown> | undefined, context: VideoGenerationContext): Promise<GenerateVideoResult>
+	generateVideoFromDraft?(draft: SeedanceDraftMetadata): Promise<GenerateVideoResult>
 	checkStatus?(taskId: string, onProgress?: (phase: 'downloading') => void): Promise<GenerateVideoResult>
 }
 
