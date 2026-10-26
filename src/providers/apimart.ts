@@ -1,3 +1,4 @@
+import { buildApimartViduRequest, VIDU_Q4_API_MODEL } from './apimart-vidu-payload'
 import { writeTaskResult, pollRequest, TaskPollingError, assertPendingStatus } from '../task-errors'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
 import type { ImageProvider, GenerateImageResult, GenerateVideoResult, VideoProvider } from './types'
@@ -205,6 +206,7 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		const modelId = stringParam(params?.modelId, DEFAULT_VIDEO_MODEL)
 
 		const genMode = stringParam(params?.genMode, '')
+		if (modelId === VIDU_Q4_API_MODEL) return this.generateVidu(prompt, params)
 		if (modelId === MINIMAX_H3_MODEL_ID) {
 			return this.generateMinimaxH3(prompt, params)
 		}
@@ -268,6 +270,25 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		if (!taskId) {
 			throw new Error(`APIMart: no task_id in video submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
 		}
+		return { done: false, taskId }
+	}
+
+	private async generateVidu(prompt: string, params: Record<string, unknown> = {}): Promise<GenerateVideoResult> {
+		// Validate before uploading any inputs or creating a billable task.
+		buildApimartViduRequest(prompt, params)
+		const refImages = await Promise.all(arrayParam(params.refImages).map(ref => this.ensureRelayUrl(ref, 'image')))
+		const refAudios = await Promise.all(arrayParam(params.refAudios).map(ref => this.ensureRelayUrl(ref, 'audio')))
+		const body = buildApimartViduRequest(prompt, { ...params, refImages, refAudios })
+		const resp = await requestUrl({
+			url: `${API_BASE}/videos/generations`, method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+			body: JSON.stringify(body), throw: false,
+		})
+		if (resp.status === 401 || resp.status === 403) throw new Error('APIMart: invalid API key')
+		if (resp.status >= 400) throw new Error(`APIMart Vidu Q4 Preview: ${parseApimartError(resp)}`)
+		const first = resp.json?.data?.[0]
+		const taskId = first?.task_id || first?.id
+		if (!taskId) throw new Error('APIMart Vidu Q4 Preview: no task_id in submit response.')
 		return { done: false, taskId }
 	}
 

@@ -1,3 +1,4 @@
+import { WAN30_PRIME, resolveWan30ApiModelId } from './wan30-variant'
 import { writeTaskResult, pollRequest, assertPendingStatus, TaskPollingError } from '../task-errors'
 import type { App } from 'obsidian'
 import { normalizePath, requestUrl } from 'obsidian'
@@ -526,7 +527,7 @@ export class DashScopeVideoProvider implements VideoProvider {
 		const modelId = stringParam(options.modelId, 'wan-2.7')
 		const route = modelId.startsWith('happyhorse')
 			? await this.buildHappyHorseRoute(prompt, options)
-			: modelId === WAN30_VIDEO
+			: (modelId === WAN30_VIDEO || modelId === WAN30_PRIME)
 				? await this.buildWan30Route(prompt, options)
 				: await this.buildWan27Route(prompt, options)
 		const resp = await requestUrl({
@@ -641,6 +642,7 @@ export class DashScopeVideoProvider implements VideoProvider {
 	}
 
 	private async buildWan30Route(prompt: string, params: Record<string, unknown>): Promise<WanVideoRoute> {
+		const model = resolveWan30ApiModelId(params.variant ?? (params.modelId === WAN30_PRIME ? 'prime' : 'standard'))
 		const genMode = stringParam(params.genMode, 'text-to-video')
 		const refImages = stringList(params.refImages)
 		const refAudios = stringList(params.refAudios)
@@ -689,7 +691,7 @@ export class DashScopeVideoProvider implements VideoProvider {
 		const seed = optionalNumberParam(params.seed)
 		if (seed !== undefined) parameters.seed = Math.min(Math.max(Math.round(seed), 0), 2147483647)
 
-		return { model: WAN30_VIDEO, input, parameters }
+		return { model, input, parameters }
 	}
 
 	private async buildWan27Route(prompt: string, params: Record<string, unknown>): Promise<WanVideoRoute> {

@@ -183,3 +183,17 @@ When Seedance 2.5 is enabled and its active configured provider is BytePlus, a m
 BytePlus owns the seven-day validity period (measured from its task creation time) and account/model validation. Do not gate the action using the local timestamp or store an API key/account fingerprint in the canvas. Rejections use ordinary failed placeholders and error details. Draft and final generations are billed separately. The final action is UI-only; MCP uses the existing `generate` tool with `params.resolution: "draft"` to make drafts.
 
 Reference: [BytePlus Draft Mode](https://docs.byteplus.com/en/docs/ModelArk/2607688#2.5_draft_mode).
+
+## Wan 3.0 Prime and Vidu Q4 Preview (unreleased)
+
+Wan retains the stable catalog ID `wan-3.0`. DashScope is aggregated: `variant: standard` (the default) routes to `wan3.0-video`; `variant: prime` routes to `wan3.0-video-prime`. Both use the existing five modes and video-synthesis endpoint. Persist the actual API model ID in the accepted task snapshot. A Singapore workspace endpoint and same-region key are required for international accounts.
+
+Vidu Q4 Preview is an opt-in APIMart pairing: catalog ID `vidu-q4-preview`, API ID `viduq4-preview`, submission at `/v1/videos/generations`, polling at `/v1/tasks/{id}`. It exposes only `first-frame` and `image-ref`:
+
+- First-frame requires exactly one image and no audio. The prompt may be empty; omit it and `aspect_ratio` when appropriate. Send `first_frame_image` explicitly.
+- Image-ref requires a prompt and 1–15 images, with up to three MP3 clips of 3–12 seconds each. Send every image through `image_with_roles` with `role: reference_image`, including a single image. Send audio in `audio_urls`. The provider validates audio duration; local checks reject non-MP3 audio and files larger than 50 MB.
+- Duration is 3–16 whole seconds; resolution is 540p, 720p, 1080p, 2K, or 4K. Audio defaults on; `false` requests silent output. Seed 0 requests randomness. Only image-ref exposes ratio.
+- Validate mode and reference combinations before uploading or submitting. Video and PDF references, end frames, and text-only generation are unsupported. Local references use the existing temporary Relay.
+- UI, core generation, and MCP allow empty prompts only for Vidu first-frame with exactly one image and no other media. MCP infers Vidu's mode from references when omitted; other models retain their existing first-mode default. Explicit mode selection takes precedence.
+
+Sources: [Wan 3.0 API](https://www.alibabacloud.com/help/en/model-studio/wan3-video-generation-api-reference), [Wan Prime](https://www.alibabacloud.com/help/en/model-studio/wan3-0-video-prime), [APIMart Vidu](https://docs.apimart.ai/en/api-reference/videos/vidu-q4-preview/generation).

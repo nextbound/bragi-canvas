@@ -1,3 +1,4 @@
+import { allowsEmptyPrompt } from './generation-prompt'
 import { inferMode } from './generation-mode'
 import type { LastSelection } from './settings'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
@@ -1057,7 +1058,7 @@ export function showGenerateBar(
 				}
 			}
 
-			if (!prompt) {
+			if (!prompt && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount + upstreamPdfCount)) {
 				new Notice('Bragi canvas: no prompt found in this node')
 				return
 			}

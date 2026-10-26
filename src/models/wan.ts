@@ -55,7 +55,7 @@ export const wan30: ModelConfig = {
 	name: 'Wan 3.0',
 	type: 'video',
 	supportedProviders: {
-		dashscope: { apiModelId: 'wan3.0-video' },
+		dashscope: { apiModelId: 'wan3.0-video', aggregated: true },
 	},
 	modes: [
 		'text-to-video',
@@ -65,6 +65,10 @@ export const wan30: ModelConfig = {
 		'video-ref',
 	],
 	params: [
+		{
+			id: 'variant', label: 'Version', type: 'select', default: 'standard',
+			options: [{ label: 'Standard', value: 'standard' }, { label: 'Prime', value: 'prime' }],
+		},
 		{
 			id: 'resolution',
 			label: 'Resolution',

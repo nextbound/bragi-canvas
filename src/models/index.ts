@@ -14,6 +14,7 @@ import { midjourneyV8, midjourneyNiji7 } from './midjourney'
 import { lumaUni1 } from './luma'
 import { omniFlashExt } from './omni-flash'
 import { minimaxH3 } from './minimax-h3'
+import { viduQ4 } from './vidu'
 import { fastH3Omni } from './fast-h3-omni'
 import {
 	elevenLabsTTS,
@@ -64,6 +65,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	veo31Lite,
 	grokVideo,
 	minimaxH3,
+	viduQ4,
 	fastH3Omni,
 	omniFlashExt,
 	// Text

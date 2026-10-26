@@ -1,3 +1,6 @@
+import { allowsEmptyPrompt } from './generation-prompt'
+import { buildApimartViduRequest } from './providers/apimart-vidu-payload'
+import { resolveWan30ApiModelId } from './providers/wan30-variant'
 import type { AllCanvasNodeData, CanvasEdgeData } from 'obsidian/canvas'
 import { errorMessage, withTimeout } from './task-errors'
 import type { CanvasView } from './types/canvas-internal'
@@ -688,7 +691,7 @@ export default class BragiCanvas extends Plugin {
 			: [...upstreamPrompts, prompt].filter(Boolean)
 		const finalPrompt = allPrompts.join('\n')
 
-		if (!finalPrompt) {
+		if (!finalPrompt && !allowsEmptyPrompt(model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) {
 			new Notice('No prompt to generate from')
 			return null
 		}
@@ -825,6 +828,17 @@ export default class BragiCanvas extends Plugin {
 				if (uniqueVideos.length) throw new Error('Reactor does not support reference videos or continuation between jobs.')
 				if (uniqueAudios.length && !uniqueImages.length) throw new Error('Reactor audio references require a reference image.')
 			}
+			const isViduQ4 = activeProvider === 'apimart' && model.id === 'vidu-q4-preview'
+			if (isViduQ4) {
+				buildApimartViduRequest(finalPrompt, { ...params, genMode: mode, refImages: uniqueImages, refAudios: uniqueAudios, refVideos: uniqueVideos, refPdfs: uniquePdfs })
+				for (const audioPath of uniqueAudios) {
+					if (!/\.mp3$/i.test(audioPath)) throw new Error('Vidu Q4 Preview reference audio must be MP3, 3 to 12 seconds per clip.')
+				}
+				for (const filePath of [...uniqueImages, ...uniqueAudios]) {
+					const stat = await this.app.vault.adapter.stat(filePath)
+					if (stat && stat.size > 50 * 1024 * 1024) throw new Error('Vidu Q4 Preview references must be at most 50 MB each.')
+				}
+			}
 			const supportsMinimaxH3Refs = (activeProvider === 'apimart' || activeProvider === 'pika') && model.id === 'minimax-h3'
 			if (supportsMinimaxH3Refs && uniqueVideos.length > 0 && mode !== 'video-ref') {
 				throw new Error('MiniMax-H3 reference videos require video-ref mode.')
@@ -896,7 +910,7 @@ export default class BragiCanvas extends Plugin {
 			}
 
 			// Upload reference audios for providers/models that need public media URLs.
-			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs || isReactorModel) && uniqueAudios.length > 0) {
+			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs || isReactorModel || isViduQ4) && uniqueAudios.length > 0) {
 				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
 				for (const audioPath of audioRefs) {
 					if (bytePlusCreds) {
@@ -1001,7 +1015,7 @@ export default class BragiCanvas extends Plugin {
 						snapshot: {
 							taskId: videoResult.taskId,
 							providerName: activeProvider,
-							apiModelId,
+							apiModelId: activeProvider === 'dashscope' && model.id === 'wan-3.0' ? resolveWan30ApiModelId(params.variant) : apiModelId,
 							modelName: model.name,
 							canvasPath: canvasPath || '',
 							sourceNodeId: node.id,
