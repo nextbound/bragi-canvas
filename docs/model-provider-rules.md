@@ -172,7 +172,7 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - SuChuang does not support reference videos for this endpoint.
 - Treat status `0` / `1` as pending, `2` as success, and `3` as failure.
 
-## Seedance 2.5 Draft Mode (unreleased)
+## Seedance 2.5 Draft Mode (1.44.0)
 
 BytePlus extends the existing `resolution` parameter through `providerOverrides` with `draft`. Other providers and Seedance versions keep their current choices. The default remains `720p`; ordinary `480p` is not a draft. Submission maps `draft` to `resolution: "480p"` plus `draft: true`, retaining the normal generation controls.
 

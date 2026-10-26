@@ -4,9 +4,11 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
-- Add Draft to Seedance 2.5 resolution choices on BytePlus. Save 480p draft identity with the video node and use Generate 1080p to create a separate final video. Expired or inaccessible drafts use the normal generation error node.
-
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
+
+## 1.44.0 — 2026-10-26
+
+- Add Draft to Seedance 2.5 resolution choices on BytePlus. Save 480p draft identity with the video node and use Generate 1080p to create a separate final video. Expired or inaccessible drafts use the normal generation error node.
 
 ## 1.43.1 — 2026-10-21
 
