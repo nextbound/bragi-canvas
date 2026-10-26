@@ -6,6 +6,7 @@ import { requestUrl } from 'obsidian'
 import { uploadRef } from './upload'
 import { getSeedanceReferenceLimits, isSeedance25ModelId } from '../seedance-capabilities'
 import { normalizeSeedanceEndpoint, VOLCENGINE_SEEDANCE_ENDPOINT } from './seedance-endpoints'
+import { decodeSeedanceDraft, type SeedanceDraftMetadata } from '../seedance-draft'
 
 type SeedanceContent =
 	| { type: 'text'; text: string }
@@ -22,6 +23,19 @@ export interface SeedanceRequestBody {
 	generate_audio: boolean
 	watermark: false
 	output_format?: 'mp4' | 'mov'
+	draft?: true
+}
+
+export function buildSeedanceFinalRequestBody(draft: SeedanceDraftMetadata) {
+	const source = decodeSeedanceDraft(draft)
+	if (!source) throw new Error('Seedance: invalid BytePlus draft metadata.')
+	return {
+		model: source.apiModelId,
+		content: [{ type: 'draft_task', draft_task: { id: source.taskId } }],
+		resolution: '1080p',
+		output_format: source.outputFormat,
+		watermark: false,
+	}
 }
 
 function stringParam(params: Record<string, unknown>, key: string, fallback: string): string {
@@ -107,7 +121,12 @@ export function buildSeedanceRequestBody(prompt: string, params: Record<string, 
 	const genMode = stringParam(params, 'genMode', 'text-to-video')
 	const duration = Number.parseInt(stringParam(params, 'duration', is25 ? '-1' : '5'), 10)
 	const ratio = stringParam(params, 'ratio', is25 ? 'adaptive' : '16:9')
-	const resolution = stringParam(params, 'resolution', '720p')
+	const selectedResolution = stringParam(params, 'resolution', '720p')
+	const draft = selectedResolution === 'draft'
+	if (draft && (!is25 || context.providerId !== 'byteplus')) {
+		throw new Error('Draft resolution is only supported by Seedance 2.5 on BytePlus.')
+	}
+	const resolution = draft ? '480p' : selectedResolution
 	const outputFormat = stringParam(params, 'output_format', 'mp4')
 	const refImages = stringArrayParam(params, 'refImages')
 	const refAudios = stringArrayParam(params, 'refAudios')
@@ -145,6 +164,7 @@ export function buildSeedanceRequestBody(prompt: string, params: Record<string, 
 		watermark: false,
 	}
 	if (is25) body.output_format = outputFormat as 'mp4' | 'mov'
+	if (draft) body.draft = true
 	return body
 }
 
@@ -190,6 +210,14 @@ export class SeedanceProvider implements VideoProvider {
 		}
 
 		const requestBody = buildSeedanceRequestBody(prompt, { ...requestParams, refImages: preparedImages }, context)
+		return this.submitTask(requestBody)
+	}
+
+	async generateVideoFromDraft(draft: SeedanceDraftMetadata): Promise<GenerateVideoResult> {
+		return this.submitTask(buildSeedanceFinalRequestBody(draft))
+	}
+
+	private async submitTask(requestBody: SeedanceRequestBody | ReturnType<typeof buildSeedanceFinalRequestBody>): Promise<GenerateVideoResult> {
 		const response = await requestUrl({
 			url: this.baseUrl,
 			method: 'POST',

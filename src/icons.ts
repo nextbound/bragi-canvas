@@ -22,6 +22,11 @@ function icon24(svgInner: string): string {
 }
 
 export function registerBragiIcons(): void {
+	// Video frame with HD lettering for draft-to-final generation.
+	addIcon('bragi-video-hd', icon24(
+		'<rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/>' +
+		'<path d="M7 9v6m4-6v6m-4-3h4m3-3v6h1a3 3 0 0 0 0-6h-1Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
+	))
 	// 01 — Delete (trash)
 	addIcon('bragi-delete', figmaIcon(
 		'<path d="M6 10.5H30" stroke="#161616" stroke-width="2" stroke-linejoin="round"/>' +

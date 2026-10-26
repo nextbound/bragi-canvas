@@ -3,6 +3,7 @@ import type { AudioProvider, VideoProvider } from './providers/types'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { markNodeFailed, detachGeneratingOverlay, setGeneratingStatus } from './canvas-ops'
 import { classifyTaskError, errorMessage } from './task-errors'
+import { decodeSeedanceDraft, type SeedanceDraftMetadata } from './seedance-draft'
 
 export const TASK_CHECK_WINDOW_MS = 15 * 60 * 1000
 export const TASK_MAX_AUTO_RETRIES = 5
@@ -24,6 +25,7 @@ export interface TaskSnapshot {
 	lastError?: string
 	filePath?: string
 	checkDeadlineAt?: number
+	seedanceDraft?: SeedanceDraftMetadata
 }
 interface TaskRuntime {
 	provider?: VideoProvider | AudioProvider
@@ -58,6 +60,8 @@ export function decodeTaskSnapshots(value: unknown): TaskSnapshot[] {
 			state: typeof raw.state === 'string' && STATES.has(raw.state as TaskState) ? raw.state as TaskState : 'waiting-canvas',
 		}
 		for (const field of ['filePath', 'lastError'] as const) if (typeof raw[field] === 'string') snapshot[field] = raw[field]
+		const draft = decodeSeedanceDraft(raw.seedanceDraft)
+		if (draft && draft.providerId === snapshot.providerName && draft.taskId === snapshot.taskId && draft.apiModelId === snapshot.apiModelId) snapshot.seedanceDraft = draft
 		for (const field of ['retryCount', 'nextRetryAt', 'checkDeadlineAt'] as const) if (typeof raw[field] === 'number' && Number.isFinite(raw[field]) && raw[field] >= 0) snapshot[field] = raw[field]
 		snapshot.checkDeadlineAt ??= snapshot.startedAt + TASK_CHECK_WINDOW_MS
 		result.set(taskKey(snapshot), snapshot)
@@ -286,7 +290,11 @@ export class TaskQueue {
 		}
 		const previous = data.nodes[index]
 		// Retain the ID and edges: retries after a failed save are idempotent.
-		data.nodes[index] = { id: previous.id, type: 'file', file: snapshot.filePath!, x: previous.x, y: previous.y, width: previous.width, height: previous.height }
+		data.nodes[index] = {
+			id: previous.id, type: 'file', file: snapshot.filePath!,
+			x: previous.x, y: previous.y, width: previous.width, height: previous.height,
+			...(snapshot.seedanceDraft ? { bragiSeedanceDraft: snapshot.seedanceDraft } : {}),
+		}
 		const existing = canvas.nodes.get(snapshot.placeholderNodeId)
 		if (existing && previous.type !== 'file') {
 			detachGeneratingOverlay(existing.id, existing.nodeEl || existing.containerEl)
