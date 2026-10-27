@@ -183,3 +183,16 @@ When Seedance 2.5 is enabled and its active configured provider is BytePlus, a m
 BytePlus owns the seven-day validity period (measured from its task creation time) and account/model validation. Do not gate the action using the local timestamp or store an API key/account fingerprint in the canvas. Rejections use ordinary failed placeholders and error details. Draft and final generations are billed separately. The final action is UI-only; MCP uses the existing `generate` tool with `params.resolution: "draft"` to make drafts.
 
 Reference: [BytePlus Draft Mode](https://docs.byteplus.com/en/docs/ModelArk/2607688#2.5_draft_mode).
+
+
+## Kling 4.0 (APIMart)
+
+- Keep Bragi ID `kling-4.0` with APIMart ID `kling-v4`. Submit to `/v1/videos/generations`, poll the existing `/v1/tasks/{task_id}` endpoint, and download through the shared APIMart path.
+- Offer text, first-frame, first-last-frame, independent `keyframes`, image reference, video/audio reference, editing, and extension. Keep the mode selector explicit; image count must not override a selected frame workflow.
+- `parseKlingKeyframes` converts `[Keyframes]` entries into `first_frame`, `keyframe`, and optional `last_frame` roles. The first ordinary entry starts the video. Only the final entry may be bracketed as `[@ImageN]`; permit at most one. Preserve line order, allow blank descriptions/full-width colons, and remap prompt citations to submission order. Do not forward the structural markers as a substitute for image roles.
+- Snapshot image bindings before submitting and reject changed numbered references until the user explicitly binds reviewed thumbnails. Capture the ordered input paths before asynchronous preparation. Repeated frame references can reuse an image for a loop.
+- First-frame and first-last-frame allow an empty prompt across the generator, batch path, and MCP. Keyframes needs its structural block; descriptions can be empty. Other workflows require combined prompt text. Validate malformed frame requests before creating a placeholder or uploading assets, and keep generator errors visible.
+- Duration is 3–30 whole seconds, resolution 720p/1080p, and every output has stereo audio. Editing uses `edit_duration` with Source length by default. Ratios default to Auto; extension always inherits source framing and omits `audio_setting`.
+- References allow ten images, five videos totaling at most 30 seconds, three audio clips of 5–30 seconds each, and fifteen files overall. Editing requires one source video of at least three seconds and may add reference images; upstream trims beyond 30 seconds. Extension requires one source video plus at most one target last-frame image and returns the original followed by the new segment.
+- Probe local media metadata on an unattached element created with global `createEl`, not `Document.createEl` (which appends a new document root). Upload image/video/audio through Bragi Relay. Reject unsupported V3 controls and audio-off fields.
+- Run `npm run test:kling4` for offline coverage. `scripts/verify-kling4-live.mjs` is an explicit billable acceptance runner for a dedicated synthetic QA vault, and is deliberately excluded from `npm test`.

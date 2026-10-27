@@ -10,7 +10,8 @@ import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputL
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import type { GenerationType, Mode, ModelParam } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
-import { getOrderedTextRefs } from './text-refs'
+import { kling4PromptOptional } from './kling-keyframes'
+import { getOrderedPrompts, getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
 import { getOrderedAudios } from './audio-refs'
 import type { TaskQueue, TaskSnapshot } from './task-queue'
@@ -542,9 +543,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		defineTool({
 			category: 'Generation',
 			name: 'generate',
-			description: 'Trigger AI generation on a node. The node must contain a text prompt (text node or .md file node). Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
+			description: 'Trigger AI generation on a node. Use a text or .md prompt node; Kling 4.0 frame modes also accept an empty prompt. Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
 			inputSchema: {
-				nodeId: z.string().describe('ID of the node to generate from (must contain a prompt)'),
+				nodeId: z.string().describe('ID of a text or Markdown prompt node; supported frame modes allow empty text'),
 				modelId: z.string().describe('Model ID (from list_models)'),
 				mode: z.string().optional().describe('Generation mode (e.g. text-to-image, first-frame, tts). Defaults to auto-inferred mode.'),
 				params: z.record(z.union([z.string(), z.number()])).optional().describe('Model-specific parameters (from list_models params)'),
@@ -581,13 +582,13 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					const file = ctx.app.vault.getAbstractFileByPath(nodeData.file)
 					if (file instanceof TFile) prompt = (await ctx.app.vault.read(file)).trim()
 				}
-				if (!prompt) throw new Error('Node contains no prompt text')
 
 				const providerModes = getProviderModes(model, provider)
 				if (mode && !providerModes.includes(mode as Mode)) {
 					throw new Error(`Mode "${mode}" is not supported by ${provider} for ${modelId}. Supported modes: ${providerModes.join(', ')}`)
 				}
 				const selectedMode = (mode as Mode) || providerModes[0] || null
+				if (!prompt && !kling4PromptOptional(model.id, selectedMode) && !(await getOrderedPrompts(canvas, node, ctx.app)).some(text => text.trim())) throw new Error('Node contains no prompt text')
 
 				// Resolve params with defaults, but only for params visible in this mode
 				// and not hidden for the active provider.
@@ -601,7 +602,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					const p = applyProviderOverride(baseParam, provider)
 					const value = resolvedParams[p.id] ?? p.default
 					resolvedParams[p.id] = (p.type === 'range' || p.type === 'number')
-						? normalizeNumericParamValue(p, value)
+						? model.id === 'kling-4.0' ? value : normalizeNumericParamValue(p, value)
 						: value
 				}
 

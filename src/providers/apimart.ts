@@ -7,6 +7,7 @@ import { stringParam } from './params'
 import { BUILTIN_BRAGI_RELAY } from './bragi-relay'
 import { uploadRef } from './upload'
 import { buildApimartKlingOmniRequest, KLING_OMNI_MODEL_ID } from './kling-omni-payload'
+import { buildApimartKling4Request, KLING4_MODEL_ID } from './apimart-kling4-payload'
 import { buildApimartMinimaxH3Request, MINIMAX_H3_MODEL_ID } from './apimart-minimax-h3-payload'
 
 /**
@@ -205,6 +206,7 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		const modelId = stringParam(params?.modelId, DEFAULT_VIDEO_MODEL)
 
 		const genMode = stringParam(params?.genMode, '')
+		if (modelId === KLING4_MODEL_ID) return this.generateKling4(prompt, params)
 		if (modelId === MINIMAX_H3_MODEL_ID) {
 			return this.generateMinimaxH3(prompt, params)
 		}
@@ -268,6 +270,25 @@ export class APIMartProvider implements ImageProvider, VideoProvider {
 		if (!taskId) {
 			throw new Error(`APIMart: no task_id in video submit response — ${JSON.stringify(submitData).substring(0, 200)}`)
 		}
+		return { done: false, taskId }
+	}
+
+	private async generateKling4(prompt: string, params: Record<string, unknown> = {}): Promise<GenerateVideoResult> {
+		// Reject invalid input before relay uploads or a billable submission.
+		buildApimartKling4Request(prompt, params)
+		const refImages = await Promise.all(arrayParam(params.refImages).map(ref => this.ensureRelayUrl(ref, 'image')))
+		const refVideos = await Promise.all(arrayParam(params.refVideos).map(ref => this.ensureRelayUrl(ref, 'video')))
+		const refAudios = await Promise.all(arrayParam(params.refAudios).map(ref => this.ensureRelayUrl(ref, 'audio')))
+		const body = buildApimartKling4Request(prompt, { ...params, refImages, refVideos, refAudios })
+		const resp = await requestUrl({
+			url: `${API_BASE}/videos/generations`, method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+			body: JSON.stringify(body), throw: false,
+		})
+		if (resp.status === 401 || resp.status === 403) throw new Error('APIMart: invalid API key')
+		if (resp.status >= 400) throw new Error(`APIMart Kling 4.0: ${parseApimartError(resp)}`)
+		const taskId = resp.json?.data?.[0]?.task_id || resp.json?.data?.[0]?.id
+		if (!taskId) throw new Error('APIMart Kling 4.0: no task_id in submit response.')
 		return { done: false, taskId }
 	}
 

@@ -616,6 +616,8 @@ export function duplicateWithConnections(canvas: Canvas, node: CanvasNode): Dupl
 		if (data.color) newNodeData.color = data.color
 		const imageOrder = data.bragiImageOrder || data.ovidImageOrder
 		if (imageOrder) newNodeData.bragiImageOrder = [...imageOrder]
+		if (Array.isArray(data.bragiKeyframeImages)) newNodeData.bragiKeyframeImages = [...data.bragiKeyframeImages]
+		if (data.bragiKeyframesActive !== undefined) newNodeData.bragiKeyframesActive = data.bragiKeyframesActive
 		const lastGen = data.bragiLastGen || data.ovidLastGen
 		if (lastGen) newNodeData.bragiLastGen = { ...lastGen }
 

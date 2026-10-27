@@ -4,6 +4,8 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
+- Add Kling 4.0 on APIMart, including an independent Keyframes mode with optional ending-frame notation, multimodal references, editing, and extension.
+
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
 ## 1.44.0 — 2026-10-26

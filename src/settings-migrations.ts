@@ -14,6 +14,22 @@ type UnknownRecord = Record<string, unknown>
 export const CURRENT_SETTINGS_SCHEMA_VERSION = 15
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
+// Freeze the legacy auto-connect behavior at the 1.44.0 catalog. New models
+// stay opt-in even when an old settings import still needs this migration.
+const LEGACY_PROVIDER_MIGRATION_MODELS = new Set([
+	'flux-2-klein-9b', 'nano-banana-pro', 'nano-banana-2', 'gpt-image-2', 'gpt-image-2-official',
+	'gpt-image-2.5', 'grok-imagine', 'midjourney-v8', 'midjourney-niji-7', 'luma-uni-1',
+	'seedream-5.0-pro', 'seedream-5.0-flash', 'seedream-5.0', 'seedream-5.0-lite', 'seedream-4.5',
+	'z-image-spicy', 'qwen-image-edit-spicy', 'seedance-2.5', 'seedance-2.0', 'seedance-2.0-fast',
+	'kling-3.0', 'kling-3.0-omni', 'kling-2.6', 'happyhorse-1.1', 'wan-3.0',
+	'wan-2.7', 'veo-3.1', 'veo-3.1-lite', 'grok-video', 'minimax-h3',
+	'fast-h3-omni', 'omni-flash-ext', 'claude-opus-4-7', 'claude-sonnet-4-6', 'gemini-3.5-flash',
+	'gemini-3-flash', 'gemini-3.1-pro', 'grok-4-3', 'grok-4-fast', 'qwen-3-6-plus',
+	'gpt-5.5-pro', 'gpt-5.5', 'dashscope-cosyvoice-v3-5-plus', 'dashscope-cosyvoice-v3-5-flash', 'dashscope-qwen-voice',
+	'breeze-tts-2-multilingual', 'elevenlabs-tts-v3', 'minimax-tts', 'grok-tts', 'elevenlabs-music',
+	'minimax-music', 'mureka-music', 'sonilo-music', 'elevenlabs-sfx',
+])
+
 export interface SettingsMigrationResult {
 	settings: BragiSettings
 	changed: boolean
@@ -468,6 +484,7 @@ function migrateProviderPrefs19(settings: BragiSettings): void {
 
 	const configured = new Set(getConfiguredProviderIds(settings))
 	for (const model of ALL_MODELS) {
+		if (!LEGACY_PROVIDER_MIGRATION_MODELS.has(model.id)) continue
 		const existing = settings.modelPrefs[model.id]
 		if (existing && existing.enabled === false) continue
 
