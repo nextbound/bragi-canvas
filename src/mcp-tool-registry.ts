@@ -12,7 +12,8 @@ import { getTextInputCapability, listSupportedInputLabels, listUnsupportedInputL
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import type { GenerationType, Mode, ModelParam } from './models/types'
 import { getUpstreamInputs } from './edge-parser'
-import { getOrderedTextRefs } from './text-refs'
+import { kling4PromptOptional } from './kling-keyframes'
+import { getOrderedPrompts, getOrderedTextRefs } from './text-refs'
 import { getOrderedImages } from './ref-thumbnails'
 import { getOrderedAudios } from './audio-refs'
 import type { TaskQueue, TaskSnapshot } from './task-queue'
@@ -544,9 +545,9 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		defineTool({
 			category: 'Generation',
 			name: 'generate',
-			description: 'Trigger AI generation on a node. Use a text or .md prompt node. Vidu Q4 Preview first-frame mode may use an empty prompt node with exactly one upstream image. Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
+			description: 'Trigger AI generation on a node. Use a text or .md prompt node. Kling 4.0 frame modes permit empty text; Vidu Q4 Preview first-frame permits empty text with exactly one upstream image. Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
 			inputSchema: {
-				nodeId: z.string().describe('ID of the prompt node; Vidu Q4 Preview first-frame permits empty text with one upstream image'),
+				nodeId: z.string().describe('ID of a text or Markdown prompt node; supported Kling 4.0 and Vidu frame modes allow empty text'),
 				modelId: z.string().describe('Model ID (from list_models)'),
 				mode: z.string().optional().describe('Generation mode (e.g. text-to-image, first-frame, tts). Defaults to the first provider mode; Vidu Q4 Preview infers from references.'),
 				params: z.record(z.union([z.string(), z.number()])).optional().describe('Model-specific parameters (from list_models params)'),
@@ -592,7 +593,15 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				const selectedMode = (mode as Mode) || (promptInputs
 					? inferMode(providerModes, promptInputs.images.length, promptInputs.videos.length, promptInputs.audios.length)
 					: providerModes[0]) || null
-				if (!prompt && !(promptInputs && allowsEmptyPrompt(model.id, selectedMode, promptInputs.images.length, promptInputs.videos.length + promptInputs.audios.length + promptInputs.pdfs.length))) throw new Error('Node contains no prompt text')
+				if (
+					!prompt
+					&& !kling4PromptOptional(model.id, selectedMode)
+					&& !(promptInputs && allowsEmptyPrompt(
+						model.id, selectedMode, promptInputs.images.length,
+						promptInputs.videos.length + promptInputs.audios.length + promptInputs.pdfs.length,
+					))
+					&& !(await getOrderedPrompts(canvas, node, ctx.app)).some(text => text.trim())
+				) throw new Error('Node contains no prompt text')
 
 				// Resolve params with defaults, but only for params visible in this mode
 				// and not hidden for the active provider.
@@ -606,7 +615,7 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 					const p = applyProviderOverride(baseParam, provider)
 					const value = resolvedParams[p.id] ?? p.default
 					resolvedParams[p.id] = (p.type === 'range' || p.type === 'number')
-						? normalizeNumericParamValue(p, value)
+						? model.id === 'kling-4.0' ? value : normalizeNumericParamValue(p, value)
 						: value
 				}
 

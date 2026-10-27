@@ -1,15 +1,17 @@
 import { allowsEmptyPrompt } from './generation-prompt'
+import { keyframeTemplate, kling4PromptOptional } from './kling-keyframes'
+import { getOrderedImages } from './ref-thumbnails'
 import { inferMode } from './generation-mode'
 import type { LastSelection } from './settings'
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Obsidian Canvas internals and provider payloads are runtime-shaped data that this plugin narrows at use sites. */
-import { Notice, App } from 'obsidian'
+import { Notice, App, setIcon } from 'obsidian'
 import type { ModelConfig, GenerationType, Mode, ModelParam, VoiceSourceMode } from './models/types'
 import { getEnabledModels, getActiveProvider, getProviderModes } from './models/index'
 import { getTextInputCapability, textInputKindSupported } from './models/text-input-capabilities'
 import { getConnectedConfiguredProviderIds, resolveApiModelId } from './provider-model-prefs'
 import { getUpstreamInputs } from './edge-parser'
 import { getOrderedAudios } from './audio-refs'
-import { getOrderedTextRefs } from './text-refs'
+import { getOrderedTextRefs, getOrderedPrompts } from './text-refs'
 import type { BragiSettings } from './settings'
 import type { CanvasNode } from './types/canvas-internal'
 import { getNodeElement, getSelectionBounds, positionNodeToolbar } from './node-toolbar-position'
@@ -32,6 +34,7 @@ const MODE_LABELS: Record<string, string> = {
 	'first-frame': 'First Frame',
 	'image-ref': 'Ref Image',
 	'first-last-frame': 'First + Last Frame',
+	'keyframes': 'Keyframes',
 	'multi-image-ref': 'Multi Image Ref',
 	'video-ref': 'Ref Video',
 	'video-extend': 'Extend Video',
@@ -276,7 +279,7 @@ export function showGenerateBar(
 	type: GenerationType,
 	settings: BragiSettings,
 	app: App,
-	onSubmit: (result: PanelResult) => void,
+	onSubmit: (result: PanelResult) => void | Promise<unknown>,
 	onSaveSettings?: () => void
 ): void {
 	hideGenerateBar()
@@ -363,6 +366,36 @@ export function showGenerateBar(
 	const upstreamMediaHint = createSpan()
 	upstreamMediaHint.className = 'bragi-bar-upstream-hint bragi-bar-upstream-hint-hidden'
 	leftGroup.appendChild(upstreamMediaHint)
+
+	const bindFramesBtn = createEl('button')
+	bindFramesBtn.className = 'bragi-bar-keyframe-bind bragi-hidden'
+	bindFramesBtn.setAttribute('aria-label', 'Bind image numbers')
+	setIcon(bindFramesBtn, 'list-ordered')
+	bindFramesBtn.title = 'Review the thumbnails, then bind image numbers to their current images. Line order controls the frame sequence; [@ImageN] marks the optional final frame.'
+	leftGroup.appendChild(bindFramesBtn)
+	bindFramesBtn.addEventListener('click', () => {
+		if (!canvas) return
+		node.setData({ ...node.getData(), bragiKeyframeImages: [...getOrderedImages(canvas, node)] })
+		void canvas.requestSave()
+		new Notice('Keyframe image numbers bound to the current thumbnails.')
+	})
+
+	async function prepareKeyframes(): Promise<void> {
+		if (!canvas || selectedModel?.id !== 'kling-4.0' || selectedMode !== 'keyframes') return
+		const data = node.getData()
+		const upstreamPrompts = await getOrderedPrompts(canvas, node, app)
+		let text = data.type === 'text' ? node.text || data.text || '' : ''
+		const file = data.type === 'file' && data.file?.endsWith('.md') ? app.vault.getFileByPath(data.file) : null
+		if (file) text = await app.vault.read(file)
+		if (selectedMode !== 'keyframes') return
+		if (!/\[keyframes\]/i.test([...upstreamPrompts, text].join('\n'))) {
+			const next = `${keyframeTemplate(getOrderedImages(canvas, node).length)}\n\n${text}`.trim()
+			if (data.type === 'text') await node.setText(next)
+			else if (file) await app.vault.modify(file, next)
+		}
+		if (!node.getData().bragiKeyframeImages) node.setData({ ...node.getData(), bragiKeyframeImages: [...getOrderedImages(canvas, node)] })
+		await canvas.requestSave()
+	}
 
 	// ── Read upstream for mode inference ──
 
@@ -512,7 +545,7 @@ export function showGenerateBar(
 		modeSelect.innerHTML = ''
 		const { provider } = selectedModel ? resolveProvider(selectedModel, settings) : { provider: null }
 		const modes = selectedModel ? getProviderModes(selectedModel, provider ?? undefined) : []
-		const audioOnlyVideoRef = selectedModel?.id === 'minimax-h3' && provider === 'pika'
+		const audioOnlyVideoRef = selectedModel?.id === 'kling-4.0' || (selectedModel?.id === 'minimax-h3' && provider === 'pika')
 		if (!selectedModel || modes.length <= 1 || selectedModel.inferModeFromInputs) {
 			modeSelect.classList.add('bragi-hidden')
 			selectedMode = selectedModel?.inferModeFromInputs
@@ -522,7 +555,7 @@ export function showGenerateBar(
 		}
 
 		modeSelect.classList.remove('bragi-hidden')
-		const inferred = inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount, audioOnlyVideoRef)
+		const inferred = selectedModel?.id === 'kling-4.0' && (node.getData().bragiKeyframesActive ?? /\[keyframes\]/i.test(node.text || '')) ? 'keyframes' : inferMode(modes, upstreamImageCount, upstreamVideoCount, upstreamAudioCount, audioOnlyVideoRef)
 
 		for (const mode of modes) {
 			const opt = createEl('option')
@@ -950,6 +983,7 @@ export function showGenerateBar(
 	// ── Run button state ──
 
 	function updateRunState() {
+		bindFramesBtn.classList.toggle('bragi-hidden', selectedModel?.id !== 'kling-4.0' || selectedMode !== 'keyframes')
 		updateUpstreamMediaHint()
 		let disabled = false
 		let title = ''
@@ -1036,6 +1070,10 @@ export function showGenerateBar(
 
 	modeSelect.addEventListener('change', () => {
 		selectedMode = (modeSelect.value as Mode) || null
+		if (selectedModel?.id === 'kling-4.0') {
+			node.setData({ ...node.getData(), bragiKeyframesActive: selectedMode === 'keyframes' })
+			void prepareKeyframes().catch((error: unknown) => new Notice(error instanceof Error ? error.message : String(error)))
+		}
 		// Params may be mode-dependent (e.g. xAI video duration caps at 10s for image-ref).
 		rebuildParams()
 		updateRunState()
@@ -1058,7 +1096,7 @@ export function showGenerateBar(
 				}
 			}
 
-			if (!prompt && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount + upstreamPdfCount)) {
+			if (!prompt && !kling4PromptOptional(selectedModel?.id || '', selectedMode) && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount + upstreamPdfCount) && !(canvas && (await getOrderedPrompts(canvas, node, app)).some(text => text.trim()))) {
 				new Notice('Bragi canvas: no prompt found in this node')
 				return
 			}
@@ -1066,7 +1104,6 @@ export function showGenerateBar(
 				new Notice('Bragi canvas: no model selected')
 				return
 			}
-			hideGenerateBar()
 			const batchCount = parseInt(batchSelect.value) || 1
 
 			// Save to global memory
@@ -1095,7 +1132,12 @@ export function showGenerateBar(
 			// Resolve active provider and API model ID
 			const { provider, apiModelId } = resolveProvider(selectedModel, settings)
 
-			onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: submitParams, batchCount })
+			try {
+				await onSubmit({ prompt, model: selectedModel, activeProvider: provider, apiModelId, mode: selectedMode, params: submitParams, batchCount })
+				hideGenerateBar()
+			} catch (error: unknown) {
+				new Notice(error instanceof Error ? error.message : String(error))
+			}
 		})()
 	})
 

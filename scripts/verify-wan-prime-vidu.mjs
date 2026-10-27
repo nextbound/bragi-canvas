@@ -9,6 +9,7 @@ export { DashScopeVideoProvider } from './src/providers/dashscope';
 export { buildApimartViduRequest } from './src/providers/apimart-vidu-payload';
 export { resolveWan30ApiModelId } from './src/providers/wan30-variant';
 export { allowsEmptyPrompt } from './src/generation-prompt';
+export { kling4PromptOptional } from './src/kling-keyframes';
 export { createMcpToolRegistry } from './src/mcp-tool-registry';
 export { ALL_MODELS } from './src/models';
 `)
@@ -100,11 +101,35 @@ try {
  assert.equal(captures.at(-1).mode, 'image-ref')
  source.text = ''
  await assert.rejects(() => generate({ nodeId: source.id, modelId: 'vidu-q4-preview' }), /no prompt text/)
+ const promptNode = { id: 'prompt', text: 'Use the connected image and sound.', getData: () => ({ id: 'prompt', type: 'text', text: promptNode.text }) }
+ canvas.nodes.set(promptNode.id, promptNode); edges.push(edge(promptNode))
+ await generate({ nodeId: source.id, modelId: 'vidu-q4-preview' })
+ assert.equal(captures.at(-1).mode, 'image-ref', 'Connected prompt text must remain supported after merging Kling 4.0')
  assert.equal(allowsEmptyPrompt('wan-3.0', 'first-frame', 1, 0), false)
  // Execute production canvas dispatch to verify reference delivery and Prime queue metadata.
  const main = await readFile('src/main.ts', 'utf8')
  const ast = ts.createSourceFile('main.ts', main, ts.ScriptTarget.Latest, true)
  const cls = ast.statements.find(n => ts.isClassDeclaration(n) && n.name?.text === 'BragiCanvas')
+ const batchMethod = cls.members.find(m => m.name?.getText(ast) === 'executeBatchGeneration').getText(ast)
+ const batchCode = ts.transpileModule(`class BatchSubject { ${batchMethod} }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+ let batchInputs = { images: ['refs/frame.png'], videos: [], audios: [], pdfs: [] }
+ const batchDeps = { allowsEmptyPrompt, kling4PromptOptional: runtime.module.kling4PromptOptional, getUpstreamInputs: () => batchInputs, getCanvasFromNode: () => canvas, Notice: class {}, errorMessage: String }
+ const BatchSubject = new Function(...Object.keys(batchDeps), batchCode + ';return BatchSubject')(...Object.values(batchDeps))
+ const batchSubject = new BatchSubject(), batchCalls = []
+ batchSubject.executeGeneration = async (_, result) => batchCalls.push(result)
+ const batchResult = { model: ALL_MODELS.find(m => m.id === 'vidu-q4-preview'), mode: 'first-frame' }
+ await batchSubject.executeBatchGeneration([source], batchResult)
+ assert.equal(batchCalls.length, 1, 'Batch generation must dispatch a prompt-free Vidu first frame')
+ assert.equal(batchCalls[0].prompt, '')
+ batchInputs.audios = ['refs/sound.mp3']
+ await batchSubject.executeBatchGeneration([source], batchResult)
+ await batchSubject.executeBatchGeneration([source], { ...batchResult, mode: 'image-ref' })
+ assert.equal(batchCalls.length, 1, 'Other blank Vidu combinations must remain rejected')
+ batchInputs.audios = []
+ await batchSubject.executeBatchGeneration([source], { model: wanModel, mode: 'first-frame' })
+ assert.equal(batchCalls.length, 1, 'Wan still requires a prompt')
+ await batchSubject.executeBatchGeneration([source], { model: { id: 'kling-4.0' }, mode: 'first-frame' })
+ assert.equal(batchCalls.length, 2, 'Kling prompt-free frame generation must remain supported')
  const method = cls.members.find(m => m.name?.getText(ast) === 'runSingleGeneration').getText(ast)
  const code = ts.transpileModule(`class Subject { ${method} }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
  const failures = [], queued = [], delivered = []
@@ -128,7 +153,7 @@ try {
  modelId = 'wan-3.0'
  await subject.runSingleGeneration(source, { model: wanModel, activeProvider: 'dashscope', apiModelId: 'wan3.0-video', mode: 'text-to-video', params: { variant: 'prime' } }, canvas, { id: 'result' }, 'Test', { videos: [], audios: [], pdfs: [] }, [], 'test.canvas', 'assets')
  assert.deepEqual(failures, []); assert.equal(queued.at(-1).apiModelId, 'wan3.0-video-prime')
- console.log('Wan Prime and Vidu: payload boundaries, provider routing, polling/download, MCP opt-in/empty prompt/mode inference, canvas audio delivery, and Prime queue identity passed.')
+ console.log('Wan Prime and Vidu: payload boundaries, provider routing, polling/download, MCP opt-in/upstream prompt/mode inference, prompt-free batch dispatch, canvas audio delivery, and Prime queue identity passed.')
 } finally {
  delete globalThis.__request
  await runtime.cleanup()

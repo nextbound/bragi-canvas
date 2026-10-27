@@ -21,6 +21,9 @@ import { composeSelectedImageNodes } from './canvas-image-compose'
 import { registerBragiIcons } from './icons'
 import { showGenerateBar, showBatchGenerateBar, hideGenerateBar } from './panel'
 import { getUpstreamInputs } from './edge-parser'
+import { readKling4MediaDuration, validateKling4Durations } from './kling4-media'
+import { assertKeyframeBindings, kling4PromptOptional } from './kling-keyframes'
+import { buildApimartKling4Request } from './providers/apimart-kling4-payload'
 import { refreshAllThumbnails, removeAllThumbnails, getOrderedImages, getAssetIds } from './ref-thumbnails'
 import { refreshAllTextRefs, removeAllTextRefs, getOrderedPrompts } from './text-refs'
 import { getOrderedAudios, refreshAllAudioRefs, removeAllAudioRefs } from './audio-refs'
@@ -471,7 +474,7 @@ export default class BragiCanvas extends Plugin {
 			type,
 			this.settings,
 			this.app,
-			(result) => { void this.executeGeneration(node, result) },
+			(result) => this.executeGeneration(node, result),
 			() => { void this.saveSettings() }
 		)
 	}
@@ -497,10 +500,15 @@ export default class BragiCanvas extends Plugin {
 				const file = this.app.vault.getFileByPath(nodeData.file)
 				if (file) prompt = (await this.app.vault.read(file)).trim()
 			}
-			if (!prompt) return
+			if (!prompt && !kling4PromptOptional(result.model.id, result.mode)) {
+				const upstream = getUpstreamInputs(getCanvasFromNode(node), node)
+				if (!allowsEmptyPrompt(result.model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) return
+			}
 			await this.executeGeneration(node, { ...result, prompt })
 		})
-		await Promise.allSettled(promises)
+		const outcomes = await Promise.allSettled(promises)
+		const rejected = outcomes.find(outcome => outcome.status === 'rejected')
+		if (rejected) new Notice(`Generation failed: ${errorMessage(rejected.reason)}`)
 	}
 
 	openDenoiseImage(node: CanvasNode, canvas: Canvas): void {
@@ -691,9 +699,21 @@ export default class BragiCanvas extends Plugin {
 			: [...upstreamPrompts, prompt].filter(Boolean)
 		const finalPrompt = allPrompts.join('\n')
 
-		if (!finalPrompt && !allowsEmptyPrompt(model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) {
+		if (!finalPrompt.trim() && !kling4PromptOptional(model.id, result.mode) && !allowsEmptyPrompt(model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) {
 			new Notice('No prompt to generate from')
 			return null
+		}
+
+		let capturedKlingImages: string[] | undefined
+		if (model.id === 'kling-4.0' && result.activeProvider === 'apimart') {
+			const images = getOrderedImages(canvas, node)
+			capturedKlingImages = [...images]
+			if (result.mode === 'keyframes') assertKeyframeBindings(finalPrompt, images, node.getData().bragiKeyframeImages)
+			buildApimartKling4Request(finalPrompt, { ...result.params, genMode: result.mode, refImages: images, refVideos: [...new Set(upstream.videos)], refAudios: [...new Set(getOrderedAudios(canvas, node))], refPdfs: upstream.pdfs })
+			if (result.mode === 'keyframes' && !node.getData().bragiKeyframeImages) {
+				node.setData({ ...node.getData(), bragiKeyframeImages: [...images] })
+				await canvas.requestSave()
+			}
 		}
 
 		if (this.getCanvasPath(canvas) !== canvasPath) throw new Error('Source canvas closed before generation started.')
@@ -709,7 +729,7 @@ export default class BragiCanvas extends Plugin {
 		new Notice(`Generating ${model.name}${inputInfo}…`)
 
 		// Fire the provider call in the background — placeholder id is returned immediately.
-		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts, canvasPath, outputDir)
+		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts, canvasPath, outputDir, capturedKlingImages)
 			.catch((err: unknown) => {
 				console.error('Bragi Canvas generation error:', err)
 				if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, errorMessage(err))
@@ -774,6 +794,7 @@ export default class BragiCanvas extends Plugin {
 		upstreamPrompts: string[],
 		canvasPath: string,
 		outputDir: string,
+		capturedKlingImages?: string[],
 	): Promise<void> {
 		const { model, activeProvider, apiModelId, mode, params } = result
 		try {
@@ -786,11 +807,16 @@ export default class BragiCanvas extends Plugin {
 				if (this.getCanvasPath(canvas) === canvasPath) setGeneratingStatus(placeholder, { label })
 			}
 			showStage('Preparing inputs')
-			const uniqueImages = getOrderedImages(canvas, node)
+			const uniqueImages = capturedKlingImages || getOrderedImages(canvas, node)
 			const uniqueVideos = [...new Set(upstream.videos)]
 			const isReactorModel = activeProvider === 'svnewapi' && model.id === 'fast-h3-omni'
 			const uniqueAudios = [...new Set(getOrderedAudios(canvas, node))]
 			const uniquePdfs = [...new Set(upstream.pdfs)]
+			if (model.id === 'kling-4.0' && activeProvider === 'apimart') {
+				const videos = await Promise.all(uniqueVideos.map(path => readKling4MediaDuration(this.app, path, 'video')))
+				const audios = await Promise.all(uniqueAudios.map(path => readKling4MediaDuration(this.app, path, 'audio')))
+				validateKling4Durations(mode, videos, audios)
+			}
 			if (activeProvider === 'svnewapi' && model.id === 'gpt-image-2.5' && uniqueImages.length > 16) {
 				throw new Error('SVRouter GPT Image 2.5 supports up to 16 reference images.')
 			}
@@ -821,6 +847,7 @@ export default class BragiCanvas extends Plugin {
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7'
 			const isDashScopeWan3 = activeProvider === 'dashscope' && model.id === 'wan-3.0'
 			const isDashScopeWan = activeProvider === 'dashscope' && (model.id === 'wan-2.7' || isDashScopeWan3)
+			const supportsKling4Refs = activeProvider === 'apimart' && model.id === 'kling-4.0'
 			const supportsApimartVideoRef = activeProvider === 'apimart' && model.id === 'omni-flash-ext'
 			if (isReactorModel) {
 				if (uniqueImages.length > 9) throw new Error('Reactor supports up to 9 reference images.')
@@ -910,7 +937,7 @@ export default class BragiCanvas extends Plugin {
 			}
 
 			// Upload reference audios for providers/models that need public media URLs.
-			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs || isReactorModel || isViduQ4) && uniqueAudios.length > 0) {
+			if ((supportsSeedanceUrlRefs || isMuleRouterWan || isDashScopeWan || supportsMinimaxH3Refs || supportsKling4Refs || isReactorModel || isViduQ4) && uniqueAudios.length > 0) {
 				const audioRefs = isMuleRouterWan ? uniqueAudios.slice(0, 1) : uniqueAudios
 				for (const audioPath of audioRefs) {
 					if (bytePlusCreds) {
@@ -930,7 +957,7 @@ export default class BragiCanvas extends Plugin {
 			// BytePlus uses asset:// when native asset credentials are configured; otherwise
 			// the declarative delivery path falls back to a temporary HTTPS relay URL.
 			if ((model.type === 'video' || (model.id === 'sonilo-music' && mode === 'video-to-music')) && uniqueVideos.length > 0) {
-				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsMinimaxH3Refs && !supportsKlingOmniVideoRef && !isDashScopeWan) {
+				if (mode === 'video-ref' && !supportsSeedanceUrlRefs && !supportsApimartVideoRef && !supportsMinimaxH3Refs && !supportsKlingOmniVideoRef && !supportsKling4Refs && !isDashScopeWan) {
 					throw new Error('Reference video is not available for the active model and provider.')
 				}
 				if (supportsApimartVideoRef && uniqueVideos.length > 1) {

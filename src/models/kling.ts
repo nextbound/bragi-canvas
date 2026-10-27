@@ -193,3 +193,19 @@ export const kling26: ModelConfig = {
 	modes: ['text-to-video', 'first-frame', 'first-last-frame'],
 	params: KLING_PARAMS,
 }
+
+
+export const kling4: ModelConfig = {
+	id: 'kling-4.0',
+	name: 'Kling 4.0',
+	type: 'video',
+	supportedProviders: { apimart: { apiModelId: 'kling-v4' } },
+	modes: ['text-to-video', 'first-frame', 'first-last-frame', 'keyframes', 'image-ref', 'video-ref', 'video-edit', 'video-extend'],
+	params: [
+		{ id: 'duration', label: 'Duration', type: 'range', modes: ['text-to-video', 'first-frame', 'first-last-frame', 'keyframes', 'image-ref', 'video-ref', 'video-extend'], default: 5, min: 3, max: 30, step: 1, unit: 's' },
+		{ id: 'edit_duration', label: 'Duration', type: 'select', modes: ['video-edit'], default: 'source', options: [{ label: 'Source length', value: 'source' }, ...Array.from({ length: 28 }, (_, i) => ({ label: `${i + 3}s`, value: String(i + 3) }))] },
+		{ id: 'resolution', label: 'Resolution', type: 'select', default: '720p', options: [{ label: '720p', value: '720p' }, { label: '1080p', value: '1080p' }] },
+		{ id: 'aspect_ratio', label: 'Ratio', type: 'select', modes: ['text-to-video', 'first-frame', 'first-last-frame', 'keyframes', 'image-ref', 'video-ref', 'video-edit'], default: 'auto', options: ['auto', '16:9', '9:16', '1:1', '21:9'].map(value => ({ label: value === 'auto' ? 'Auto' : value, value })) },
+		{ id: 'audio_setting', label: 'Source audio', type: 'select', modes: ['video-edit', 'video-ref'], default: 'default', options: [{ label: 'Default', value: 'default' }, { label: 'Keep source', value: 'origin' }, { label: 'Generate', value: 'auto' }] },
+	],
+}
