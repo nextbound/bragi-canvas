@@ -1,3 +1,4 @@
+import { allowsEmptyPrompt } from './generation-prompt'
 import { keyframeTemplate, kling4PromptOptional } from './kling-keyframes'
 import { getOrderedImages } from './ref-thumbnails'
 import { inferMode } from './generation-mode'
@@ -1095,7 +1096,7 @@ export function showGenerateBar(
 				}
 			}
 
-			if (!prompt && !kling4PromptOptional(selectedModel?.id || '', selectedMode) && !(canvas && (await getOrderedPrompts(canvas, node, app)).some(text => text.trim()))) {
+			if (!prompt && !kling4PromptOptional(selectedModel?.id || '', selectedMode) && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount + upstreamPdfCount) && !(canvas && (await getOrderedPrompts(canvas, node, app)).some(text => text.trim()))) {
 				new Notice('Bragi canvas: no prompt found in this node')
 				return
 			}
