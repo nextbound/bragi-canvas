@@ -6,6 +6,7 @@ import { testRuntime } from './test-runtime.mjs'
 const runtime = await testRuntime(`
 export * from './src/seedance-draft';
 export { SeedanceProvider, buildSeedanceRequestBody, buildSeedanceFinalRequestBody } from './src/providers/seedance';
+export { SvNewApiVideoProvider, buildSeedanceFinalBody as buildSvFinal } from './src/providers/svnewapi';
 export { TaskQueue, decodeTaskSnapshots } from './src/task-queue';
 export { getActiveProvider, getModelById } from './src/models';
 export { getConnectedConfiguredProviderIds } from './src/provider-model-prefs';
@@ -14,14 +15,14 @@ export { createMcpToolRegistry } from './src/mcp-tool-registry';
 Object.assign(globalThis.window, { setInterval: () => 1, clearInterval: () => {} })
 const { SeedanceProvider, buildSeedanceRequestBody: buildDraft, buildSeedanceFinalRequestBody: buildFinal,
 	getSeedanceDraft, decodeSeedanceDraft, canFinalizeSeedanceDraft, TaskQueue, decodeTaskSnapshots,
-	getActiveProvider, getModelById, getConnectedConfiguredProviderIds, createMcpToolRegistry } = runtime.module
+	getActiveProvider, getModelById, getConnectedConfiguredProviderIds, createMcpToolRegistry, SvNewApiVideoProvider, buildSvFinal } = runtime.module
 const draft = { providerId: 'byteplus', modelId: 'seedance-2.5', taskId: 'draft-task', apiModelId: 'ep-original-model', createdAt: Date.now() - 8 * 86400000, outputFormat: 'mov' }
 const context = { catalogModelId: 'seedance-2.5', providerId: 'byteplus' }
 const params = { modelId: draft.apiModelId, resolution: 'draft', genMode: 'image-ref', duration: '5', ratio: '9:16', generate_audio: 'true', output_format: 'mov', refImages: ['asset://reference-image'] }
 const data = { id: 'draft-node', type: 'file', file: 'assets/draft.mov', x: 0, y: 0, width: 280, height: 400, bragiSeedanceDraft: draft }
 const settings = () => ({ modelOrder: {}, providers: { byteplus: 'test-key', bytedance: 'test-key', svnewapi: 'test-key' }, modelPrefs: { 'seedance-2.5': { enabled: true, selectedProvider: 'byteplus' } }, providerModelPrefs: { byteplus: { 'seedance-2.5': true }, bytedance: { 'seedance-2.5': true }, svnewapi: { 'seedance-2.5': true } }, apiModelIdOverrides: { byteplus: { 'seedance-2.5': 'ep-current-model' } } })
 try {
-	// Draft is a BytePlus-only resolution choice; ordinary 480p stays ordinary.
+	// Draft is a BytePlus/SVRouter-only resolution choice; ordinary 480p stays ordinary.
 	const body = buildDraft('Sailboat at sunrise', params, context)
 	assert.deepEqual(body, { model: draft.apiModelId, content: [{ type: 'text', text: 'Sailboat at sunrise' }, { type: 'image_url', image_url: { url: 'asset://reference-image' }, role: 'reference_image' }], duration: 5, ratio: '9:16', resolution: '480p', generate_audio: true, watermark: false, output_format: 'mov', draft: true })
 	assert.equal(buildDraft('Sailboat', { ...params, resolution: '480p' }, context).draft, undefined)
@@ -34,7 +35,7 @@ try {
 		s.modelPrefs['seedance-2.5'].selectedProvider = provider
 		const models = JSON.parse((await listModels.handler({ type: 'video' })).content[0].text)
 		const resolution = models.find(model => model.id === 'seedance-2.5').params.find(param => param.id === 'resolution')
-		assert.equal(resolution.options.some(option => option.value === 'draft'), provider === 'byteplus')
+		assert.equal(resolution.options.some(option => option.value === 'draft'), provider !== 'bytedance')
 		assert.equal(resolution.default, '720p')
 	}
 
@@ -54,6 +55,29 @@ try {
 	}
 	assert.equal(canFinalizeSeedanceDraft(data, 'byteplus'), true, 'Age does not hide the action; the provider owns expiry errors')
 	for (const active of ['bytedance', 'svnewapi', null]) assert.equal(canFinalizeSeedanceDraft(data, active), false)
+
+	// SVRouter: draft and final go through the gateway's metadata.draft / metadata.draft_task_id contract.
+	const svDraft = { ...draft, providerId: 'svnewapi', taskId: 'task_sv_draft', apiModelId: 'sv-seedance-2.5' }
+	const svData = { ...data, bragiSeedanceDraft: svDraft }
+	assert.equal(canFinalizeSeedanceDraft(svData, 'svnewapi'), true)
+	for (const active of ['byteplus', 'bytedance', null]) assert.equal(canFinalizeSeedanceDraft(svData, active), false)
+	const svProvider = new SvNewApiVideoProvider('sv-key', {}, 'assets', 'https://gateway.test/')
+	const svRequests = []
+	globalThis.__request = async request => { svRequests.push(request); return { status: 200, json: { id: 'task_sv' } } }
+	assert.deepEqual(await svProvider.generateVideo('Sailboat at sunrise', { modelId: 'sv-seedance-2.5', resolution: 'draft', genMode: 'text-to-video', duration: '5', ratio: '16:9', generate_audio: 'true', output_format: 'mov' }), { done: false, taskId: 'task_sv' })
+	assert.equal(svRequests[0].url, 'https://gateway.test/v1/videos')
+	assert.deepEqual(JSON.parse(svRequests[0].body), { model: 'sv-seedance-2.5', prompt: 'Sailboat at sunrise', mode: 'text-to-video', metadata: { watermark: false, genMode: 'text-to-video', ratio: '16:9', duration: 5, draft: true, resolution: '480p', generate_audio: true, output_format: 'mov' } })
+	await svProvider.generateVideo('Sailboat', { modelId: 'sv-seedance-2.5', resolution: '480p' })
+	assert.equal(JSON.parse(svRequests[1].body).metadata.draft, undefined)
+	await assert.rejects(() => svProvider.generateVideo('Sailboat', { modelId: 'sv-seedance-2.0', resolution: 'draft' }), /only supported/)
+	const expectedSvFinal = { model: 'sv-seedance-2.5', metadata: { draft_task_id: 'task_sv_draft', resolution: '1080p', output_format: 'mov', watermark: false } }
+	assert.deepEqual(buildSvFinal({ ...svDraft, prompt: 'Do not send', duration: 20 }), expectedSvFinal)
+	assert.throws(() => buildSvFinal(draft), /invalid Seedance draft/)
+	assert.deepEqual(await svProvider.generateVideoFromDraft(svDraft), { done: false, taskId: 'task_sv' })
+	assert.equal(svRequests[2].headers.Authorization, 'Bearer sv-key')
+	assert.deepEqual(JSON.parse(svRequests[2].body), expectedSvFinal)
+	globalThis.__request = async () => ({ status: 400, json: { error: { code: 'draft_task_not_ready', message: 'draft task task_sv_draft has not succeeded' } } })
+	await assert.rejects(() => svProvider.generateVideoFromDraft(svDraft), error => error.message.includes('has not succeeded'))
 	for (const changed of [{ bragiSeedanceDraft: undefined }, { type: 'text' }, { file: 'image.png' }, { bragiSeedanceDraft: { ...draft, providerId: 'bytedance' } }]) assert.equal(canFinalizeSeedanceDraft({ ...data, ...changed }, 'byteplus'), false)
 	assert.equal(decodeSeedanceDraft({ ...draft, taskId: '' }), null)
 	assert.equal(decodeSeedanceDraft({ ...draft, createdAt: NaN }), null)
@@ -107,5 +131,12 @@ try {
 	subject.settings.modelPrefs['seedance-2.5'].selectedProvider = 'bytedance'; assert.equal(subject.canFinalizeDraftNode(node), false)
 	subject.startSeedanceFinal(node); await new Promise(resolve => setTimeout(resolve, 0)); assert.match(placeholders.at(-1).error, /Connect Seedance/)
 	subject.settings.modelPrefs['seedance-2.5'].selectedProvider = 'byteplus'; subject.settings.modelPrefs['seedance-2.5'].enabled = false; assert.equal(subject.canFinalizeDraftNode(node), false)
-	console.log('Seedance draft: provider-scoped catalog/MCP, payloads, opaque model identity, durable node metadata, toolbar eligibility, duplicate submission and error placeholders passed.')
+	// An SVRouter draft finalizes through SVRouter with its original gateway model id.
+	subject.settings.modelPrefs['seedance-2.5'] = { enabled: true, selectedProvider: 'svnewapi' }; queued.length = 0
+	const svNode = { id: 'sv-draft-node', canvas: {}, getData: () => svData }
+	assert.equal(subject.canFinalizeDraftNode(svNode), true); assert.equal(subject.canFinalizeDraftNode(node), false)
+	submit = async () => ({ done: false, taskId: 'accepted-sv-final' })
+	subject.startSeedanceFinal(svNode); await new Promise(resolve => setTimeout(resolve, 0))
+	assert.deepEqual(received, svDraft); assert.equal(queued[0].providerName, 'svnewapi'); assert.equal(queued[0].apiModelId, 'sv-seedance-2.5')
+	console.log('Seedance draft: provider-scoped catalog/MCP, BytePlus and SVRouter payloads, opaque model identity, durable node metadata, toolbar eligibility, duplicate submission and error placeholders passed.')
 } finally { await runtime.cleanup() }

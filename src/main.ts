@@ -47,7 +47,7 @@ import { installAlwaysNewTab } from './always-new-tab'
 import type { Canvas, CanvasNode } from './types/canvas-internal'
 import type { VoiceSourceMode, RefModality, ModelConfig } from './models/types'
 import { getActiveProvider, getModelById } from './models'
-import { canFinalizeSeedanceDraft, getSeedanceDraft, type SeedanceDraftMetadata } from './seedance-draft'
+import { canFinalizeSeedanceDraft, getSeedanceDraft, isSeedanceDraftProvider, type SeedanceDraftMetadata } from './seedance-draft'
 import { validateTextInputs } from './models/text-input-capabilities'
 import { prepareTextInputs } from './text-input-prep'
 import { checkForPluginUpdate, markUpdatePrompted, shouldShowAutomaticUpdatePrompt, type AvailablePluginUpdate } from './update-check'
@@ -798,8 +798,8 @@ export default class BragiCanvas extends Plugin {
 	): Promise<void> {
 		const { model, activeProvider, apiModelId, mode, params } = result
 		try {
-			if (model.id === 'seedance-2.5' && params.resolution === 'draft' && activeProvider !== 'byteplus') {
-				throw new Error('Draft resolution is only supported by Seedance 2.5 on BytePlus.')
+			if (model.id === 'seedance-2.5' && params.resolution === 'draft' && !isSeedanceDraftProvider(activeProvider)) {
+				throw new Error('Draft resolution is only supported by Seedance 2.5 on BytePlus or SVRouter.')
 			}
 
 			// Read reference images in user-defined order (from thumbnail drag)
@@ -1034,8 +1034,8 @@ export default class BragiCanvas extends Plugin {
 					if (this.getCanvasPath(canvas) === canvasPath) replacePlaceholderWithFile(canvas, placeholder, videoResult.filePath, node)
 					new Notice('Video ready')
 				} else if (videoResult.taskId) {
-					const seedanceDraft: SeedanceDraftMetadata | undefined = model.id === 'seedance-2.5' && activeProvider === 'byteplus' && params.resolution === 'draft'
-						? { providerId: 'byteplus', modelId: 'seedance-2.5', taskId: videoResult.taskId, apiModelId, createdAt: Date.now(), outputFormat: params.output_format === 'mov' ? 'mov' : 'mp4' }
+					const seedanceDraft: SeedanceDraftMetadata | undefined = model.id === 'seedance-2.5' && isSeedanceDraftProvider(activeProvider) && params.resolution === 'draft'
+						? { providerId: activeProvider, modelId: 'seedance-2.5', taskId: videoResult.taskId, apiModelId, createdAt: Date.now(), outputFormat: params.output_format === 'mov' ? 'mov' : 'mp4' }
 						: undefined
 					// Queue for async polling
 					await this.taskQueue.addTask({
@@ -1221,27 +1221,28 @@ export default class BragiCanvas extends Plugin {
 		const canvasPath = this.getCanvasPath(canvas)
 		const outputDir = this.getOutputDir()
 		const key = JSON.stringify([canvasPath, node.id])
+		const data = node.getData()
+		const draft = getSeedanceDraft(data)
 		if (this.draftSubmissions.has(key) || this.taskQueue.getSnapshots().some(task =>
-			task.canvasPath === canvasPath && task.sourceNodeId === node.id && task.providerName === 'byteplus' && task.outputType === 'video')) {
+			task.canvasPath === canvasPath && task.sourceNodeId === node.id && task.providerName === draft?.providerId && task.outputType === 'video')) {
 			new Notice('A final video is already being generated for this draft.')
 			return null
 		}
-		const data = node.getData()
-		const draft = getSeedanceDraft(data)
 		const placeholder = createPlaceholderNode(canvas, 'Seedance 2.5', node, { w: data.width, h: data.height })
 		this.syncGenerating.add(placeholder.id)
 		this.draftSubmissions.add(key)
 		void (async () => {
 			if (!canvasPath) throw new Error('Save the source canvas before generating.')
-			if (!draft || !this.canFinalizeDraftNode(node)) throw new Error('Connect Seedance 2.5 to BytePlus to generate a final from this draft.')
-			const provider = getProvider('byteplus')?.makeVideo?.({ settings: this.settings, app: this.app, outputDir })
-			if (!provider?.generateVideoFromDraft) throw new Error('BytePlus draft generation is unavailable.')
+			const providerName = draft ? getProvider(draft.providerId)?.name ?? draft.providerId : 'the draft provider'
+			if (!draft || !this.canFinalizeDraftNode(node)) throw new Error(`Connect Seedance 2.5 to ${providerName} to generate a final from this draft.`)
+			const provider = getProvider(draft.providerId)?.makeVideo?.({ settings: this.settings, app: this.app, outputDir })
+			if (!provider?.generateVideoFromDraft) throw new Error(`${providerName} draft generation is unavailable.`)
 			setGeneratingStatus(placeholder, { label: 'Submitting 1080p video' })
 			const result = await provider.generateVideoFromDraft(draft)
 			if (!result.taskId) throw new Error('Seedance: no task ID returned for the final video.')
 			await this.taskQueue.addTask({
 				snapshot: {
-					taskId: result.taskId, providerName: 'byteplus', apiModelId: draft.apiModelId,
+					taskId: result.taskId, providerName: draft.providerId, apiModelId: draft.apiModelId,
 					modelName: 'Seedance 2.5', canvasPath, sourceNodeId: node.id,
 					placeholderNodeId: placeholder.id, outputDir, startedAt: Date.now(), outputType: 'video',
 				},

@@ -10,6 +10,15 @@ const seedance25DurationOptions = [
 
 const seedance25AdaptiveOnly = [{ label: 'Adaptive', value: 'adaptive' }]
 
+const seedance25ResolutionOptions = [
+	{ label: '480p', value: '480p' },
+	{ label: '720p', value: '720p' },
+	{ label: '1080p', value: '1080p' },
+]
+
+// Draft is offered only by providers that implement the draft -> final flow (see seedance-draft.ts).
+const seedance25DraftResolutionOptions = [{ label: 'Draft', value: 'draft' }, ...seedance25ResolutionOptions]
+
 export const seedance25: ModelConfig = {
 	id: 'seedance-2.5',
 	name: 'Seedance 2.5',
@@ -61,20 +70,10 @@ export const seedance25: ModelConfig = {
 			label: 'Resolution',
 			type: 'select',
 			providerOverrides: {
-				byteplus: {
-					options: [
-						{ label: 'Draft', value: 'draft' },
-						{ label: '480p', value: '480p' },
-						{ label: '720p', value: '720p' },
-						{ label: '1080p', value: '1080p' },
-					],
-				},
+				byteplus: { options: seedance25DraftResolutionOptions },
+				svnewapi: { options: seedance25DraftResolutionOptions },
 			},
-			options: [
-				{ label: '480p', value: '480p' },
-				{ label: '720p', value: '720p' },
-				{ label: '1080p', value: '1080p' },
-			],
+			options: seedance25ResolutionOptions,
 			default: '720p',
 		},
 		{

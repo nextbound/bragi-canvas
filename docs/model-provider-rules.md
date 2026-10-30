@@ -174,13 +174,19 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 
 ## Seedance 2.5 Draft Mode (1.44.0)
 
-BytePlus extends the existing `resolution` parameter through `providerOverrides` with `draft`. Other providers and Seedance versions keep their current choices. The default remains `720p`; ordinary `480p` is not a draft. Submission maps `draft` to `resolution: "480p"` plus `draft: true`, retaining the normal generation controls.
+BytePlus and SVRouter extend the existing `resolution` parameter through `providerOverrides` with `draft`. Other providers and Seedance versions keep their current choices. The default remains `720p`; ordinary `480p` is not a draft. Submission maps `draft` to `resolution: "480p"` plus `draft: true`, retaining the normal generation controls.
 
 The accepted task snapshot carries `seedanceDraft`; completion stores the validated marker as `bragiSeedanceDraft` on the video file node. It contains the provider, catalog model, task ID, original API model ID, local submission timestamp, and output format. It contains no credentials. Task restoration and result-save retries retain this marker.
 
 When Seedance 2.5 is enabled and its active configured provider is BytePlus, a marked video node offers **Generate 1080p**. The action creates a separate normal placeholder connected to the draft, retains the source, and uses the current BytePlus configuration with the original task and API model IDs. It submits only `model`, `content: [{ type: "draft_task", draft_task: { id } }]`, `resolution: "1080p"`, `output_format`, and `watermark: false`. It must not resend prompt, references, duration, ratio, seed, audio, or task-type fields. Pending submissions for the same source are deduplicated; completed outputs have no draft marker.
 
 BytePlus owns the seven-day validity period (measured from its task creation time) and account/model validation. Do not gate the action using the local timestamp or store an API key/account fingerprint in the canvas. Rejections use ordinary failed placeholders and error details. Draft and final generations are billed separately. The final action is UI-only; MCP uses the existing `generate` tool with `params.resolution: "draft"` to make drafts.
+
+### SVRouter
+
+SVRouter (`svnewapi`, gateway model `sv-seedance-2.5`) offers the same `draft` choice through its own `providerOverrides` entry. A draft sends `metadata.draft: true` with `metadata.resolution: "480p"`; the gateway marks the task as a draft. The stored marker uses `providerId: "svnewapi"` and the gateway's public task ID. **Generate 1080p** sends only `model` and `metadata: { draft_task_id, resolution: "1080p", output_format, watermark: false }`. The gateway checks ownership, success status and model, then builds the upstream `draft_task` request; it rejects prompt, references, duration, ratio, seed, audio and raw `draft_task` content, so the plugin must not send them.
+
+A draft can only be finalized on the provider that created it: the action appears only when the marker's provider is the active Seedance 2.5 provider.
 
 Reference: [BytePlus Draft Mode](https://docs.byteplus.com/en/docs/ModelArk/2607688#2.5_draft_mode).
 
