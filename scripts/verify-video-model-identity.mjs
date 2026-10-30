@@ -11,10 +11,11 @@ export { SeedreamProvider } from './src/providers/seedream';
 export { ALL_MODELS, isApiModelIdEditable } from './src/models';
 export { resolveApiModelId } from './src/provider-model-prefs';
 export { getSeedanceReferenceLimits } from './src/seedance-capabilities';
+export { isSeedanceDraftProvider } from './src/seedance-draft';
 `)
 
 try {
-	const { SeedanceProvider, buildSeedanceRequestBody, DashScopeVideoProvider, MuleRouterVideoProvider, SeedreamProvider, ALL_MODELS, isApiModelIdEditable, resolveApiModelId, getSeedanceReferenceLimits } = runtime.module
+	const { SeedanceProvider, buildSeedanceRequestBody, DashScopeVideoProvider, MuleRouterVideoProvider, SeedreamProvider, ALL_MODELS, isApiModelIdEditable, resolveApiModelId, getSeedanceReferenceLimits, isSeedanceDraftProvider } = runtime.module
 	const requests = []
 	globalThis.__request = async request => {
 		requests.push(request)
@@ -72,7 +73,7 @@ try {
 	const method = cls.members.find(m => m.name?.getText(ast) === 'runSingleGeneration').getText(ast)
 	const code = ts.transpileModule(`class Subject { ${method} }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
 	const failures = [], queued = []
-	const deps = { getOrderedImages: () => [], getOrderedAudios: () => [], getSeedanceReferenceLimits, getAssetIds: () => ({}), getAssetIdsForFiles: () => ({}), getProvider: () => ({ makeVideo: () => provider }), setGeneratingStatus: () => {}, Notice: class {}, markNodeFailed: (_, error) => failures.push(error), errorMessage: String }
+	const deps = { getOrderedImages: () => [], getOrderedAudios: () => [], getSeedanceReferenceLimits, isSeedanceDraftProvider, getAssetIds: () => ({}), getAssetIdsForFiles: () => ({}), getProvider: () => ({ makeVideo: () => provider }), setGeneratingStatus: () => {}, Notice: class {}, markNodeFailed: (_, error) => failures.push(error), errorMessage: String }
 	const Subject = new Function(...Object.keys(deps), code + ';return Subject')(...Object.values(deps))
 	const subject = new Subject()
 	subject.settings = { providers: {} }; subject.app = app; subject.getCanvasPath = () => 'test.canvas'

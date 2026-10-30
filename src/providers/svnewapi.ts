@@ -9,6 +9,7 @@ import type {
 import { uploadRef } from './upload'
 import { resolveOpenAIImageSize } from './openai-image-size'
 import { resolveSeedreamImageSize } from './seedream'
+import { decodeSeedanceDraft, type SeedanceDraftMetadata } from '../seedance-draft'
 
 // Fixed SVRouter gateway root (OpenAI-compatible; requests append `/v1/...`).
 export const SVROUTER_BASE_URL = 'https://gateway.one-take-ai.com'
@@ -35,6 +36,8 @@ const SV_IMAGE_GPT_25 = 'sv-gpt-image-2.5'
 const SV_VIDEO_REACTOR = 'sv-fast-h3-omni'
 // byteplus seedance: params go in `metadata`, not top-level.
 const SV_VIDEO_SEEDANCE_RE = /^sv-seedance-2\.(?:0|5)(?:-|$)/
+// The only gateway model that accepts metadata.draft / metadata.draft_task_id.
+const SV_VIDEO_SEEDANCE_25 = 'sv-seedance-2.5'
 // Seedream's Ark upstream enforces a per-tier minimum pixel count, so its `size` must come
 // from the Seedream-specific map, not the smaller generic OpenAI table (kept as a fallback for
 // other OpenAI-compatible image models).
@@ -509,7 +512,14 @@ export class SvNewApiVideoProvider implements VideoProvider {
 		const body = reactor
 			? this.buildReactorBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
 			: buildVideoBody(modelId, prompt, params || {}, imageUrls, audioUrls, videoUrls)
+		return this.submitTask(body)
+	}
 
+	async generateVideoFromDraft(draft: SeedanceDraftMetadata): Promise<GenerateVideoResult> {
+		return this.submitTask(buildSeedanceFinalBody(draft))
+	}
+
+	private async submitTask(body: JsonRecord): Promise<GenerateVideoResult> {
 		const resp = await withTimeout(requestUrl({
 			url: `${this.baseUrl}/v1/videos`,
 			method: 'POST',
@@ -608,7 +618,14 @@ function buildVideoBody(
 		}
 		if (ratio) metadata.ratio = ratio
 		if (duration) metadata.duration = duration === '-1' ? -1 : parseInt(duration, 10)
-		if (resolution) metadata.resolution = resolution
+		if (resolution === 'draft') {
+			if (modelId !== SV_VIDEO_SEEDANCE_25) throw new Error('Draft resolution is only supported by Seedance 2.5.')
+			// The gateway marks the task as a draft so a later request can finalize it by task id.
+			metadata.draft = true
+			metadata.resolution = '480p'
+		} else if (resolution) {
+			metadata.resolution = resolution
+		}
 		if (params.generate_audio !== undefined) metadata.generate_audio = params.generate_audio !== false && params.generate_audio !== 'false'
 		if (outputFormat) metadata.output_format = outputFormat
 		body.metadata = metadata
@@ -619,6 +636,7 @@ function buildVideoBody(
 		if (audioUrls.length) body.audios = audioUrls
 		if (videoUrls.length) body.videos = videoUrls
 	} else {
+		if (resolution === 'draft') throw new Error('Draft resolution is only supported by Seedance 2.5.')
 		// Send the full ordered images array (plural) so the gateway can do first-frame,
 		// first-last-frame, or multi-image reference modes; `videos` enables video-extend.
 		if (imageUrls.length) body.images = imageUrls
@@ -628,6 +646,20 @@ function buildVideoBody(
 		if (resolution) body.resolution = resolution
 	}
 	return body
+}
+
+/**
+ * Seedance 2.5 final video from an SVRouter draft. The gateway resolves the public
+ * draft task id to the upstream draft and rejects anything the draft already fixed
+ * (prompt, references, duration, ratio, seed, audio), so send only output settings.
+ */
+export function buildSeedanceFinalBody(draft: SeedanceDraftMetadata): JsonRecord {
+	const source = decodeSeedanceDraft(draft)
+	if (!source || source.providerId !== 'svnewapi') throw new Error('SVRouter: invalid Seedance draft metadata.')
+	return {
+		model: source.apiModelId,
+		metadata: { draft_task_id: source.taskId, resolution: '1080p', output_format: source.outputFormat, watermark: false },
+	}
 }
 
 export class SvNewApiAudioProvider implements AudioProvider {
