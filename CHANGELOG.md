@@ -4,9 +4,11 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
-- Add Draft to Seedance 2.5 resolution choices on SVRouter. Generate 1080p finalizes an SVRouter draft through SVRouter; drafts stay tied to the provider that created them.
-
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
+
+## 1.46.0 — 2026-10-30
+
+- Add Draft to Seedance 2.5 resolution choices on SVRouter. Generate 1080p finalizes an SVRouter draft through SVRouter; drafts stay tied to the provider that created them.
 
 ## 1.45.0 — 2026-10-27
 

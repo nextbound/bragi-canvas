@@ -172,11 +172,13 @@ When you add a model/provider, run the check; if it fails, fix the catalog rathe
 - SuChuang does not support reference videos for this endpoint.
 - Treat status `0` / `1` as pending, `2` as success, and `3` as failure.
 
-## Seedance 2.5 Draft Mode (1.44.0)
+## Seedance 2.5 Draft Mode (BytePlus 1.44.0; SVRouter 1.46.0)
 
 BytePlus and SVRouter extend the existing `resolution` parameter through `providerOverrides` with `draft`. Other providers and Seedance versions keep their current choices. The default remains `720p`; ordinary `480p` is not a draft. Submission maps `draft` to `resolution: "480p"` plus `draft: true`, retaining the normal generation controls.
 
 The accepted task snapshot carries `seedanceDraft`; completion stores the validated marker as `bragiSeedanceDraft` on the video file node. It contains the provider, catalog model, task ID, original API model ID, local submission timestamp, and output format. It contains no credentials. Task restoration and result-save retries retain this marker.
+
+### BytePlus
 
 When Seedance 2.5 is enabled and its active configured provider is BytePlus, a marked video node offers **Generate 1080p**. The action creates a separate normal placeholder connected to the draft, retains the source, and uses the current BytePlus configuration with the original task and API model IDs. It submits only `model`, `content: [{ type: "draft_task", draft_task: { id } }]`, `resolution: "1080p"`, `output_format`, and `watermark: false`. It must not resend prompt, references, duration, ratio, seed, audio, or task-type fields. Pending submissions for the same source are deduplicated; completed outputs have no draft marker.
 
