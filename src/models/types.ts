@@ -54,6 +54,8 @@ export interface ModelParam {
 	id: string
 	label: string
 	type: 'select' | 'number' | 'range'
+	/** Keep this parameter available to agents and omit it from the canvas generator. */
+	hiddenInGenerator?: boolean
 	/**
 	 * Restrict this parameter to specific generation modes. Omit for parameters
 	 * that apply to every mode on the model.
@@ -85,6 +87,8 @@ export interface ModelParam {
  */
 export interface ProviderConfig {
 	apiModelId: string
+	/** How long the task queue checks this provider's model before pausing. */
+	taskCheckWindowMs?: number
 	/**
 	 * This provider routes the model to multiple upstream model IDs internally,
 	 * keyed either by mode (DashScope Wan 2.7 / HappyHorse 1.1, DashScope voice)

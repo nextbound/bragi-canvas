@@ -16,6 +16,7 @@ import { omniFlashExt } from './omni-flash'
 import { minimaxH3 } from './minimax-h3'
 import { viduQ4 } from './vidu'
 import { fastH3Omni } from './fast-h3-omni'
+import { magi2 } from './magi-2'
 import {
 	elevenLabsTTS,
 	minimaxTTS,
@@ -68,6 +69,7 @@ export const ALL_MODELS: ModelConfig[] = [
 	minimaxH3,
 	viduQ4,
 	fastH3Omni,
+	magi2,
 	omniFlashExt,
 	// Text
 	claudeOpus47,

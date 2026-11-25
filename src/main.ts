@@ -842,6 +842,9 @@ export default class BragiCanvas extends Plugin {
 				refAudios = prepared.refAudios
 				refPdfs = prepared.refPdfs
 			} else {
+				if (model.id === 'magi-2' && (uniqueImages.length || uniqueVideos.length || uniqueAudios.length || uniquePdfs.length)) {
+					throw new Error('MAGI-2 text-to-video requires a prompt without media references.')
+				}
 			// Seedance can consume provider-specific asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7'

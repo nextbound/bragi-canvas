@@ -11,6 +11,7 @@ import { SeedreamProvider } from './seedream'
 import { SeedanceProvider } from './seedance'
 import { KlingProvider } from './kling'
 import { PikaVideoProvider, testPikaConnection } from './pika'
+import { HiggsfieldVideoProvider, testHiggsfieldConnection } from './higgsfield'
 import { VeoProvider } from './veo'
 import { FalImageProvider, FalVideoProvider } from './fal'
 import { FalAudioProvider } from './fal-audio'
@@ -311,6 +312,16 @@ export const PROVIDERS: ProviderSpec[] = [
 		makeVideo: ({ settings, app, outputDir }) =>
 			new PikaVideoProvider(settings.providers.pika, app, outputDir),
 		testConnection: (d) => testPikaConnection(d.pika || ''),
+	},
+	{
+		id: 'higgsfield',
+		name: 'Higgsfield',
+		docUrl: 'https://console.higgsfield.ai',
+		fields: [{ key: 'higgsfield', label: 'API key', placeholder: 'key-id:secret', type: 'password' }],
+		isConfigured: (s) => !!s.providers.higgsfield?.trim(),
+		makeVideo: ({ settings, app, outputDir }) =>
+			new HiggsfieldVideoProvider(settings.providers.higgsfield, app, outputDir),
+		testConnection: (d) => testHiggsfieldConnection(d.higgsfield || ''),
 	},
 	{
 		id: 'fal',

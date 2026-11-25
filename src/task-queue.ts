@@ -4,6 +4,7 @@ import type { Canvas, CanvasNode } from './types/canvas-internal'
 import { markNodeFailed, detachGeneratingOverlay, setGeneratingStatus } from './canvas-ops'
 import { classifyTaskError, errorMessage } from './task-errors'
 import { decodeSeedanceDraft, type SeedanceDraftMetadata } from './seedance-draft'
+import { ALL_MODELS } from './models'
 
 export const TASK_CHECK_WINDOW_MS = 15 * 60 * 1000
 export const TASK_MAX_AUTO_RETRIES = 5
@@ -25,6 +26,7 @@ export interface TaskSnapshot {
 	lastError?: string
 	filePath?: string
 	checkDeadlineAt?: number
+	checkWindowMs?: number
 	seedanceDraft?: SeedanceDraftMetadata
 }
 interface TaskRuntime {
@@ -42,6 +44,15 @@ interface PendingTask extends TaskRuntime {
 }
 const STATES = new Set<TaskState>(['waiting-canvas', 'polling', 'downloading', 'retrying', 'needs-attention', 'ready-to-apply'])
 export const taskKey = (task: Pick<TaskSnapshot, 'providerName' | 'taskId'>): string => JSON.stringify([task.providerName, task.taskId])
+
+function setCheckWindow(snapshot: TaskSnapshot, startedAt: number): void {
+	const provider = ALL_MODELS.find(model => {
+		const config = model.supportedProviders[snapshot.providerName]
+		return config?.apiModelId === snapshot.apiModelId && config.taskCheckWindowMs !== undefined
+	})?.supportedProviders[snapshot.providerName]
+	snapshot.checkWindowMs = provider?.taskCheckWindowMs ?? TASK_CHECK_WINDOW_MS
+	snapshot.checkDeadlineAt = startedAt + snapshot.checkWindowMs
+}
 
 /** Pure legacy snapshot decoder. File/task state is separate from settings migrations. */
 export function decodeTaskSnapshots(value: unknown): TaskSnapshot[] {
@@ -62,8 +73,12 @@ export function decodeTaskSnapshots(value: unknown): TaskSnapshot[] {
 		for (const field of ['filePath', 'lastError'] as const) if (typeof raw[field] === 'string') snapshot[field] = raw[field]
 		const draft = decodeSeedanceDraft(raw.seedanceDraft)
 		if (draft && draft.providerId === snapshot.providerName && draft.taskId === snapshot.taskId && draft.apiModelId === snapshot.apiModelId) snapshot.seedanceDraft = draft
-		for (const field of ['retryCount', 'nextRetryAt', 'checkDeadlineAt'] as const) if (typeof raw[field] === 'number' && Number.isFinite(raw[field]) && raw[field] >= 0) snapshot[field] = raw[field]
-		snapshot.checkDeadlineAt ??= snapshot.startedAt + TASK_CHECK_WINDOW_MS
+		for (const field of ['retryCount', 'nextRetryAt', 'checkDeadlineAt', 'checkWindowMs'] as const) if (typeof raw[field] === 'number' && Number.isFinite(raw[field]) && raw[field] >= 0) snapshot[field] = raw[field]
+		// Keep the original start of this check window, including for resumed tasks.
+		const windowStartedAt = snapshot.checkDeadlineAt === undefined
+			? snapshot.startedAt
+			: snapshot.checkDeadlineAt - (snapshot.checkWindowMs || TASK_CHECK_WINDOW_MS)
+		setCheckWindow(snapshot, windowStartedAt)
 		result.set(taskKey(snapshot), snapshot)
 	}
 	return [...result.values()]
@@ -101,7 +116,9 @@ export class TaskQueue {
 	async addTask(task: PendingTask): Promise<void> {
 		const key = taskKey(task.snapshot)
 		if (this.tasks.has(key)) return
-		this.tasks.set(key, { snapshot: { ...task.snapshot, state: 'polling', checkDeadlineAt: Date.now() + TASK_CHECK_WINDOW_MS }, runtime: task })
+		const snapshot: TaskSnapshot = { ...task.snapshot, state: 'polling' }
+		setCheckWindow(snapshot, Date.now())
+		this.tasks.set(key, { snapshot, runtime: task })
 		try { await this.persist() } catch (error) {
 			const saved = this.tasks.get(key)!
 			saved.snapshot.state = 'needs-attention'
@@ -145,7 +162,7 @@ export class TaskQueue {
 			delete task.snapshot.lastError
 			delete task.snapshot.nextRetryAt
 			task.snapshot.retryCount = 0
-			task.snapshot.checkDeadlineAt = Date.now() + TASK_CHECK_WINDOW_MS
+			setCheckWindow(task.snapshot, Date.now())
 			this.render(task)
 		}
 		void this.persist().catch(error => console.error('Bragi task save:', error))
@@ -188,8 +205,10 @@ export class TaskQueue {
 			if (task.snapshot.state === 'needs-attention') return
 			// The deadline also stops the spinner while an HTTP or storage call is still in flight.
 			// Its eventual result remains eligible for recovery; never submit a replacement task.
-			if (Date.now() >= (task.snapshot.checkDeadlineAt ?? task.snapshot.startedAt + TASK_CHECK_WINDOW_MS)) {
-				await this.pause(task, 'No result after 15 minutes of checking. The provider may still be working. Your task is saved; resume checking to continue.')
+			const checkWindowMs = task.snapshot.checkWindowMs ?? TASK_CHECK_WINDOW_MS
+			if (Date.now() >= (task.snapshot.checkDeadlineAt ?? task.snapshot.startedAt + checkWindowMs)) {
+				const minutes = checkWindowMs / 60000
+				await this.pause(task, `No result after ${minutes} minutes of checking. The provider may still be working. Your task is saved. Resume checking to continue.`)
 				return
 			}
 			if (this.inFlight.has(key)) return
