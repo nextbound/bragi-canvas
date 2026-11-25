@@ -46,6 +46,17 @@ Example: Wan 2.7 (`src/models/wan.ts`) is one model with DashScope (aggregated, 
 
 When you add a model/provider, run the check; if it fails, fix the catalog rather than the script.
 
+## MAGI-2 (Higgsfield)
+
+- Keep the stable Bragi model ID `magi-2`. The aggregated Higgsfield ID `sand/magi-2` routes to `text-to-video`, `image-to-video`, or `reference-to-video` under the same prefix. Use the existing request-ID status and MP4 download path for all modes.
+- Text-to-video needs a prompt and accepts no media. First-frame uses `image_url`; first-and-last-frame also uses `end_image_url`. Use the visible image order. The frame and reference endpoints allow an omitted prompt.
+- Reference-to-video accepts up to 10 images, 5 videos, and 5 audio clips in `image_urls`, `video_urls`, and `audio_urls` respectively. Any one modality is sufficient, including audio alone. Omit empty arrays. Deliver all vault media through Bragi Relay HTTPS. Reject PDF inputs and incompatible mode/input combinations before upload.
+- Use 1080p, a whole duration of 4–30 seconds, one of six documented ratios, and generated audio on by default. Omit the seed for random results. Keep the optional numeric seed in MCP only.
+- Infer text mode without media, first-frame with one image, first-and-last-frame with two images, and reference-to-video with more images or any video/audio. Explicit mode selection overrides inference.
+- Keep the 45-minute check window for all modes and legacy task snapshots with the old text route ID.
+
+References: [Text](https://open.higgsfield.ai/models/sand/magi-2/text-to-video/api-reference), [Image](https://open.higgsfield.ai/models/sand/magi-2/image-to-video/api-reference), [Reference](https://open.higgsfield.ai/models/sand/magi-2/reference-to-video/api-reference).
+
 ## Legnext Midjourney V8.2
 
 - Bragi keeps the stable model ID `midjourney-v8` while displaying Midjourney V8.2 and injecting `--v 8.2` when the prompt does not already contain `--v` or `--version`.

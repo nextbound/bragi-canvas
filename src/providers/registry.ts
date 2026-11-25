@@ -318,6 +318,7 @@ export const PROVIDERS: ProviderSpec[] = [
 		name: 'Higgsfield',
 		docUrl: 'https://console.higgsfield.ai',
 		fields: [{ key: 'higgsfield', label: 'API key', placeholder: 'key-id:secret', type: 'password' }],
+		defaultRefDelivery: { image: 'relay', video: 'relay', audio: 'relay' },
 		isConfigured: (s) => !!s.providers.higgsfield?.trim(),
 		makeVideo: ({ settings, app, outputDir }) =>
 			new HiggsfieldVideoProvider(settings.providers.higgsfield, app, outputDir),

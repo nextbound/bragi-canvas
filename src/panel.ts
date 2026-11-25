@@ -37,6 +37,7 @@ const MODE_LABELS: Record<string, string> = {
 	'keyframes': 'Keyframes',
 	'multi-image-ref': 'Multi Image Ref',
 	'video-ref': 'Ref Video',
+	'reference-to-video': 'Reference to video',
 	'video-extend': 'Extend Video',
 	'video-edit': 'Edit Video',
 	'motion-control': 'Motion Control',
@@ -874,7 +875,7 @@ export function showGenerateBar(
 		// but only when an image is present too (it needs both a character + a clip).
 		if (upstreamVideoCount > 0) {
 			if (upstreamImageCount > 0 && m.modes.includes('motion-control')) return true
-			return m.modes.includes('video-ref') || m.modes.includes('video-extend') || m.modes.includes('video-edit')
+			return m.modes.includes('reference-to-video') || m.modes.includes('video-ref') || m.modes.includes('video-extend') || m.modes.includes('video-edit')
 		}
 		// Has 2+ images — needs first-last-frame, multi-image-ref, or image-ref
 		if (upstreamImageCount >= 2) {
@@ -1096,7 +1097,7 @@ export function showGenerateBar(
 				}
 			}
 
-			if (!prompt && !kling4PromptOptional(selectedModel?.id || '', selectedMode) && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount + upstreamPdfCount) && !(canvas && (await getOrderedPrompts(canvas, node, app)).some(text => text.trim()))) {
+			if (!prompt && !kling4PromptOptional(selectedModel?.id || '', selectedMode) && !allowsEmptyPrompt(selectedModel?.id, selectedMode, upstreamImageCount, upstreamVideoCount + upstreamAudioCount, upstreamPdfCount) && !(canvas && (await getOrderedPrompts(canvas, node, app)).some(text => text.trim()))) {
 				new Notice('Bragi canvas: no prompt found in this node')
 				return
 			}

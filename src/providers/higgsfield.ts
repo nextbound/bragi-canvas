@@ -1,5 +1,5 @@
 import { normalizePath, requestUrl, type App, type RequestUrlResponse } from 'obsidian'
-import { MAGI_2_API_MODEL_ID, MAGI_2_DURATION, MAGI_2_MAX_SEED, MAGI_2_RATIOS, MAGI_2_RESOLUTION } from '../models/magi-2'
+import { MAGI_2_API_MODEL_ID, MAGI_2_DURATION, MAGI_2_MAX_SEED, MAGI_2_RATIOS, MAGI_2_RESOLUTION, MAGI_2_TEXT_API_MODEL_ID } from '../models/magi-2'
 import { assertPendingStatus, pollRequest, TaskPollingError, withTimeout, writeTaskResult } from '../task-errors'
 import type { GenerateVideoResult, VideoProvider } from './types'
 
@@ -13,16 +13,75 @@ function integerParam(value: unknown, fallback: number): number {
 	return NaN
 }
 
-function videoBody(prompt: string, params: Record<string, unknown>) {
-	if (!prompt.trim() || Array.from(prompt).length > MAX_PROMPT_LENGTH) {
-		throw new Error('MAGI-2 requires a prompt of 1 to 15000 characters.')
+export interface Magi2References {
+	images: string[]
+	videos: string[]
+	audios: string[]
+	pdfs: string[]
+}
+
+export function validateMagi2Inputs(prompt: string, mode: unknown, { images, videos, audios, pdfs }: Magi2References): void {
+	if (Array.from(prompt).length > MAX_PROMPT_LENGTH || (mode === 'text-to-video' && !prompt.trim())) {
+		throw new Error('MAGI-2 requires a prompt of 1 to 15000 characters when text is used.')
 	}
-	if ((params.genMode ?? 'text-to-video') !== 'text-to-video') {
-		throw new Error('This MAGI-2 connection supports text-to-video only.')
+	if (pdfs.length) throw new Error('MAGI-2 does not support PDF references.')
+	switch (mode) {
+		case 'text-to-video':
+			if (images.length || videos.length || audios.length) throw new Error('MAGI-2 text-to-video requires a prompt without media references.')
+			return
+		case 'first-frame':
+		case 'first-last-frame': {
+			const count = mode === 'first-frame' ? 1 : 2
+			if (images.length !== count || videos.length || audios.length) {
+				throw new Error(`MAGI-2 ${mode} requires exactly ${count} image${count === 1 ? '' : 's'} and no video or audio.`)
+			}
+			return
+		}
+		case 'reference-to-video':
+			if (!images.length && !videos.length && !audios.length) throw new Error('MAGI-2 reference-to-video requires an image, video, or audio reference.')
+			if (images.length > 10 || videos.length > 5 || audios.length > 5) {
+				throw new Error('MAGI-2 supports up to 10 images, 5 videos, and 5 audio clips.')
+			}
+			return
+		default:
+			throw new Error('Unsupported MAGI-2 generation mode.')
 	}
-	if ([params.refImages, params.refVideos, params.refAudios, params.refPdfs].some(refs => Array.isArray(refs) && refs.length)) {
-		throw new Error('MAGI-2 text-to-video requires a prompt without media references.')
+}
+
+export async function validateMagi2Media(app: App, { images, videos, audios }: Magi2References): Promise<void> {
+	if (videos.some(path => !/\.(mp4|mov)$/i.test(path)) || audios.some(path => !/\.(wav|mp3)$/i.test(path))) {
+		throw new Error('MAGI-2 references must use MP4 or MOV for video and WAV or MP3 for audio.')
 	}
+	for (const [paths, maxBytes, label] of [
+		[images, 29_999_999, 'images under 30 MB'],
+		[videos, 200_000_000, 'videos up to 200 MB'],
+		[audios, 15_000_000, 'audio clips up to 15 MB'],
+	] as const) {
+		for (const path of paths) {
+			const stat = await app.vault.adapter.stat(path)
+			if (!stat || stat.type !== 'file' || !stat.size) throw new Error('A MAGI-2 reference is missing or empty.')
+			if (stat.size > maxBytes) throw new Error(`MAGI-2 requires ${label}.`)
+		}
+	}
+}
+
+function referenceList(value: unknown): string[] {
+	if (value === undefined) return []
+	if (!Array.isArray(value) || !value.every((url: unknown): url is string => typeof url === 'string' && url.length <= 8192 && /^https:\/\/[^/\s?#]+(?:[/?#]\S*)?$/.test(url))) {
+		throw new Error('MAGI-2 references must use public HTTPS URLs.')
+	}
+	return value
+}
+
+function videoRequest(prompt: string, params: Record<string, unknown>) {
+	const mode = params.genMode ?? 'text-to-video'
+	const refs = {
+		images: referenceList(params.refImages),
+		videos: referenceList(params.refVideos),
+		audios: referenceList(params.refAudios),
+		pdfs: referenceList(params.refPdfs),
+	}
+	validateMagi2Inputs(prompt, mode, refs)
 	const duration = integerParam(params.duration, MAGI_2_DURATION.default)
 	if (!Number.isInteger(duration) || duration < MAGI_2_DURATION.min || duration > MAGI_2_DURATION.max) {
 		throw new Error('MAGI-2 duration must be a whole number from 4 to 30 seconds.')
@@ -41,7 +100,32 @@ function videoBody(prompt: string, params: Record<string, unknown>) {
 	if (!Number.isInteger(seed) || seed < -1 || seed > MAGI_2_MAX_SEED) {
 		throw new Error('MAGI-2 seed must be -1 for random or a whole number from 0 to 4294967295.')
 	}
-	return { prompt, duration, aspect_ratio: aspectRatio, resolution, generate_audio: audio === true || audio === 'true', ...(seed === -1 ? {} : { seed }) }
+	const body = {
+		...(prompt.trim() ? { prompt } : {}),
+		duration,
+		aspect_ratio: aspectRatio,
+		resolution,
+		generate_audio: audio === true || audio === 'true',
+		...(seed === -1 ? {} : { seed }),
+	}
+	if (mode === 'first-frame' || mode === 'first-last-frame') {
+		return {
+			modelId: `${MAGI_2_API_MODEL_ID}/image-to-video`,
+			body: { ...body, image_url: refs.images[0], ...(mode === 'first-last-frame' ? { end_image_url: refs.images[1] } : {}) },
+		}
+	}
+	if (mode === 'reference-to-video') {
+		return {
+			modelId: `${MAGI_2_API_MODEL_ID}/reference-to-video`,
+			body: {
+				...body,
+				...(refs.images.length ? { image_urls: refs.images } : {}),
+				...(refs.videos.length ? { video_urls: refs.videos } : {}),
+				...(refs.audios.length ? { audio_urls: refs.audios } : {}),
+			},
+		}
+	}
+	return { modelId: MAGI_2_TEXT_API_MODEL_ID, body }
 }
 
 function responseData(response: RequestUrlResponse): Record<string, unknown> {
@@ -79,14 +163,15 @@ export class HiggsfieldVideoProvider implements VideoProvider {
 	constructor(private apiKey: string, private app: App, private outputDir: string) {}
 
 	async generateVideo(prompt: string, params: Record<string, unknown> = {}): Promise<GenerateVideoResult> {
-		const modelId = params.modelId ?? MAGI_2_API_MODEL_ID
-		if (modelId !== MAGI_2_API_MODEL_ID) throw new Error('Unsupported Higgsfield video model.')
-		const body = JSON.stringify(videoBody(prompt, params))
+		if (params.modelId !== undefined && params.modelId !== MAGI_2_API_MODEL_ID && params.modelId !== MAGI_2_TEXT_API_MODEL_ID) {
+			throw new Error('Unsupported Higgsfield video model.')
+		}
+		const { modelId, body } = videoRequest(prompt, params)
 		const response = await withTimeout(requestUrl({
 			url: `${API_BASE}/${modelId}`,
 			method: 'POST',
 			headers: { ...authorization(this.apiKey), 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-			body,
+			body: JSON.stringify(body),
 			throw: false,
 		}), 90000, new Error('Higgsfield submission timed out. Check whether the request was accepted before trying again.'))
 		const data = responseData(response)
@@ -133,7 +218,7 @@ export async function testHiggsfieldConnection(apiKey: string): Promise<{ ok: bo
 	try {
 		// The required prompt is deliberately absent so this request cannot generate a video.
 		const response = await withTimeout(requestUrl({
-			url: `${API_BASE}/${MAGI_2_API_MODEL_ID}`,
+			url: `${API_BASE}/${MAGI_2_TEXT_API_MODEL_ID}`,
 			method: 'POST',
 			headers: { ...authorization(apiKey), 'Content-Type': 'application/json' },
 			body: '{}',
