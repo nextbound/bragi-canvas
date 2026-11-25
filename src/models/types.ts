@@ -85,6 +85,8 @@ export interface ModelParam {
  */
 export interface ProviderConfig {
 	apiModelId: string
+	/** How long the task queue checks this provider's model before pausing. */
+	taskCheckWindowMs?: number
 	/**
 	 * This provider routes the model to multiple upstream model IDs internally,
 	 * keyed either by mode (DashScope Wan 2.7 / HappyHorse 1.1, DashScope voice)

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { testRuntime } from './test-runtime.mjs'
 
-const { module: { TaskQueue, TASK_CHECK_WINDOW_MS, TaskPollingError, pollRequest, withTimeout }, cleanup } = await testRuntime(`
+const { module: { TaskQueue, TASK_CHECK_WINDOW_MS, decodeTaskSnapshots, TaskPollingError, pollRequest, withTimeout }, cleanup } = await testRuntime(`
 export * from './src/task-queue'; export * from './src/task-errors';
 `)
 globalThis.window = { setInterval: () => 1, clearInterval: () => {}, setTimeout, clearTimeout }
@@ -41,6 +41,42 @@ try {
 	assert.equal(checks, 2)
 	assert.equal(queue.getSnapshots()[0].taskId, 'accepted-task')
 	queue.stop()
+
+	// Existing MAGI-2 checks keep their original window start, even after reload.
+	const magiIdentity = { providerName: 'higgsfield', apiModelId: 'sand/magi-2/text-to-video' }
+	const magiWindow = 45 * 60000
+	const resumedAt = clock - 60000
+	const legacy = { ...snapshot(), ...magiIdentity, startedAt: clock - 20 * 60000, checkDeadlineAt: resumedAt + TASK_CHECK_WINDOW_MS }
+	const [migrated] = decodeTaskSnapshots([legacy])
+	assert.equal(migrated.checkDeadlineAt, resumedAt + magiWindow)
+	assert.deepEqual(decodeTaskSnapshots([migrated]), [migrated])
+	for (const identity of [{ ...magiIdentity, providerName: 'other' }, { ...magiIdentity, apiModelId: 'other' }]) {
+		assert.equal(decodeTaskSnapshots([{ ...legacy, ...identity }])[0].checkDeadlineAt, legacy.checkDeadlineAt)
+	}
+
+	// A new MAGI-2 job stays live past 15 minutes and resumes the same job after 45.
+	const fixture = setup(async () => ({ done: false }))
+	fixture.queue.stop()
+	const magiQueue = new TaskQueue()
+	const checkedMagiIds = []
+	await magiQueue.addTask({
+		snapshot: { ...snapshot(), ...magiIdentity },
+		canvas: fixture.canvas, placeholder: fixture.node, sourceNode: { id: 'source' },
+		provider: { checkStatus: async id => { checkedMagiIds.push(id); return { done: false } } },
+	})
+	assert.equal(magiQueue.getSnapshots()[0].checkDeadlineAt, clock + magiWindow)
+	clock += TASK_CHECK_WINDOW_MS
+	await magiQueue.pollAll()
+	assert.equal(magiQueue.getSnapshots()[0].state, 'polling')
+	clock += magiWindow - TASK_CHECK_WINDOW_MS
+	await magiQueue.pollAll()
+	assert.equal(magiQueue.getSnapshots()[0].state, 'needs-attention')
+	assert.match(fixture.node.presentation.detail, /45 minutes/)
+	fixture.node.presentation.onResume()
+	assert.equal(magiQueue.getSnapshots()[0].checkDeadlineAt, clock + magiWindow)
+	await magiQueue.pollAll()
+	assert.deepEqual(checkedMagiIds, ['accepted-task', 'accepted-task'])
+	magiQueue.stop()
 
 	// The watchdog also pauses an in-flight request; resuming never overlaps that request.
 	let finish

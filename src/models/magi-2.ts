@@ -10,7 +10,7 @@ export const magi2: ModelConfig = {
 	id: 'magi-2',
 	name: 'MAGI-2',
 	type: 'video',
-	supportedProviders: { higgsfield: { apiModelId: MAGI_2_API_MODEL_ID } },
+	supportedProviders: { higgsfield: { apiModelId: MAGI_2_API_MODEL_ID, taskCheckWindowMs: 45 * 60 * 1000 } },
 	modes: ['text-to-video'],
 	params: [
 		{ id: 'duration', label: 'Duration', type: 'range', ...MAGI_2_DURATION, step: 1, unit: 's' },
