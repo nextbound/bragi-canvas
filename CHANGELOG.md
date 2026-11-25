@@ -4,6 +4,8 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
+- Add opt-in MAGI-2 text-to-video through Higgsfield, with 1080p output, optional generated audio, six ratios, and a 4–30 second duration.
+
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
 
 ## 1.46.0 — 2026-10-30

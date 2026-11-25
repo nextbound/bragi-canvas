@@ -6,7 +6,7 @@ import { testRuntime } from './test-runtime.mjs'
 const { module: runtime, cleanup } = await testRuntime(`
 export { BreezeBlueProvider, buildBreezeBluePreviewRequest, testBreezeBlueConnection } from './src/providers/breezeblue';
 export { breezeVoiceDesign } from './src/models/audio';
-export { migrateSettings } from './src/settings-migrations';
+export { migrateSettings, CURRENT_SETTINGS_SCHEMA_VERSION } from './src/settings-migrations';
 export { getEnabledModels } from './src/models';
 export { createMcpToolRegistry } from './src/mcp-tool-registry';
 `)
@@ -66,7 +66,7 @@ try {
 
 	const migrated = migrateSettings({ settingsSchemaVersion: 14, providers: { sonilo: 'existing-key' }, modelPrefs: {}, providerModelPrefs: {} }, undefined, { strict: true })
 	assert.equal(migrated.valid, true)
-	assert.equal(migrated.settings.settingsSchemaVersion, 15)
+	assert.equal(migrated.settings.settingsSchemaVersion, runtime.CURRENT_SETTINGS_SCHEMA_VERSION)
 	assert.equal(migrated.settings.providers.breezeblue, '')
 	assert.equal(migrated.settings.providers.sonilo, 'existing-key')
 	migrated.settings.providers.breezeblue = 'test-key'

@@ -39,6 +39,7 @@
     "test:tokenrouter-modelark-assets": "node scripts/verify-tokenrouter-modelark-assets.mjs",
     "test:text-multimodal": "node scripts/verify-text-multimodal.mjs",
     "test:pika-provider": "node scripts/verify-pika-provider.mjs",
+    "test:higgsfield-magi-2": "node scripts/verify-higgsfield-magi-2.mjs",
     "test:mureka-music": "node scripts/verify-mureka-music.mjs",
     "test:sonilo-music": "node scripts/verify-sonilo-music.mjs",
     "test:dashscope-voice-design": "node scripts/verify-dashscope-voice-design.mjs",

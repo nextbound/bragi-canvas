@@ -106,6 +106,7 @@ export interface BragiSettings {
 			runpod: string
 			fal: string
 			pika: string
+			higgsfield: string
 		minimax: string
 		mureka: string
 		sonilo: string
@@ -185,6 +186,7 @@ export const DEFAULT_SETTINGS: BragiSettings = {
 			runpod: '',
 			fal: '',
 			pika: '',
+			higgsfield: '',
 		minimax: '',
 		mureka: '',
 		sonilo: '',

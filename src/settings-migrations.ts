@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, type BragiSettings, type GeneratedAssetRecord, type L
 
 type UnknownRecord = Record<string, unknown>
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 15
+export const CURRENT_SETTINGS_SCHEMA_VERSION = 16
 const PROVIDER_MODEL_PREFS_SCHEMA_VERSION = 2
 
 // Freeze the legacy auto-connect behavior at the 1.44.0 catalog. New models
@@ -631,7 +631,7 @@ export function migrateSettings(
 	pruneApiModelIdOverrides(settings)
 	migrateDashScopeWan27(settings, previousVersion)
 	migrateSeedance25SvRouter(settings, previousVersion)
-	// Schema 15 adds the BreezeBlue key through readSettings' default-key whitelist.
+	// Schema 16 adds the Higgsfield key through readSettings' default-key whitelist.
 	// Existing models and provider connections stay explicitly opt-in.
 	settings.settingsSchemaVersion = CURRENT_SETTINGS_SCHEMA_VERSION
 
