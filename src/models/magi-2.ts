@@ -26,6 +26,6 @@ export const magi2: ModelConfig = {
 			id: 'generate_audio', label: 'Audio', type: 'select', default: 'true',
 			options: [{ label: 'On', value: 'true' }, { label: 'Off', value: 'false' }],
 		},
-		{ id: 'seed', label: 'Seed (-1 for random)', type: 'number', default: -1, min: -1, max: MAGI_2_MAX_SEED, step: 1 },
+		{ id: 'seed', label: 'Seed (-1 for random)', type: 'number', default: -1, min: -1, max: MAGI_2_MAX_SEED, step: 1, hiddenInGenerator: true },
 	],
 }

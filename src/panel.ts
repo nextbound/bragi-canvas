@@ -116,12 +116,12 @@ function paramVisibleForMode(param: ModelParam, mode: Mode | null): boolean {
 	return !param.modes || (!!mode && param.modes.includes(mode))
 }
 
-function paramHiddenForProvider(param: ModelParam, provider: string | null | undefined): boolean {
-	return !!(provider && param.providerOverrides?.[provider]?.hidden)
+function paramHiddenInGenerator(param: ModelParam, provider: string | null | undefined): boolean {
+	return param.hiddenInGenerator === true || !!(provider && param.providerOverrides?.[provider]?.hidden)
 }
 
 function paramsVisibleForMode(model: ModelConfig, mode: Mode | null, provider?: string | null): ModelParam[] {
-	return model.params.filter(param => paramVisibleForMode(param, mode) && !paramHiddenForProvider(param, provider))
+	return model.params.filter(param => paramVisibleForMode(param, mode) && !paramHiddenInGenerator(param, provider))
 }
 
 function renderRangeParamDropdown(
@@ -575,7 +575,7 @@ export function showGenerateBar(
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
 		for (const baseParam of selectedModel.params) {
-			if (paramHiddenForProvider(baseParam, provider)) continue
+			if (paramHiddenInGenerator(baseParam, provider)) continue
 			const p = applyProviderOverride(baseParam, provider)
 			// Keep current value if same param exists and value is valid in new model
 			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
@@ -1310,7 +1310,7 @@ export function showBatchGenerateBar(
 		if (!selectedModel) return
 		const { provider } = resolveProvider(selectedModel, settings)
 		for (const baseParam of selectedModel.params) {
-			if (paramHiddenForProvider(baseParam, provider)) continue
+			if (paramHiddenInGenerator(baseParam, provider)) continue
 			const p = applyProviderOverride(baseParam, provider)
 			const canKeepDynamicVoice = preserveDynamicVoice && p.id === 'voice' && (p.options?.length || 0) === 0
 			if (prev[p.id] !== undefined && (canKeepDynamicVoice || p.options?.some(o => o.value === String(prev[p.id])))) {
