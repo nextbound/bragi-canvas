@@ -4,9 +4,11 @@ The canonical Bragi Canvas plugin release history. Historical entries describe b
 
 ## Unreleased
 
-- Add first-frame, first-and-last-frame, and multimodal reference generation to the existing Higgsfield MAGI-2 video model.
-
 - Proposed Nano Banana 2 Lite (`nano-banana-2-lite`, `gemini-3.1-flash-lite-image`): direct Gemini image generation at 1K with ten ratios, disabled by default. It is not in the catalog and has not shipped.
+
+## 1.48.0 — 2026-11-26
+
+- Add first-frame, first-and-last-frame, and multimodal reference generation to the existing Higgsfield MAGI-2 video model.
 
 ## 1.47.0 — 2026-11-25
 
