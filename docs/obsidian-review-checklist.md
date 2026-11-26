@@ -7,6 +7,6 @@ Run `npm run verify` on the exact release commit. Pull requests and tagged relea
 - Preserve asynchronous task IDs across reloads, settings saves and retryable failures. Never repeat a paid submission as a polling retry.
 - Capture canvas identity before asynchronous work. Stale views and unloaded plugins must not receive callbacks that mutate their canvas.
 - Keep provider keys out of logs, demos and source. Explain reference uploads and the optional local MCP server accurately. Validate MCP Host, Origin, token (when configured), JSON body size and timeout.
-- Validate in a dedicated Obsidian test vault; production builds are pure. `npm run sync:dev-vault -- /absolute/plugin/directory` is an explicit developer action.
+- Use the test location designated by the workspace or user for interactive validation. Production builds are pure. `npm run sync:dev-vault -- /absolute/plugin/directory` is an explicit developer action.
 - Keep manifest, package, lock, versions and changelog aligned. Tag plain numeric semver and verify the three separate release assets: `manifest.json`, `main.js`, `styles.css`.
 - After successful release, open `https://community.obsidian.md/account/plugins/bragi-canvas/check-release` for the Community release check.

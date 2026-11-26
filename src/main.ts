@@ -1,3 +1,4 @@
+import { validateMagi2Inputs, validateMagi2Media, type Magi2References } from './providers/higgsfield'
 import { allowsEmptyPrompt } from './generation-prompt'
 import { buildApimartViduRequest } from './providers/apimart-vidu-payload'
 import { resolveWan30ApiModelId } from './providers/wan30-variant'
@@ -502,7 +503,7 @@ export default class BragiCanvas extends Plugin {
 			}
 			if (!prompt && !kling4PromptOptional(result.model.id, result.mode)) {
 				const upstream = getUpstreamInputs(getCanvasFromNode(node), node)
-				if (!allowsEmptyPrompt(result.model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) return
+				if (!allowsEmptyPrompt(result.model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length, upstream.pdfs.length)) return
 			}
 			await this.executeGeneration(node, { ...result, prompt })
 		})
@@ -699,7 +700,15 @@ export default class BragiCanvas extends Plugin {
 			: [...upstreamPrompts, prompt].filter(Boolean)
 		const finalPrompt = allPrompts.join('\n')
 
-		if (!finalPrompt.trim() && !kling4PromptOptional(model.id, result.mode) && !allowsEmptyPrompt(model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length + upstream.pdfs.length)) {
+		const magiRefs = model.id === 'magi-2' ? {
+			images: getOrderedImages(canvas, node),
+			videos: [...new Set(upstream.videos)],
+			audios: [...new Set(getOrderedAudios(canvas, node))],
+			pdfs: [...new Set(upstream.pdfs)],
+		} : undefined
+		if (magiRefs) validateMagi2Inputs(finalPrompt, result.mode ?? 'text-to-video', magiRefs)
+
+		if (!magiRefs && !finalPrompt.trim() && !kling4PromptOptional(model.id, result.mode) && !allowsEmptyPrompt(model.id, result.mode, upstream.images.length, upstream.videos.length + upstream.audios.length, upstream.pdfs.length)) {
 			new Notice('No prompt to generate from')
 			return null
 		}
@@ -729,7 +738,7 @@ export default class BragiCanvas extends Plugin {
 		new Notice(`Generating ${model.name}${inputInfo}…`)
 
 		// Fire the provider call in the background — placeholder id is returned immediately.
-		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts, canvasPath, outputDir, capturedKlingImages)
+		void this.runSingleGeneration(node, result, canvas, placeholder, finalPrompt, upstream, upstreamPrompts, canvasPath, outputDir, capturedKlingImages, magiRefs)
 			.catch((err: unknown) => {
 				console.error('Bragi Canvas generation error:', err)
 				if (this.getCanvasPath(canvas) === canvasPath) markNodeFailed(placeholder, errorMessage(err))
@@ -795,6 +804,7 @@ export default class BragiCanvas extends Plugin {
 		canvasPath: string,
 		outputDir: string,
 		capturedKlingImages?: string[],
+		magiRefs?: Magi2References,
 	): Promise<void> {
 		const { model, activeProvider, apiModelId, mode, params } = result
 		try {
@@ -841,10 +851,12 @@ export default class BragiCanvas extends Plugin {
 				refVideos = prepared.refVideos
 				refAudios = prepared.refAudios
 				refPdfs = prepared.refPdfs
+			} else if (magiRefs) {
+				await validateMagi2Media(this.app, magiRefs)
+				for (const path of magiRefs.images) refImages.push(await this.prepareReferenceMedia(activeProvider, model, 'image', path))
+				for (const path of magiRefs.videos) refVideos.push(await this.prepareReferenceMedia(activeProvider, model, 'video', path))
+				for (const path of magiRefs.audios) refAudios.push(await this.prepareReferenceMedia(activeProvider, model, 'audio', path))
 			} else {
-				if (model.id === 'magi-2' && (uniqueImages.length || uniqueVideos.length || uniqueAudios.length || uniquePdfs.length)) {
-					throw new Error('MAGI-2 text-to-video requires a prompt without media references.')
-				}
 			// Seedance can consume provider-specific asset:// IDs.
 			const isSeedanceModel = model.id.startsWith('seedance')
 			const isMuleRouterWan = activeProvider === 'mulerouter' && model.id === 'wan-2.7'

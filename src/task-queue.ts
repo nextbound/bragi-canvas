@@ -5,6 +5,7 @@ import { markNodeFailed, detachGeneratingOverlay, setGeneratingStatus } from './
 import { classifyTaskError, errorMessage } from './task-errors'
 import { decodeSeedanceDraft, type SeedanceDraftMetadata } from './seedance-draft'
 import { ALL_MODELS } from './models'
+import { MAGI_2_API_MODEL_ID, MAGI_2_TEXT_API_MODEL_ID } from './models/magi-2'
 
 export const TASK_CHECK_WINDOW_MS = 15 * 60 * 1000
 export const TASK_MAX_AUTO_RETRIES = 5
@@ -46,9 +47,12 @@ const STATES = new Set<TaskState>(['waiting-canvas', 'polling', 'downloading', '
 export const taskKey = (task: Pick<TaskSnapshot, 'providerName' | 'taskId'>): string => JSON.stringify([task.providerName, task.taskId])
 
 function setCheckWindow(snapshot: TaskSnapshot, startedAt: number): void {
+	const apiModelId = snapshot.providerName === 'higgsfield' && snapshot.apiModelId === MAGI_2_TEXT_API_MODEL_ID
+		? MAGI_2_API_MODEL_ID
+		: snapshot.apiModelId
 	const provider = ALL_MODELS.find(model => {
 		const config = model.supportedProviders[snapshot.providerName]
-		return config?.apiModelId === snapshot.apiModelId && config.taskCheckWindowMs !== undefined
+		return config?.apiModelId === apiModelId && config.taskCheckWindowMs !== undefined
 	})?.supportedProviders[snapshot.providerName]
 	snapshot.checkWindowMs = provider?.taskCheckWindowMs ?? TASK_CHECK_WINDOW_MS
 	snapshot.checkDeadlineAt = startedAt + snapshot.checkWindowMs

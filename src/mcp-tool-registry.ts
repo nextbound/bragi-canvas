@@ -545,11 +545,11 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 		defineTool({
 			category: 'Generation',
 			name: 'generate',
-			description: 'Trigger AI generation on a node. Use a text or .md prompt node. Kling 4.0 frame modes permit empty text; Vidu Q4 Preview first-frame permits empty text with exactly one upstream image. Upstream connected nodes provide reference images/text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
+			description: 'Trigger AI generation on a node. Use a text or .md prompt node. Kling 4.0 frame modes permit empty text; Vidu Q4 Preview first-frame and MAGI-2 media modes permit empty text with valid references. Connect upstream nodes for media or additional prompt text. Returns immediately for sync results (image/text) or with a task status for async results (video).',
 			inputSchema: {
-				nodeId: z.string().describe('ID of a text or Markdown prompt node; supported Kling 4.0 and Vidu frame modes allow empty text'),
+				nodeId: z.string().describe('ID of a text or Markdown prompt node; supported Kling 4.0, Vidu and MAGI-2 modes allow empty text'),
 				modelId: z.string().describe('Model ID (from list_models)'),
-				mode: z.string().optional().describe('Generation mode (e.g. text-to-image, first-frame, tts). Defaults to the first provider mode; Vidu Q4 Preview infers from references.'),
+				mode: z.string().optional().describe('Generation mode (e.g. text-to-image, first-frame, tts). Defaults to the first provider mode; Vidu Q4 Preview and MAGI-2 infer from references.'),
 				params: z.record(z.union([z.string(), z.number()])).optional().describe('Model-specific parameters (from list_models params)'),
 				batchCount: z.number().optional().default(1).describe('Number of parallel generations (1-4)'),
 			},
@@ -589,16 +589,16 @@ export function createMcpToolRegistry(ctx: McpToolContext): McpToolDef[] {
 				if (mode && !providerModes.includes(mode as Mode)) {
 					throw new Error(`Mode "${mode}" is not supported by ${provider} for ${modelId}. Supported modes: ${providerModes.join(', ')}`)
 				}
-				const promptInputs = model.id === 'vidu-q4-preview' ? getUpstreamInputs(canvas, node) : null
+				const promptInputs = model.id === 'vidu-q4-preview' || model.id === 'magi-2' ? getUpstreamInputs(canvas, node) : null
 				const selectedMode = (mode as Mode) || (promptInputs
-					? inferMode(providerModes, promptInputs.images.length, promptInputs.videos.length, promptInputs.audios.length)
+					? inferMode(providerModes, getOrderedImages(canvas, node).length, promptInputs.videos.length, promptInputs.audios.length)
 					: providerModes[0]) || null
 				if (
 					!prompt
 					&& !kling4PromptOptional(model.id, selectedMode)
 					&& !(promptInputs && allowsEmptyPrompt(
-						model.id, selectedMode, promptInputs.images.length,
-						promptInputs.videos.length + promptInputs.audios.length + promptInputs.pdfs.length,
+						model.id, selectedMode, getOrderedImages(canvas, node).length,
+						promptInputs.videos.length + promptInputs.audios.length, promptInputs.pdfs.length,
 					))
 					&& !(await getOrderedPrompts(canvas, node, ctx.app)).some(text => text.trim())
 				) throw new Error('Node contains no prompt text')

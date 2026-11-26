@@ -1,6 +1,8 @@
 import type { Mode } from './models/types'
 
 export function inferMode(modes: Mode[], imageCount: number, videoCount: number, audioCount = 0, audioOnlyVideoRef = false): Mode {
+	if ((audioCount > 0 || videoCount > 0 || imageCount > 2) && modes.includes('reference-to-video')) return 'reference-to-video'
+
 	// Audio refs are multimodal references, never first/last-frame controls.
 	if (audioOnlyVideoRef && audioCount > 0 && imageCount === 0 && videoCount === 0 && modes.includes('video-ref')) return 'video-ref'
 	if (audioCount > 0 && videoCount > 0 && modes.includes('video-ref')) return 'video-ref'
